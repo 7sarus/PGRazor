@@ -45,7 +45,7 @@ def standalone_manifest(data):
                 ns, key = pool.string(axml._u32(attr, 0)), pool.string(axml._u32(attr, 4))
                 if ns == axml.ANDROID_NS and key in ('requiredSplitTypes', 'splitTypes', 'isSplitRequired'): continue
                 if brand_label and ns == axml.ANDROID_NS and key == 'label':
-                    label = pool.add('PGRazor'); struct.pack_into('<I', attr, 8, label); struct.pack_into('<HBBI', attr, 12, 8, 0, 3, label)
+                    label = pool.add('Pok\u00e9mon GO'); struct.pack_into('<I', attr, 8, label); struct.pack_into('<HBBI', attr, 12, 8, 0, 3, label)
                 indexes[index+1] = len(kept)+1; kept.append(attr)
             prefix = raw[:h+start]
             struct.pack_into('<H', prefix, h+12, len(kept))

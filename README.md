@@ -11,7 +11,7 @@ PGRazor adds an in-game menu, independent joystick, encounter controls, and opti
 1. Open [Releases](https://github.com/jpitty03/PGRazor/releases) with an account that has access.
 2. Download **PGRazor.apk**, not a source archive or preview.
 3. Transfer it to your ARM64 Android phone, allow installation from your chosen file manager, and open the APK.
-4. Launch PGRazor and tap the small **R** icon to open the quick menu. Choose **Settings** for the full-screen controls.
+4. Launch **Pokémon GO** (the installed app name) and tap the small **R** icon to open the quick menu. Choose **Settings** for the full-screen controls.
 
 Private releases are test candidates; check their release notes for device-validation status. The current game baseline is **Pokémon GO 0.433.1 / 2026101502**. Native hooks are version-specific. A different game version can leave features unavailable.
 

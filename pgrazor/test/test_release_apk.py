@@ -26,7 +26,7 @@ class ReleaseTests(unittest.TestCase):
         _,c,p,_,_=axml._parse(rewritten)
         starts={name:attrs for _,event,name,attrs,_ in axml._walk(c,p) if event=='start'}
         self.assertNotIn((axml.ANDROID_NS,'requiredSplitTypes'),starts['manifest'])
-        self.assertEqual(starts['application'][(axml.ANDROID_NS,'label')],'PGRazor')
+        self.assertEqual(starts['application'][(axml.ANDROID_NS,'label')],'Pok\u00e9mon GO')
         self.assertEqual(starts['manifest'][(None,'package')],'dev.example.test')
 
     def test_library_merge_and_resource_split_rejection(self):

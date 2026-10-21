@@ -28,7 +28,7 @@ python -B pgrazor/nonroot.py --apk pgrazor/input/game.apkm --download-runtime --
 python -B pgrazor/release_apk.py --run pgrazor/build/nonroot/RUN-ID --output pgrazor/build/release
 ```
 
-Use the run directory printed by the first command. The second command merges the library-only ARM64 configuration split, removes split-install requirements, labels the application PGRazor, aligns and signs **PGRazor.apk**, and writes checksums. It rejects resource/code splits rather than silently dropping them. No command installs anything on a phone.
+Use the run directory printed by the first command. The second command merges the library-only ARM64 configuration split, removes split-install requirements, labels the installed application Pokémon GO (the in-game menu remains PGRazor), aligns and signs **PGRazor.apk**, and writes checksums. It rejects resource/code splits rather than silently dropping them. No command installs anything on a phone.
 
 Single-APK packaging is new and still needs a disconnected-phone install/launch check. Existing split builds remain available in the run directory as a rollback option. Preserve a tested installation until the new candidate has been checked.
 
