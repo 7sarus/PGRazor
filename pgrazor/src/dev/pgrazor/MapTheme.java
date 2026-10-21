@@ -85,6 +85,20 @@ final class MapTheme {
         Window w = dialog.getWindow();
         if (w == null) return;
         w.setBackgroundDrawable(new ColorDrawable(surface()));
+        w.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        w.setStatusBarColor(surface()); w.setNavigationBarColor(surface());
+        if (Build.VERSION.SDK_INT >= 30) w.setDecorFitsSystemWindows(false);
+        w.addFlags(android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN);
+        // AlertDialog normally wraps its internal panel even when the window fills the display.
+        // Stretch that panel and its custom-content frame so weighted history/map content fills it.
+        for (String name : new String[]{"parentPanel", "customPanel", "custom"}) {
+            int id = dialog.getContext().getResources().getIdentifier(name, "id", "android");
+            View panel = id == 0 ? null : w.findViewById(id);
+            if (panel != null && panel.getLayoutParams() != null) {
+                ViewGroup.LayoutParams lp = panel.getLayoutParams();
+                lp.height = ViewGroup.LayoutParams.MATCH_PARENT; panel.setLayoutParams(lp);
+            }
+        }
         w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         final View decor = w.getDecorView();
         decor.setOnApplyWindowInsetsListener((v, insets) -> { applyInsets(v, insets); return insets; });

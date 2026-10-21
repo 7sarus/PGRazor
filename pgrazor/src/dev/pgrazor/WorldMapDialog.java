@@ -376,7 +376,7 @@ public final class WorldMapDialog {
                     available = Math.max(0, MeasureSpec.getSize(heightSpec) - reserved);
                     // EXACTLY means the dialog already reserved the action bar: fill it. AT_MOST (unweighted panel)
                     // keeps a cap so the Teleport/Walk here row can never be pushed below the screen.
-                    if (mode == MeasureSpec.AT_MOST) available = Math.min(available, maximumMapHeight);
+
                 }
                 map.getLayoutParams().height = available;
             }
