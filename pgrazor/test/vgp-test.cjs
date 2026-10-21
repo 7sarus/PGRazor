@@ -49,3 +49,21 @@ console.log('VGP: existing transfer protections and caught-ID isolation passed')
  assert.equal(policy({...p,xxs:undefined},63),'unknown-size');assert.equal(policy(p,63),null);
 }
 console.log('XXS/XXL keep rules and independent opt-out passed');
+
+// Exercise real result handlers, not a copied retry policy. Use deliberately nonstandard enum values.
+for(const [status,delay] of [[11,3600000],[12,5000],[13,3600000],[14,5000],[15,30000],[16,5000],[99,30000]]){
+ const {c}=setup();c.p.vgp.catchStates={CatchSuccess:11,CatchEscape:12,CatchFlee:13,CatchMissed:14,CatchError:15,CatchItemReplacement:16};c.p.success=11;
+ c.exact=()=>true;c.readS32=()=>status;c.vgpQueueTransfer=()=>{};
+ c.vgpPromise=()=>({value:{isNull:()=>false}});c.state.seen.set('p123',3600000);
+ c.state.pending={key:'p123',target:'target',promise:'promise',bag:'bag',deadline:10000,phase:'catch'};
+ c.vgpTick(100);assert.equal(c.state.pending,null);assert.equal(c.state.seen.get('p123'),100+delay);
+}
+{
+ const {c}=setup();c.state.seen.set('p123',3600000);c.state.pending={key:'p123',target:'target',promise:'promise',deadline:10000,phase:'encounter'};
+ c.vgpPromise=()=>({error:true});c.vgpTick(100);assert.equal(c.state.seen.get('p123'),30100);
+}
+{
+ const {c,s}=setup();c.state.seen.set('p123',3600000);c.state.pending={key:'p123',target:'target',promise:'promise',deadline:10000,phase:'encounter'};
+ c.vgpPromise=()=>({value:{isNull:()=>false}});s.vgpLease=0;c.vgpTick(100);assert.equal(c.state.seen.get('p123'),5100);
+}
+console.log('VGP retry: escape/miss/replacement retry, success/flee terminal, error backoff, cancellation recovery');

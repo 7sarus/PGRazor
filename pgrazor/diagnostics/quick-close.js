@@ -871,8 +871,9 @@ function prepare(module,api,domain){
    f.result=enumI32Field(classes[SPINRESULT],'Result',0x10);f.until=typed(classes[SPINRESULT],'CooldownComplete',0x38,'System.Int64');f.catchStatus=enumI32Field(classes[RESP],'Status',0x10);f.bagGm=typed(classes[BAG],'cypm',0x38,'IGameMasterData');
    const enumValue=(klass,name)=>{const q=api.class_get_field_from_name(klass,Memory.allocUtf8String(name)),b=Memory.alloc(4);if(q.isNull()||(api.field_get_flags(q)&0x8050)!==0x8050)throw Error('vgp-enum:'+name);api.field_static_get_value(q,b);return b.readS32();};
    const spinSuccess=enumValue(api.class_from_type(api.field_get_type(f.result)),'Success'),rpcId=enumValue(k('method'),'FortSearch');
+   const catchStates={};for(const name of ['CatchSuccess','CatchEscape','CatchFlee','CatchMissed','CatchError','CatchItemReplacement'])catchStates[name]=enumValue(api.class_from_type(api.field_get_type(f.catchStatus)),name);
    const native=(name,ret,args)=>{const a=module.findExportByName('il2cpp_'+name);if(!a)throw Error('vgp-export:'+name);return new NativeFunction(a,ret,args,{scheduling:'exclusive',exceptions:'propagate'});};
-   vgp={m,f,spinSuccess,rpcId,parent:native('class_get_parent','pointer',['pointer']),array:native('array_new','pointer',['pointer','uint64']),barrier:native('gc_wbarrier_set_field','void',['pointer','pointer','pointer']),unreflect:native('method_get_from_reflection','pointer',['pointer'])};
+   vgp={m,f,spinSuccess,rpcId,catchStates,parent:native('class_get_parent','pointer',['pointer']),array:native('array_new','pointer',['pointer','uint64']),barrier:native('gc_wbarrier_set_field','void',['pointer','pointer','pointer']),unreflect:native('method_get_from_reflection','pointer',['pointer'])};
   }catch(e){vgp=null;vgpError=String(e);}
   let mapPoi=null,mapPoiError=null;
   try {
@@ -2097,8 +2098,15 @@ function install(s,p){
 
 
  // VGP serializes ordinary map RPCs. Unknown outcomes never cause a repeated throw.
- const vgpState={transfer:null,markerAt:0,pending:null,next:0,seen:new Map(),status:'',turn:0,blocked:false,rpcMethod:null,reflection:null};
+ const vgpState={transfer:null,markerAt:0,pending:null,next:0,seen:new Map(),status:'',scanAt:0,turn:0,blocked:false,rpcMethod:null,reflection:null};
  function vgpStatus(message){if(message!==vgpState.status){vgpState.status=message;event(s,'vgp-status',{message});}}
+ // Keep terminal targets suppressed; retry known non-terminal results without moving.
+ function vgpRetry(q,now,delay){if(q&&q.key&&q.phase!=='spin')vgpState.seen.set(q.key,now+delay);}
+ function vgpCatchDelay(status){const c=p.vgp.catchStates;
+  if(status===c.CatchSuccess||status===c.CatchFlee)return 3600000;
+  if(status===c.CatchEscape||status===c.CatchMissed||status===c.CatchItemReplacement)return 5000;
+  return 30000;
+ }
  function vgpDrop(){const q=vgpState.pending;if(q){freeHandle(q.promise);freeHandle(q.target);freeHandle(q.bag);vgpState.pending=null;event(s,'vgp-marker',{visible:false});}}
  function vgpField(o,name){let k=api.object_get_class(o);for(let i=0;i<16&&!k.isNull();i++,k=p.vgp.parent(k)){const f=api.class_get_field_from_name(k,Memory.allocUtf8String(name));if(!f.isNull()){const off=Number(api.field_get_offset(f));if(off<16||off>512)throw Error('vgp-field:'+name);return f;}}return null;}
  function vgpPromise(o){const complete=vgpField(o,'completeCalled'),error=vgpField(o,'errorCalled'),value=vgpField(o,'completedValue'),status=vgpField(o,'statusErrorCalled');if(!complete||!error||!value)throw Error('vgp-promise-shape');if(present(o,error,1)||(status&&present(o,status,1)))return {error:true};return present(o,complete,1)?{value:readPtr(o,value)}:null;}
@@ -2192,17 +2200,19 @@ function install(s,p){
   try{
    vgpMark(now);if(vgpTransferTick(now))return;
    if(r.pending){const q=r.pending,state=vgpPromise(target(q.promise));if(!state){if(now>q.deadline){vgpDrop();r.blocked=true;vgpStatus('Response timed out; toggle VGP to resume');}return;}
-    if(state.error||state.value.isNull()){vgpDrop();r.next=now+3000;vgpStatus('Request rejected');return;}
+    if(state.error||state.value.isNull()){vgpRetry(q,now,30000);vgpDrop();r.next=now+3000;vgpStatus('Request rejected');return;}
     root(state.value);
     if(q.phase==='encounter'){
-     if(!allowed()||!(s.vgpMask&1)||!alive(target(q.target))){vgpDrop();return;}
-     const bag=root(readPtr(target(itemState.service),p.items.fields.bag));if(itemInt(t.m.itemCount,bag,itemArgs([itemNumber(1)]))<1){vgpDrop();vgpStatus('Out of red Poke Balls');return;}
+     if(!allowed()||!(s.vgpMask&1)||!alive(target(q.target))){vgpRetry(q,now,5000);vgpDrop();return;}
+     const bag=root(readPtr(target(itemState.service),p.items.fields.bag));if(itemInt(t.m.itemCount,bag,itemArgs([itemNumber(1)]))<1){vgpRetry(q,now,5000);vgpDrop();vgpStatus('Out of red Poke Balls');return;}
      const ball=Memory.alloc(12);ball.writeByteArray(new Uint8Array(12));ball.writeS32(1);ball.add(4).writeFloat(1); // ordinary straight throw, no grade bonus
      const promise=invoke(t.m.capture.method,target(q.target),itemArgs([ball,ptr(0)]));freeHandle(q.promise);q.promise=hold(promise);q.phase='catch';q.deadline=now+20000;event(s,'vgp-request',{action:'catch'});event(s,'cooldown-action',{action:'VGP ball throw'});return;
     }
-    const success=q.phase==='catch'?exact(state.value,classes[RESP])&&readS32(state.value,t.f.catchStatus)===p.success:exact(state.value,classes[SPINRESULT])&&readS32(state.value,t.f.result)===t.spinSuccess;
+    const catchStatus=q.phase==='catch'&&exact(state.value,classes[RESP])?readS32(state.value,t.f.catchStatus):null;
+    if(q.phase==='catch')vgpRetry(q,now,vgpCatchDelay(catchStatus));
+    const success=q.phase==='catch'?catchStatus===p.success:exact(state.value,classes[SPINRESULT])&&readS32(state.value,t.f.result)===t.spinSuccess;
     if(q.phase==='spin'&&success&&alive(target(q.target))){const until=Memory.alloc(8);api.field_get_value(state.value,t.f.until,until);vgpVirtual(t.m.cooldown,target(q.target),itemArgs([until]));}
-    const action=q.phase;if(success&&action==='catch')vgpQueueTransfer(state.value,target(q.bag),now);vgpDrop();r.next=now+2500;itemState.next=0;if(s.itemEnabled)itemState.vgpCleanupUntil=now+20000;vgpStatus(success?(action==='catch'?'Pokemon caught':'PokeStop spun'):(action==='catch'?'Pokemon not caught':'Spin unsuccessful'));event(s,'vgp-result',{action,success});return;
+    const action=q.phase;if(success&&action==='catch')vgpQueueTransfer(state.value,target(q.bag),now);vgpDrop();r.next=now+2500;itemState.next=0;if(s.itemEnabled)itemState.vgpCleanupUntil=now+20000;vgpStatus(success?(action==='catch'?'Pokemon caught':'PokeStop spun'):(action==='catch'?'Pokemon not caught':'Spin unsuccessful'));event(s,'vgp-result',{action,success,status:catchStatus,retryMs:action==='catch'&&!success?vgpCatchDelay(catchStatus):null});return;
    }
    if(!s.vgpMask){r.blocked=false;vgpStatus('Off');return;}if(!allowed()){vgpStatus('Waiting for the map');return;}if(r.blocked||now<r.next)return;if(s.itemEnabled&&now<itemState.vgpCleanupUntil){vgpStatus('Cleaning inventory');return;}r.next=now+2500;
    if(!itemState.service){vgpStatus('Waiting for inventory');return;}
@@ -2210,16 +2220,18 @@ function install(s,p){
    const resolve=key=>root(invoke(l.resolve.method,container,itemArgs([l.typeObject(api.class_get_type(classes[VGP[key]]))])));
    const player=resolve('playerContract'),pokemonBag=resolve('bagContract'),bag=root(readPtr(target(itemState.service),p.items.fields.bag));
    if(!exact(player,classes[VGP.player])||!exact(pokemonBag,classes[BAG])||!exact(bag,classes[IBAG]))throw Error('vgp-service-type');
-   const canCatch=(s.vgpMask&1)&&itemInt(t.m.itemCount,bag,itemArgs([itemNumber(1)]))>0&&itemInt(t.m.pokemonCount,pokemonBag)<itemInt(t.m.maxPokemon,player);
+   const balls=itemInt(t.m.itemCount,bag,itemArgs([itemNumber(1)])),stored=itemInt(t.m.pokemonCount,pokemonBag),capacity=itemInt(t.m.maxPokemon,player);
+   const catchBlock=!(s.vgpMask&1)?'Pokemon catching disabled':balls<1?'Out of red Poke Balls':stored>=capacity?'Pokemon storage full':'';
+   const canCatch=!catchBlock,scan={balls,stored,capacity,catchBlock,total:0,hidden:0,outOfRange:0,recent:0,invalid:0};
    const canSpin=(s.vgpMask&2)&&itemInt(t.m.totalItems,bag)<itemInt(t.m.maxItems,player);
-   if(!canCatch&&!canSpin){vgpStatus('Check ball, Pokemon and item capacity');return;}
-   for(const [key,expiry]of r.seen)if(expiry<now)r.seen.delete(key);if(r.seen.size>=2048){vgpStatus('Waiting for recent targets to expire');return;}
+   if(!canCatch&&!canSpin){vgpStatus(catchBlock||'Item bag full');return;}
+   for(const [key,expiry]of r.seen)if(expiry<=now)r.seen.delete(key);if(r.seen.size>=2048){vgpStatus('Waiting for recent targets to expire');return;}
    const order=(r.turn++%2)?['spin','catch']:['catch','spin'];
    for(const action of order){if(action==='catch'?!canCatch:!canSpin)continue;const klass=classes[VGP[action==='catch'?'wild':'stop']],array=root(invoke(t.m.findAll.method,ptr(0),itemArgs([l.typeObject(api.class_get_type(klass))]))),count=array.add(24).readU64().toNumber();if(count>2048)throw Error('vgp-map-count');
-    for(let i=0;i<count;i++){const o=array.add(32+i*8).readPointer();if(!exact(o,klass)||!alive(o))continue;let key,fort=null;
-     if(action==='catch'){if(!vgpBool(t.m.visible,o))continue;const loc=root(invoke(t.m.location.method,o)),v=api.object_unbox(loc);if(vgpDistance(v.readDouble(),v.add(8).readDouble())>40)continue;const id=root(invoke(t.m.id.method,o));key='p'+api.object_unbox(id).readU64().toString();}
+    for(let i=0;i<count;i++){const o=array.add(32+i*8).readPointer();if(action==='catch')scan.total++;if(!exact(o,klass)||!alive(o)){if(action==='catch')scan.invalid++;continue;}let key,fort=null;
+     if(action==='catch'){if(!vgpBool(t.m.visible,o)){scan.hidden++;continue;}const loc=root(invoke(t.m.location.method,o)),v=api.object_unbox(loc);const distance=vgpDistance(v.readDouble(),v.add(8).readDouble());if(!Number.isFinite(distance)||distance>40){scan.outOfRange++;continue;}const id=root(invoke(t.m.id.method,o));key='p'+api.object_unbox(id).readU64().toString();}
      else{if(!vgpBool(t.m.active,o)||!vgpBool(t.m.range,o)||vgpBool(t.m.closed,o)||vgpBool(t.m.cooling,o))continue;fort=root(vgpVirtual(t.m.fort,o));if(!exact(fort,classes[VGP.fort]))continue;const id=readPtr(fort,t.f.fortId);if(id.isNull())continue;key='s'+id.add(20).readUtf16String(Math.min(256,id.add(16).readS32()));}
-     if(r.seen.has(key))continue;r.seen.set(key,now+(action==='catch'?3600000:300000));r.pending={target:hold(o),bag:hold(pokemonBag),promise:null,phase:action==='catch'?'encounter':'spin',deadline:now+20000};
+     if(r.seen.has(key)){if(action==='catch')scan.recent++;continue;}r.seen.set(key,now+(action==='catch'?30000:300000));r.pending={key,target:hold(o),bag:hold(pokemonBag),promise:null,phase:action==='catch'?'encounter':'spin',deadline:now+20000};
      let promise;
      if(action==='catch')promise=invoke(t.m.encounter.method,o);
      else{const request=root(api.object_new(classes[VGP.request]));invoke(t.m.ctor.method,request);api.field_set_value_object(request,t.f.id,readPtr(fort,t.f.fortId));
@@ -2229,7 +2241,8 @@ function install(s,p){
      }
      r.pending.promise=hold(promise);vgpStatus(action==='catch'?'Catching nearby Pokemon':'Spinning nearby PokeStop');return;
     }
-   }vgpStatus('Watching nearby Pokemon and PokeStops');
+   }if(now-r.scanAt>=10000){r.scanAt=now;event(s,'vgp-scan',scan);}
+   vgpStatus(catchBlock||(scan.recent?'Waiting for Pokemon retry / new targets':scan.outOfRange?'Nearby Pokemon outside 40m catch range':'Watching nearby Pokemon and PokeStops'));
   }catch(e){vgpDrop();if(r.transfer){releaseRecord(r.transfer);r.transfer=null;}r.blocked=true;vgpStatus('Paused: '+String(e));event(s,'vgp-error',{reason:String(e)});}finally{for(const h of roots)freeHandle(h);}
  }
  event(s,'map-poi-ready',{available:!!p.mapPoi,reason:p.mapPoiError,detailsError:p.mapPoi&&p.mapPoi.extraError});
