@@ -131,6 +131,8 @@ public final class LiveFeedDialog {
 
         void attach() {
             MapTheme.fullScreen(dialog);
+            dialog.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
+            dialog.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
             render();
             MapTheme.styleButtons(dialog);
             main.removeCallbacks(tick);
@@ -149,28 +151,45 @@ public final class LiveFeedDialog {
 
         private void buildLogin() {
             int pad = dp(18);
-            root.setPadding(pad, dp(8), pad, 0);
-            root.addView(label("Sign in to LivePokeMap to see live nearby results.", 14));
+            root.setPadding(0, 0, 0, 0);
+            android.widget.ScrollView scroll = new android.widget.ScrollView(ui);
+            scroll.setFillViewport(true);
+            LinearLayout form = new LinearLayout(ui);
+            form.setOrientation(LinearLayout.VERTICAL);
+            form.setPadding(pad, dp(8), pad, dp(24));
+            form.setFocusableInTouchMode(true);
+            scroll.addView(form, new android.widget.ScrollView.LayoutParams(-1, -2));
+            root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+            TextView intro = label("Sign in with your LivePokeMap account.", 14);
+            intro.setPadding(0, 0, 0, dp(20));
+            form.addView(intro);
             final EditText username = new EditText(ui);
             username.setHint("Username");
             username.setSingleLine(true);
             username.setInputType(InputType.TYPE_CLASS_TEXT);
             noAutofill(username);
-            username.setPadding(0, dp(12), 0, 0);
-            root.addView(username);
+            username.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_NEXT);
+            addLoginField(form, username);
             final EditText password = new EditText(ui);
             password.setHint("Password");
             password.setSingleLine(true);
             // No suggestions store and no autofill so the password is never retained by the system.
             password.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            password.setTypeface(android.graphics.Typeface.DEFAULT);
+            password.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
             noAutofill(password);
-            root.addView(password);
+            addLoginField(form, password);
             final Button login = button("Log in");
             login.setPadding(0, 0, 0, 0);
-            root.addView(login, new LinearLayout.LayoutParams(-1, dp(48)));
+            form.addView(login, new LinearLayout.LayoutParams(-1, dp(48)));
             final TextView status = label("", 13);
             status.setPadding(0, dp(10), 0, 0);
-            root.addView(status);
+            form.addView(status);
+            form.requestFocus();
+            password.setOnEditorActionListener((v, action, event) -> {
+                if (action != android.view.inputmethod.EditorInfo.IME_ACTION_DONE) return false;
+                login.performClick(); return true;
+            });
             login.setOnClickListener(v -> {
                 String u = username.getText().toString().trim();
                 String p = password.getText().toString();
@@ -184,6 +203,22 @@ public final class LiveFeedDialog {
                 status.setText("Signing in…");
                 submitLogin(u, p, login, username, status);
             });
+        }
+
+        private void addLoginField(LinearLayout form, EditText field) {
+            field.setTextSize(16);
+            field.setGravity(Gravity.CENTER_VERTICAL);
+            field.setPadding(dp(14), dp(12), dp(14), dp(12));
+            field.setHintTextColor(MapTheme.muted());
+            GradientDrawable background = new GradientDrawable();
+            background.setColor(MapTheme.dark() ? 0xff202b39 : 0xffedf2f6);
+            background.setCornerRadius(dp(9));
+            background.setStroke(dp(1), MapTheme.muted());
+            field.setBackground(background);
+            field.setBackgroundTintList(null);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(56));
+            lp.bottomMargin = dp(16);
+            form.addView(field, lp);
         }
 
         private void submitLogin(String username, String password, Button login, EditText userField, TextView status) {
