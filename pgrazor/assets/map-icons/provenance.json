@@ -98,6 +98,22 @@
       "sha256": "94655c96aec8696c6b0ae7ad43d14063cf9ac74abca8f31f9f211e5741e458e2",
       "upstream_blob_sha": "a90537692fc26b68621366748810c9005ca1262d",
       "bytes": 4150
+    },
+    {
+      "source": "Images/Plus/device_pbp_connected.png",
+      "name": "vgp-connected.png",
+      "purpose": "VGP connected overlay state",
+      "sha256": "fca6e9618e27e36fd33b7a5a960b7ad0ae59822c5db08949ef41ee63afc86737",
+      "upstream_blob_sha": "7a46d82a8a6bff0af854088f3063181434be70ed",
+      "bytes": 10965
+    },
+    {
+      "source": "Images/Plus/device_pbp_disconnected.png",
+      "name": "vgp-disconnected.png",
+      "purpose": "VGP disconnected overlay state",
+      "sha256": "bb48b6996ddb63f60bcb40984621ab8690d99ef16c0410bd81c1e382a16ab4db",
+      "upstream_blob_sha": "3f614667a4067ebc15ea09ab9e7fa7615746446b",
+      "bytes": 6207
     }
   ],
   "species_names": {

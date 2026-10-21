@@ -87,19 +87,73 @@ public final class Control {
     public static String giftStatus(){return giftStatus;}
     public static boolean giftsAllowed(){return giftsReady&&quickSummaryReady()&&foreground&&backendReady&&connected();}
     private static volatile boolean vgpEnabled,vgpReady,vgpOverlay;
+    /** Persistent safety preference; when armed a live cooldown keeps VGP off. */
+    private static volatile boolean vgpStopOnCooldown;
     private static volatile int vgpOptions=3;
     private static volatile String vgpStatus="Waiting for VGP support";
+    /** Sticky reason for the current VGP pause/refusal; takes priority over native status when set. */
+    private static volatile String vgpGuardReason="";
+    /** Serializes the compound enabled/overlay/guard decisions; never held across Cooldown or stateLock. */
+    private static final Object vgpLock=new Object();
     private static Application vgpApplication;
-    public static boolean vgpEnabled(){return vgpOverlay&&vgpEnabled;}
+    public static boolean vgpEnabled(){guardVgpCooldown();return vgpOverlay&&vgpEnabled;}
     public static boolean vgpOverlay(){return vgpOverlay;}
-    public static void setVgpOverlay(boolean value){vgpOverlay=value;if(!value)vgpEnabled=false;saveSettings();}
+    public static void setVgpOverlay(boolean value){synchronized(vgpLock){vgpOverlay=value;if(!value)vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="";}saveSettings();}
     public static boolean vgpOverlayVisible(){return vgpOverlay&&foreground&&backendReady&&connected();}
     public static int vgpOptions(){return vgpOptions;}
-    public static void setVgpEnabled(boolean value){vgpEnabled=vgpOverlay&&value;saveSettings();}
+    public static boolean vgpStopOnCooldown(){return vgpStopOnCooldown;}
+    /**
+     * VGP active state is runtime only (never persisted). Turning it on while the cooldown
+     * guard is armed and a cooldown is live is refused with a visible reason; turning it off
+     * clears any guard reason.
+     */
+    public static void setVgpEnabled(boolean value){
+        if(!value){synchronized(vgpLock){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="";vgpStatus="Off";}return;}
+        // Read Cooldown before taking vgpLock so the two locks are never nested.
+        boolean cooldownActive=vgpStopOnCooldown&&Cooldown.remaining()>0;
+        boolean refused=false,enabled=false;
+        synchronized(vgpLock){
+            if(!vgpOverlay||!foreground){vgpEnabled=false;vgpTargetAt=0;}
+            else if(cooldownActive){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="Cooldown active; tap VGP after it clears";refused=true;}
+            else{vgpEnabled=true;vgpGuardReason="";enabled=true;}
+        }
+        if(refused)event("vgp-cooldown-guard","Enable refused; cooldown active");
+        else if(enabled)event("vgp-enabled","ON; runtime only");
+    }
+    /**
+     * Arms or disarms the optional cooldown safety. Arming it while VGP is already active and a
+     * cooldown is live switches VGP off immediately; disarming clears any lingering guard reason.
+     */
+    public static void setVgpStopOnCooldown(boolean value){
+        boolean cooldownActive=value&&Cooldown.remaining()>0;
+        boolean tripped=false;
+        synchronized(vgpLock){
+            vgpStopOnCooldown=value;
+            if(!value)vgpGuardReason="";
+            else if(vgpEnabled&&cooldownActive){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="Paused for active cooldown; tap VGP to resume once it clears";tripped=true;}
+        }
+        saveSettings();
+        event("vgp-stop-on-cooldown",value?(tripped?"ON; switched VGP off for active cooldown":"ON"):"OFF");
+    }
     public static void setVgpOptions(int value){vgpOptions=value&7;saveSettings();}
     public static void setVgpReady(boolean ready,String status){vgpReady=ready;vgpStatus=status;}
     public static void setVgpStatus(String status){vgpStatus=status;}
-    public static String vgpStatus(){return vgpStatus;}
+    /** A guard reason (cooldown pause/refusal) is shown in place of a generic native status. */
+    public static String vgpStatus(){String reason=vgpGuardReason;return reason.length()>0?reason:vgpStatus;}
+    /**
+     * When the guard is armed, a live cooldown trips VGP off before the next request and it stays
+     * off (no auto-resume). Driven by the vgpEnabled()/vgpAllowed() heartbeat; the Cooldown read
+     * happens with no lock held and logs only on the single off transition.
+     */
+    private static void guardVgpCooldown(){
+        if(!(vgpEnabled&&vgpStopOnCooldown))return;
+        if(Cooldown.remaining()<=0)return;
+        boolean tripped=false;
+        synchronized(vgpLock){
+            if(vgpEnabled&&vgpStopOnCooldown){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="Paused for active cooldown; tap VGP to resume once it clears";tripped=true;}
+        }
+        if(tripped)event("vgp-cooldown-guard","VGP switched off; cooldown active");
+    }
     private static volatile float vgpTargetX,vgpTargetY;
     private static volatile long vgpTargetAt;
     private static volatile boolean vgpTargetSpin;
@@ -113,7 +167,7 @@ public final class Control {
     public static float vgpTargetY(){return vgpTargetY;}
     public static boolean vgpTargetSpin(){return vgpTargetSpin;}
 
-    public static boolean vgpAllowed(){long age=SystemClock.elapsedRealtime()-buddyMapSample;return vgpEnabled&&vgpReady&&itemAccessAllowed()&&buddyMapSample>0&&age>=0&&age<1500;}
+    public static boolean vgpAllowed(){guardVgpCooldown();long age=SystemClock.elapsedRealtime()-buddyMapSample;return vgpEnabled&&vgpReady&&itemAccessAllowed()&&buddyMapSample>0&&age>=0&&age<1500;}
     public static void vgpResult(String action,boolean success){
         if(success&&action.equals("spin"))cooldownAction("Pokestop spin");
         Application app=vgpApplication;if(!vgpEnabled||(vgpOptions&4)==0||app==null)return;
@@ -632,7 +686,10 @@ public final class Control {
     }
     public static void suspendForBackground() {
         requestInteractionStop();
-        foreground = false; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded"); engine.pause(); saveState();
+        foreground = false; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
+        // Losing the foreground switches VGP off, clears any target, and never auto-resumes.
+        synchronized(vgpLock){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="App left foreground; tap VGP to start";}
+        engine.pause(); saveState();
     }
     private static void restoreRuntime(String reason) {
         if (!registered) return;
@@ -711,9 +768,10 @@ public final class Control {
                 spawnBooster=Boolean.parseBoolean(p.getProperty("spawnBooster","false"));
                 try{giftOptions=Integer.parseInt(p.getProperty("giftOptions","0"));}catch(NumberFormatException ignored){giftOptions=0;}
                 if(giftOptions<0||giftOptions>7)giftOptions=0;
-                vgpEnabled=Boolean.parseBoolean(p.getProperty("vgpEnabled","false"));
+                // VGP active state is runtime only: always start OFF, ignoring any legacy persisted vgpEnabled.
+                vgpEnabled=false;vgpTargetAt=0;
                 vgpOverlay=Boolean.parseBoolean(p.getProperty("vgpOverlay","false"));
-                vgpEnabled=vgpEnabled&&vgpOverlay;
+                vgpStopOnCooldown=Boolean.parseBoolean(p.getProperty("vgpStopOnCooldown","false"));
                 try{vgpOptions=Integer.parseInt(p.getProperty("vgpOptions","3"))&7;}catch(NumberFormatException ignored){vgpOptions=3;}
                 try{buddyBerry=Integer.parseInt(p.getProperty("buddyBerry","0"));}catch(NumberFormatException ignored){buddyBerry=0;}
                 if(buddyBerry!=701&&buddyBerry!=703&&buddyBerry!=705&&buddyBerry!=706&&buddyBerry!=707)buddyBerry=0;
@@ -758,8 +816,8 @@ public final class Control {
                 p.setProperty("joystickVisible",String.valueOf(joystickVisible));
                 p.setProperty("spawnBooster",String.valueOf(spawnBooster));
                 p.setProperty("giftOptions",String.valueOf(giftOptions));
-                p.setProperty("vgpEnabled",String.valueOf(vgpEnabled));
                 p.setProperty("vgpOverlay",String.valueOf(vgpOverlay));
+                p.setProperty("vgpStopOnCooldown",String.valueOf(vgpStopOnCooldown));
                 p.setProperty("vgpOptions",String.valueOf(vgpOptions));
                 p.setProperty("buddyBerry",String.valueOf(buddyBerry));
                 p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("autoBerry",String.valueOf(autoBerry));
