@@ -39,9 +39,13 @@ public final class LocationStateTest {
         LocationState.decode(LocationState.capture(moving, false).encode());
         moving.position(90,180); moving.speed(30); moving.bearing=0;
         LocationState.decode(LocationState.capture(moving, true).encode());
+        LocationState zero=LocationState.decode("1|1|2|0|0|true");
+        check(zero.speedKmh==0,"Zero speed preset persists");
+        zero.restoreStationary(moving,true,true);moving.step(.25);
+        check(moving.latitude==1&&moving.longitude==2&&moving.metersPerSecond()==0,"Zero speed restores stationary");
         invalid(null); invalid(""); invalid("2|1|2|5|0|true"); invalid("1|1|2|5|0|yes");
         invalid("1|NaN|2|5|0|true"); invalid("1|1|Infinity|5|0|true"); invalid("1|91|2|5|0|true");
-        invalid("1|1|-181|5|0|true"); invalid("1|1|2|0|0|true"); invalid("1|1|2|31|0|true");
+        invalid("1|1|-181|5|0|true"); invalid("1|1|2|0.25|0|true"); invalid("1|1|2|-1|0|true"); invalid("1|1|2|31|0|true");
         invalid("1|1|2|5|360|true"); invalid("1|1|2|5|-1|true"); invalid("1|1|2|5|NaN|true");
         invalid("1|1|2|5|0|true|extra"); invalid(new String(new char[257]).replace('\0','0'));
         System.out.println("PASS: location state precision, traveled checkpoint, defaults, remembered Pause, readiness/foreground gating, stationary restore, corrupt records");

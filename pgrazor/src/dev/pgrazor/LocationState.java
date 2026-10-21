@@ -9,7 +9,7 @@ public final class LocationState {
     public LocationState(double latitude, double longitude, double speedKmh, double bearing, boolean enabled) {
         if (!Double.isFinite(latitude) || Math.abs(latitude) > 90 || !Double.isFinite(longitude) || Math.abs(longitude) > 180)
             throw new IllegalArgumentException("Invalid saved coordinates");
-        if (!Double.isFinite(speedKmh) || speedKmh < .5 || speedKmh > 30)
+        if (!Double.isFinite(speedKmh) || (speedKmh != 0 && speedKmh < .5) || speedKmh > 30)
             throw new IllegalArgumentException("Invalid saved speed");
         if (!Double.isFinite(bearing) || bearing < 0 || bearing >= 360)
             throw new IllegalArgumentException("Invalid saved bearing");

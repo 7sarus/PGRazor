@@ -20,12 +20,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Module interface shared by the standalone preview and an instrumented host. */
 public final class Control {
-    private static volatile boolean mapPoiOpen;
+    private static volatile boolean mapPoiOpen,autoWalkPlanning;
     private static volatile String mapPoiSnapshot="";
     private static volatile long mapPoiAt;
-    public static void setMapPoiOpen(boolean open){mapPoiOpen=open;if(!open){mapPoiSnapshot="";mapPoiAt=0;}}
-    public static boolean mapPoiAllowed(){return mapPoiOpen&&foreground&&backendReady&&connected();}
-    public static void setMapPoiSnapshot(String value){if(mapPoiOpen&&value!=null&&value.length()<160000){mapPoiSnapshot=value;mapPoiAt=SystemClock.elapsedRealtime();}}
+    public static void setMapPoiOpen(boolean open){mapPoiOpen=open;if(!open&&!autoWalkPlanning){mapPoiSnapshot="";mapPoiAt=0;}}
+    public static void setAutoWalkPlanning(boolean open){autoWalkPlanning=open;if(!open&&!mapPoiOpen){mapPoiSnapshot="";mapPoiAt=0;}}
+    public static boolean mapPoiAllowed(){return (mapPoiOpen||autoWalkPlanning)&&foreground&&backendReady&&connected();}
+    public static void setMapPoiSnapshot(String value){if((mapPoiOpen||autoWalkPlanning)&&value!=null&&value.length()<160000){mapPoiSnapshot=value;mapPoiAt=SystemClock.elapsedRealtime();}}
     public static String mapPoiSnapshot(){return SystemClock.elapsedRealtime()-mapPoiAt<10000?mapPoiSnapshot:"";}
     public static final MotionEngine engine = new MotionEngine();
     public static volatile String connection = "PREVIEW - game not connected";
@@ -272,7 +273,7 @@ public final class Control {
     public static void setQuickSpinReady(boolean value,String status) { quickSpinReady=value; quickSpinStatus=status; }
     public static boolean quickSpinAllowed() { return quickSpinEnabled && quickSpinReady && quickSummaryReady() && foreground && backendReady && connected(); }
     private static Toast quickBallToast;
-    private static volatile boolean cameraSteeringConfigured, cameraRelative=true;
+    private static volatile boolean cameraSteeringConfigured;
     private static final CameraHeadingState cameraHeading = new CameraHeadingState();
     private static final Handler main = new Handler(Looper.getMainLooper());
     private static final Object stateLock = new Object();
@@ -495,17 +496,10 @@ public final class Control {
         }
     }
     public static boolean cameraSteeringConfigured() { return cameraSteeringConfigured; }
-    public static boolean cameraRelative() { return cameraSteeringConfigured && cameraRelative; }
-    public static void setCameraRelative(boolean enabled) {
-        synchronized (cameraHeading) {
-            cameraRelative=cameraSteeringConfigured && enabled;
-            cameraHeading.invalidate(); stopManualMotion();
-        }
-        saveSettings();
-        event("joystick-mode", cameraRelative() ? "Camera-relative; fresh heading and gesture required" : "North-relative");
-    }
+    /** Camera-relative is the only joystick mode; unavailable headings stop input. */
+    public static boolean cameraRelative() { return true; }
     public static boolean cameraSteeringRequested() {
-        return cameraRelative() && foreground && backendReady && connected();
+        return cameraSteeringConfigured && foreground && backendReady && connected();
     }
     public static void updateCameraHeading(double yawDegrees, int cameraId, boolean mapVisible, long ageMillis) {
         synchronized (cameraHeading) {
@@ -684,9 +678,19 @@ public final class Control {
         if (!foreground || !canEnable()) engine.pause();
         saveState();
     }
+    public static void startAutoWalk(double[][] waypoints,boolean loop) {
+        if(!foreground||!canEnable())throw new IllegalArgumentException("Location adapter is not ready");
+        engine.walkRoute(waypoints,loop);desiredEnabled=true;saveState();
+        event("autowalk-started","stops="+waypoints.length+" loop="+loop+" speed="+engine.speedKmh);
+    }
+    public static double cycleWalkSpeed() {
+        double[] presets={0,9.3,16,30};double next=0;
+        synchronized(engine){for(int i=0;i<presets.length;i++)if(Math.abs(engine.speedKmh-presets[i])<0.001){next=presets[(i+1)%presets.length];break;}engine.speed(next);}
+        saveState();return next;
+    }
     public static void suspendForBackground() {
         requestInteractionStop();
-        foreground = false; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
+        foreground = false; autoWalkPlanning=false;mapPoiOpen=false;mapPoiSnapshot="";mapPoiAt=0; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
         // Losing the foreground switches VGP off, clears any target, and never auto-resumes.
         synchronized(vgpLock){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="App left foreground; tap VGP to start";}
         engine.pause(); saveState();
@@ -794,8 +798,7 @@ public final class Control {
                 throwCurve=Boolean.parseBoolean(p.getProperty("curve","false"));
                 throwAr=Boolean.parseBoolean(p.getProperty("throwAr","false"));
                 throwGrade=boundedSetting(p,"grade",3); mapTapMode=boundedSetting(p,"mapTap",2);
-                cameraRelative=Boolean.parseBoolean(p.getProperty("cameraRelative","true"));
-                event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative="+cameraRelative);
+                event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true");
             } catch(FileNotFoundException missing) {
                 // Defaults apply only until the user first saves a choice.
             } catch(IOException | RuntimeException error) { event("settings-load-error",error.toString()); }
@@ -829,7 +832,7 @@ public final class Control {
                 p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
                 p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
                 p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
-                p.setProperty("mapTap",String.valueOf(mapTapMode)); p.setProperty("cameraRelative",String.valueOf(cameraRelative));
+                p.setProperty("mapTap",String.valueOf(mapTapMode));
                 out=settingsFile.startWrite(); p.store(out,"PGRazor settings"); settingsFile.finishWrite(out); out=null;
             } catch(IOException | RuntimeException error) { if(out!=null)settingsFile.failWrite(out); event("settings-save-error",error.toString()); }
             finally { StrictMode.setThreadPolicy(policy); }

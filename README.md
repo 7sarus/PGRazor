@@ -11,7 +11,7 @@ PGRazor adds an in-game menu, independent joystick, encounter controls, and opti
 1. Open [Releases](https://github.com/jpitty03/PGRazor/releases) with an account that has access.
 2. Download **PGRazor.apk**, not a source archive or preview.
 3. Transfer it to your ARM64 Android phone, allow installation from your chosen file manager, and open the APK.
-4. Launch PGRazor and tap the small **R** icon to open settings.
+4. Launch PGRazor and tap the small **R** icon to open the quick menu. Choose **Settings** for the full-screen controls.
 
 Private releases are test candidates; check their release notes for device-validation status. The current game baseline is **Pokémon GO 0.433.1 / 2026101502**. Native hooks are version-specific. A different game version can leave features unavailable.
 
@@ -21,15 +21,17 @@ The Android package identity stays compatible with the game. An official-store i
 
 | Area | Controls |
 | --- | --- |
-| Map | Joystick, saved locations, routes, tap-to-walk/teleport, camera steering, nearby stop/gym/raid layers |
+| Map | Camera-relative joystick, saved locations, routes, Autowalk, tap-to-walk/teleport, nearby stop/gym/raid layers |
 | Catching | Quick Catch with 20× ball animation, throw grade/curveball options, IV display, berry selector |
 | Inventory | Transfer newly caught Pokémon below 90% IV; configurable item limits |
 | Keep rules | Legendary/mythical/Ultra Beasts, shiny, event/costume, background, **XXS**, **XXL**; favorites and eggs always kept |
 | Virtual Go Plus | Nearby wild catches with red balls, nearby stop spins, optional notifications, target marker and activity status |
 | Other automation | Rocket/raid/gym/Dynamax controls, buddy feeding, gift opening/sending, quick spin |
-| Interface | Small launcher, separate joystick, cooldown history, light/dark themes |
+| Interface | Quick menu, full-screen settings, separate joystick, cooldown history, light/dark themes |
 
-**VGP:** the settings switch shows or hides its overlay. Tap the overlay's power icon to start or stop VGP. Green **ON** and gray **OFF** make its state visible. Hiding the overlay stops VGP. Catch and item automation follow their existing settings and protection rules.
+**Quick menu:** Map, speed presets (0, 9.3, 16, 30 km/h), Autowalk, Favorites, Teleport, and Settings. Feeds is a disabled placeholder. Favorites shares the map's saved places. Autowalk builds a route through up to 50 nearby loaded stops and gyms, with optional looping. Routes use direct segments between locations. Zero speed pauses travel; selecting another speed resumes the current route. Backgrounding stops routes rather than resuming movement automatically.
+
+**VGP:** the settings switch shows or hides its overlay. Tap the connected/disconnected device icon to start or stop VGP; ON/OFF labels show its state. VGP starts off and switches off when the app leaves the foreground. Optional **Stop on cooldown (estimated)** also switches it off until you manually restart it. Catch and item automation follow their existing settings and protection rules.
 
 These are experimental client modifications. Server outcomes are not guaranteed. The AR+ option and local spawn-range changes do not prove server-side bonuses. Cooldown is a local estimate. Do not interpret a successful build as device validation.
 

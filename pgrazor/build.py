@@ -62,6 +62,8 @@ def main():
     (ROOT / 'input').mkdir(exist_ok=True)
     run('javac','-encoding','UTF-8','-d',BUILD/'tests',ROOT/'src/dev/pgrazor/MotionEngine.java',ROOT/'test/MotionTest.java',ROOT/'src/dev/pgrazor/RuntimeAbi.java',ROOT/'test/RuntimeAbiTest.java',ROOT/'src/dev/pgrazor/MapProjection.java',ROOT/'test/MapProjectionTest.java')
     run('java','-cp',BUILD/'tests','MotionTest')
+    run('javac','-encoding','UTF-8','-d',BUILD/'tests',ROOT/'src/dev/pgrazor/MotionEngine.java',ROOT/'src/dev/pgrazor/AutoWalkPlanner.java',ROOT/'test/AutoWalkTest.java')
+    run('java','-cp',BUILD/'tests','AutoWalkTest')
     run('java','-cp',BUILD/'tests','RuntimeAbiTest')
     run('java','-cp',BUILD/'tests','MapProjectionTest')
     run('javac','-encoding','UTF-8','-d',BUILD/'tests',ROOT/'src/dev/pgrazor/MotionEngine.java',ROOT/'src/dev/pgrazor/LocationState.java',ROOT/'test/LocationStateTest.java')

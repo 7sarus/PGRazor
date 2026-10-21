@@ -26,7 +26,8 @@ public final class Pad {
     private TextView vgpActivity;
     private VgpMarker vgpMarker;
     // Primary action and cycle/dialog rows.
-    private Button toggle, steeringMode, mapTap, throwGrade, itemSettings, cameraSample, interactionCapture;
+    private Button toggle, mapTap, throwGrade, itemSettings, cameraSample, interactionCapture;
+    private QuickMenu quickMenu;
     // Boolean settings use proper switches.
     private Switch vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
         quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, arSwitch;
@@ -72,7 +73,7 @@ public final class Pad {
         if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++)styleTree(group.getChildAt(i));}
     }
     private void applyTheme(){
-        panel.setBackground(rounded(surface(),20));styleTree(panel);
+        panel.setBackgroundColor(surface());styleTree(panel);
         for(TextView head:sectionHeads){head.setTextColor(accent());head.setTypeface(Typeface.DEFAULT,Typeface.BOLD);}
         for(TextView c:captions)c.setTextColor(muted());
         if(coords!=null)coords.setTextColor(ink());
@@ -83,6 +84,7 @@ public final class Pad {
         if(joystickOverlay!=null){joystickOverlay.setBackground(rounded(Control.darkTheme()?0xd9141b25:0xd9f9fbfd,22));styleTree(joystickOverlay);stick.invalidate();}
         if(encounterBerry!=null){GradientDrawable berryBg=rounded(surface(),16);berryBg.setStroke(dp(1),accent());encounterBerry.setBackground(berryBg);encounterBerry.setTextColor(ink());}
         if(cooldownTimer!=null)cooldownTimer.setBackground(rounded(Control.darkTheme()?0xcc141b25:0xccf1f5f8,12));
+        if(quickMenu!=null)quickMenu.applyTheme();
     }
     /** A collapsible group. Content is built directly into the returned container, so no post-hoc index moves. */
     private LinearLayout section(LinearLayout owner,String label,boolean open){
@@ -141,21 +143,18 @@ public final class Pad {
 
     private long lastTick = SystemClock.elapsedRealtime(), lastLog;
     private boolean closed, lastEnabled;
-    private float dragX, dragY, startX, startY;
-    private final View.OnLayoutChangeListener boundsListener=(v,l,t,r,b,oldL,oldT,oldR,oldB) -> clampPanel();
-    private void clampPanel() {
-        if(closed || parent.getWidth()<=0 || parent.getHeight()<=0)return;
-        // Expansion, optional sections, and window resizing may invalidate a previous drag.
-        WindowInsets insets=parent.getRootWindowInsets();
-        int navigationBottom=0;
-        if(insets!=null)navigationBottom=Build.VERSION.SDK_INT>=30
-            ? insets.getInsets(WindowInsets.Type.navigationBars()).bottom
-            : insets.getSystemWindowInsetBottom();
-        float minX=-panel.getLeft(),minY=-panel.getTop();
-        float maxX=Math.max(minX,parent.getWidth()-panel.getRight());
-        float maxY=Math.max(minY,parent.getHeight()-navigationBottom-dp(12)-panel.getBottom());
-        panel.setTranslationX(Math.max(minX,Math.min(maxX,panel.getTranslationX())));
-        panel.setTranslationY(Math.max(minY,Math.min(maxY,panel.getTranslationY())));
+    /** Pads the full-screen settings panel inside the status bar, navigation bar, and IME. */
+    private void applyPanelInsets(WindowInsets insets) {
+        if(insets==null)return;
+        int top,bottom,left,right;
+        if(Build.VERSION.SDK_INT>=30){
+            android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.ime());
+            top=bars.top;bottom=bars.bottom;left=bars.left;right=bars.right;
+        }else{
+            top=insets.getSystemWindowInsetTop();bottom=insets.getSystemWindowInsetBottom();
+            left=insets.getSystemWindowInsetLeft();right=insets.getSystemWindowInsetRight();
+        }
+        panel.setPadding(dp(12)+left,dp(8)+top,dp(12)+right,dp(12)+bottom);
     }
     private void showItemSettings(){
         LinearLayout form=new LinearLayout(activity);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(16),dp(8),dp(16),dp(8));
@@ -189,8 +188,8 @@ public final class Pad {
         activity = host;
         parent = (FrameLayout)host.getWindow().getDecorView();
         panel = new LinearLayout(host); panel.setOrientation(LinearLayout.VERTICAL); panel.setPadding(dp(12), dp(8), dp(12), dp(12));
-        panel.setBackground(rounded(surface(),20)); panel.setElevation(dp(12));
-        // Header: draggable title plus a dedicated close affix, with a gap before the settings list.
+        panel.setBackgroundColor(surface()); panel.setElevation(dp(12));
+        // Full-screen settings header with theme and close controls.
         LinearLayout header = new LinearLayout(host); header.setOrientation(LinearLayout.HORIZONTAL); header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = text("PGRazor", 19, accent()); title.setTypeface(Typeface.DEFAULT,Typeface.BOLD); title.setPadding(dp(4), dp(8), 0, dp(8)); sectionHeads.add(title);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(48), 1f));
@@ -224,39 +223,10 @@ public final class Pad {
 
         // ----- Location & overlays -----
         LinearLayout loc = section(body, "Location & overlays", true);
-        steeringStatus = caption(loc, "Joystick: up = north");
-        steeringMode = button("Camera-relative"); loc.addView(steeringMode);
-        steeringMode.setOnClickListener(v -> { stick.release(true); Control.setCameraRelative(!Control.cameraRelative()); refresh(); });
+        steeringStatus = caption(loc, "Joystick follows the camera");
         Button position = button("Coordinates & speed"); loc.addView(position); position.setOnClickListener(v -> edit());
         Button map = button("World map"); loc.addView(map);
-        map.setOnClickListener(v -> {
-            stick.release(true);
-            Control.event("map-open", "Browsing does not apply a destination; current walk=" + Control.engine.walking);
-            WorldMapDialog.show(activity, Control.engine.latitude, Control.engine.longitude, (lat, lon) -> {
-                if (!Control.canEnable()) { Toast.makeText(activity,"Location adapter is not ready",Toast.LENGTH_SHORT).show(); return false; }
-                try {
-                    stick.release(); Control.teleport(lat, lon);
-                    Control.event("map-teleport", String.format(Locale.US,"lat=%.7f lon=%.7f",lat,lon));
-                    refresh(); return true;
-                } catch (IllegalArgumentException error) { Toast.makeText(activity,"Select valid coordinates",Toast.LENGTH_SHORT).show(); return false; }
-            }, (lat, lon) -> {
-                if (!Control.canEnable()) { Toast.makeText(activity,"Location adapter is not ready",Toast.LENGTH_SHORT).show(); return false; }
-                try {
-                    stick.release(); Control.walkTo(lat, lon);
-                    Control.event("walk-started", String.format(Locale.US,"targetLat=%.7f targetLon=%.7f speedKmh=%.2f",lat,lon,Control.engine.speedKmh));
-                    if (!Control.engine.walking) Control.event("walk-arrived", "Already at selected destination");
-                    refresh(); return true;
-                } catch (IllegalArgumentException error) { Toast.makeText(activity,"Select valid coordinates",Toast.LENGTH_SHORT).show(); return false; }
-            }, waypoints -> {
-                if (!Control.canEnable()) { Toast.makeText(activity,"Location adapter is not ready",Toast.LENGTH_SHORT).show(); return false; }
-                try {
-                    stick.release(true); Control.walkRoute(waypoints);
-                    MotionEngine.RouteProgress progress=Control.engine.routeProgress();
-                    Control.event("route-started", String.format(Locale.US,"stops=%d visited=%d remainingMeters=%.2f speedKmh=%.2f",progress.total,progress.visited,progress.remainingMeters,Control.engine.speedKmh));
-                    refresh(); return true;
-                } catch (IllegalArgumentException error) { Toast.makeText(activity,error.getMessage(),Toast.LENGTH_SHORT).show(); return false; }
-            });
-        });
+        map.setOnClickListener(v -> openWorldMap());
         mapTap = button("Game map tap: Do nothing"); loc.addView(mapTap);
         mapTap.setOnClickListener(v -> { Control.setMapTapMode((Control.mapTapMode()+1)%3); refresh(); });
         spawnSwitch = switchRow(loc, "Spawn booster (80 m)"); spawnSwitch.setChecked(Control.spawnBooster());
@@ -372,19 +342,11 @@ public final class Pad {
         Button logs = button("Run log / export"); diag.addView(logs);
         logs.setOnClickListener(v -> activity.startActivity(new Intent(activity, LogActivity.class)));
 
+        // Closing the full-screen settings panel simply returns to the game (or the quick menu on the next tap).
         closeIcon.setOnClickListener(v -> panel.setVisibility(View.GONE));
-        title.setOnTouchListener((view, event) -> {
-            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                dragX = event.getRawX(); dragY = event.getRawY(); startX = panel.getTranslationX(); startY = panel.getTranslationY(); return true;
-            }
-            if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
-                panel.setTranslationX(startX+event.getRawX()-dragX);
-                panel.setTranslationY(startY+event.getRawY()-dragY); clampPanel(); return true;
-            }
-            return true;
-        });
-        FrameLayout.LayoutParams layout = new FrameLayout.LayoutParams(Math.min(dp(352), host.getResources().getDisplayMetrics().widthPixels-dp(24)), Math.min(dp(620),host.getResources().getDisplayMetrics().heightPixels-dp(160)), Gravity.TOP|Gravity.LEFT);
-        layout.leftMargin = dp(12); layout.topMargin = dp(100); layout.bottomMargin=dp(12); parent.addView(panel, layout);
+        // The settings panel is a full-screen modal now; it consumes taps so the game behind it stays inert.
+        panel.setClickable(true);
+        parent.addView(panel, new FrameLayout.LayoutParams(-1, -1));
 
         FrameLayout.LayoutParams joyLayout=new FrameLayout.LayoutParams(dp(136),-2,Gravity.LEFT|Gravity.BOTTOM);joyLayout.leftMargin=dp(16);joyLayout.bottomMargin=dp(96);parent.addView(joystickOverlay,joyLayout);
 
@@ -395,8 +357,7 @@ public final class Pad {
 
         cooldownTimer=button("History  --:--");cooldownTimer.setTextSize(14);cooldownTimer.setAllCaps(false);cooldownTimer.setTextColor(accent());FrameLayout.LayoutParams timerLayout=new FrameLayout.LayoutParams(dp(165),dp(44),Gravity.TOP|Gravity.RIGHT);timerLayout.topMargin=dp(44);timerLayout.rightMargin=dp(12);parent.addView(cooldownTimer,timerLayout);cooldownTimer.setOnClickListener(v->Cooldown.show(activity));
 
-        panel.addOnLayoutChangeListener(boundsListener); parent.addOnLayoutChangeListener(boundsListener);
-        panel.setOnApplyWindowInsetsListener((view,insets) -> {panel.post(this::clampPanel);return insets;});
+        panel.setOnApplyWindowInsetsListener((view,insets) -> {applyPanelInsets(insets);return insets;});
         panel.requestApplyInsets();
 
         vgpToggle=new VgpToggle(host);FrameLayout.LayoutParams vgpButtonLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);vgpButtonLayout.leftMargin=dp(12);vgpButtonLayout.topMargin=dp(156);parent.addView(vgpToggle,vgpButtonLayout);vgpToggle.setOnClickListener(v->{Control.setVgpEnabled(!Control.vgpEnabled());refresh();});
@@ -404,7 +365,17 @@ public final class Pad {
         FrameLayout.LayoutParams vgpLayout=new FrameLayout.LayoutParams(dp(220),-2,Gravity.TOP|Gravity.LEFT);vgpLayout.leftMargin=dp(12);vgpLayout.topMargin=dp(216);parent.addView(vgpActivity,vgpLayout);vgpActivity.setVisibility(View.GONE);
         vgpMarker=new VgpMarker(host);parent.addView(vgpMarker,new FrameLayout.LayoutParams(dp(38),dp(46)));vgpMarker.setVisibility(View.GONE);
         launcher=new RazorIcon(host);FrameLayout.LayoutParams iconLayout=new FrameLayout.LayoutParams(dp(48),dp(48),Gravity.TOP|Gravity.LEFT);iconLayout.leftMargin=dp(12);iconLayout.topMargin=dp(100);parent.addView(launcher,iconLayout);
-        launcher.setOnClickListener(v->{boolean open=panel.getVisibility()!=View.VISIBLE;panel.setVisibility(open?View.VISIBLE:View.GONE);if(open){panel.bringToFront();clampPanel();}});draggable(launcher,launcher,true);
+        launcher.setContentDescription("Open PGRazor quick menu. Drag to reposition.");
+        // The R launcher now toggles the compact quick menu; Settings there opens this panel full screen.
+        quickMenu=new QuickMenu(host,parent,launcher,new QuickMenu.Listener(){
+            public void onMap(){openWorldMap();}
+            public double onCycleWalkSpeed(){double s=Control.cycleWalkSpeed();refresh();return s;}
+            public void onAutoWalk(){stick.release(true);AutoWalkDialog.show(activity);}
+            public void onFavorites(){QuickLocationDialogs.showFavorites(activity,Pad.this::quickTeleport);}
+            public void onTeleport(){QuickLocationDialogs.showTeleport(activity,Pad.this::quickTeleport);}
+            public void onSettings(){openSettings();}
+        });
+        launcher.setOnClickListener(v->{if(quickMenu!=null)quickMenu.toggle();});draggable(launcher,launcher,true);
 
         panel.setVisibility(View.GONE);joystickOverlay.setVisibility(Control.joystickVisible()?View.VISIBLE:View.GONE);applyTheme();
         refresh(); handler.post(tick);
@@ -461,9 +432,8 @@ public final class Pad {
         if (route.total>1 && route.active) movement=String.format(Locale.US,"ROUTE %d/%d  ·  %.0f m left",route.visited+1,route.total,route.remainingMeters);
         else if (route.total>1 && route.visited==route.total) movement="ON  ·  route complete";
         state.setText(Control.connection + "\n" + movement + "  ·  coordinate reads " + Control.latitudeReads + "/" + Control.longitudeReads);
-        steeringMode.setVisibility(Control.cameraSteeringConfigured() ? View.VISIBLE : View.GONE);
-        steeringMode.setText(Control.cameraRelative() ? "Joystick: Camera" : "Joystick: North");
-        steeringStatus.setText(Control.cameraRelative() ? Control.cameraSteeringStatus() : "Joystick: up = north");
+        steeringStatus.setText(Control.cameraSteeringConfigured() ? Control.cameraSteeringStatus() : "Joystick follows the camera");
+        if(quickMenu!=null)quickMenu.onRefresh();
         cameraRoot.setVisibility(Control.cameraDiagnosticsConfigured() ? View.VISIBLE : View.GONE);
         cameraStatus.setText(Control.cameraDiagnosticStatus());
         cameraSample.setText(Control.cameraDiagnosticRunning() ? "Sampling camera..." : "Sample camera (10s)");
@@ -550,10 +520,58 @@ public final class Pad {
             } catch (IllegalArgumentException error) { speed.setError("Enter valid coordinates and speed (0.5–30)."); }
         })); dialog.show();styleTree(form);
     }
+    /** Shared World map handler for both the settings list and the quick menu Map row. */
+    private void openWorldMap() {
+        if(quickMenu!=null)quickMenu.hide();
+        stick.release(true);
+        Control.event("map-open", "Browsing does not apply a destination; current walk=" + Control.engine.walking);
+        WorldMapDialog.show(activity, Control.engine.latitude, Control.engine.longitude, (lat, lon) -> {
+            if (!Control.canEnable()) { Toast.makeText(activity,"Location adapter is not ready",Toast.LENGTH_SHORT).show(); return false; }
+            try {
+                stick.release(); Control.teleport(lat, lon);
+                Control.event("map-teleport", String.format(Locale.US,"lat=%.7f lon=%.7f",lat,lon));
+                refresh(); return true;
+            } catch (IllegalArgumentException error) { Toast.makeText(activity,"Select valid coordinates",Toast.LENGTH_SHORT).show(); return false; }
+        }, (lat, lon) -> {
+            if (!Control.canEnable()) { Toast.makeText(activity,"Location adapter is not ready",Toast.LENGTH_SHORT).show(); return false; }
+            try {
+                stick.release(); Control.walkTo(lat, lon);
+                Control.event("walk-started", String.format(Locale.US,"targetLat=%.7f targetLon=%.7f speedKmh=%.2f",lat,lon,Control.engine.speedKmh));
+                if (!Control.engine.walking) Control.event("walk-arrived", "Already at selected destination");
+                refresh(); return true;
+            } catch (IllegalArgumentException error) { Toast.makeText(activity,"Select valid coordinates",Toast.LENGTH_SHORT).show(); return false; }
+        }, waypoints -> {
+            if (!Control.canEnable()) { Toast.makeText(activity,"Location adapter is not ready",Toast.LENGTH_SHORT).show(); return false; }
+            try {
+                stick.release(true); Control.walkRoute(waypoints);
+                MotionEngine.RouteProgress progress=Control.engine.routeProgress();
+                Control.event("route-started", String.format(Locale.US,"stops=%d visited=%d remainingMeters=%.2f speedKmh=%.2f",progress.total,progress.visited,progress.remainingMeters,Control.engine.speedKmh));
+                refresh(); return true;
+            } catch (IllegalArgumentException error) { Toast.makeText(activity,error.getMessage(),Toast.LENGTH_SHORT).show(); return false; }
+        });
+    }
+    /** Opens the existing settings panel full screen; the game runtime is left untouched. */
+    private void openSettings() {
+        if(quickMenu!=null)quickMenu.hide();
+        stick.release(true);
+        panel.setVisibility(View.VISIBLE); panel.bringToFront(); panel.requestApplyInsets();
+        Control.event("settings-open", "Full-screen panel; runtime unaffected");
+        refresh();
+    }
+    /** Shared quick teleport for the Favorites and Teleport modals; validates readiness. */
+    private boolean quickTeleport(double latitude, double longitude) {
+        if (!Control.canEnable()) { Toast.makeText(activity,"Location adapter is not ready",Toast.LENGTH_SHORT).show(); return false; }
+        try {
+            stick.release(); Control.teleport(latitude, longitude);
+            Control.event("quick-teleport", String.format(Locale.US,"lat=%.7f lon=%.7f",latitude,longitude));
+            refresh(); return true;
+        } catch (IllegalArgumentException error) { Toast.makeText(activity,"Enter valid coordinates",Toast.LENGTH_SHORT).show(); return false; }
+    }
     public void close() {
         if (closed) return;
         closed = true; stick.release(true); Control.suspendForBackground(); handler.removeCallbacks(tick);
-        panel.removeOnLayoutChangeListener(boundsListener); parent.removeOnLayoutChangeListener(boundsListener); parent.removeView(panel);parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null)parent.removeView(encounterBerry);if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);
+        if(quickMenu!=null){quickMenu.destroy();quickMenu=null;}
+        parent.removeView(panel);parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null)parent.removeView(encounterBerry);if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);
         panel.setOnApplyWindowInsetsListener(null);
         Control.event("panel-closed", "Runtime suspended on activity change; desiredEnabled=" + Control.desiredEnabled() + "; movement stopped");
     }

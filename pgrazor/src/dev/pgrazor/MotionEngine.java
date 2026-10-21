@@ -13,6 +13,8 @@ public final class MotionEngine {
     private volatile double east, north;
     private double[][] route = new double[0][];
     private int visitedStops;
+    /** When set, the chosen route repeats from its first stop after the last; cleared by any cancellation. */
+    private boolean looping;
 
     /** One coherent progress snapshot, without exposing the mutable route. */
     public static final class RouteProgress {
@@ -40,16 +42,19 @@ public final class MotionEngine {
         latitude = lat; longitude = lon;
     }
     public synchronized void speed(double value) {
-        if (!Double.isFinite(value) || value < 0.5 || value > 30)
-            throw new IllegalArgumentException("Speed must be between 0.5 and 30 km/h.");
+        // Exactly 0 pauses travel in place; otherwise the usual 0.5..30 km/h range applies.
+        if (!Double.isFinite(value) || (value != 0 && (value < 0.5 || value > 30)))
+            throw new IllegalArgumentException("Speed must be 0 (paused) or between 0.5 and 30 km/h.");
         speedKmh = value;
     }
     /** Explicitly start a shortest-path walk; callers must check adapter readiness. */
     public synchronized void walkTo(double lat, double lon) {
         walkRoute(new double[][]{{lat,lon}});
     }
-    /** Validate/copy the entire route before replacing any current movement. */
-    public synchronized void walkRoute(double[][] waypoints) {
+    /** Validate/copy the entire route before replacing any current movement; a one-shot route. */
+    public synchronized void walkRoute(double[][] waypoints) { walkRoute(waypoints, false); }
+    /** As {@link #walkRoute(double[][])}, but a looping route repeats from its first stop after the last. */
+    public synchronized void walkRoute(double[][] waypoints, boolean loop) {
         if (waypoints==null || waypoints.length==0 || waypoints.length>MAX_ROUTE_STOPS)
             throw new IllegalArgumentException("Choose between 1 and 50 route stops.");
         double[][] copy=new double[waypoints.length][2];
@@ -59,12 +64,19 @@ public final class MotionEngine {
             double lat=waypoints[i][0], lon=waypoints[i][1];
             validatePosition(lat,lon); copy[i][0]=lat; copy[i][1]=lon;
         }
-        route=copy; visitedStops=0;
+        // Mutation only after full validation, so an invalid route leaves any active walk untouched.
+        route=copy; visitedStops=0; looping=loop;
         targetLatitude=route[0][0]; targetLongitude=route[0][1];
         east = north = 0;
         enabled = true;
         walking = true;
-        while (walking && angle(unit(latitude,longitude),unit(targetLatitude,targetLongitude))<=SAME_POINT_RADIANS) arrive();
+        drainCoincident();
+    }
+    /** Settle stops already at the current position; bounded to one lap so a fully coincident loop can't spin. */
+    private void drainCoincident() {
+        for (int guard=route.length; guard>0 && walking
+                && angle(unit(latitude,longitude),unit(targetLatitude,targetLongitude))<=SAME_POINT_RADIANS; guard--)
+            arrive();
     }
     public synchronized void input(double x, double y) {
         clearRoute();
@@ -74,7 +86,7 @@ public final class MotionEngine {
         if (Math.hypot(east, north) > 0.05)
             bearing = (Math.toDegrees(Math.atan2(east, north)) + 360) % 360;
     }
-    private void clearRoute() { walking=false; route=new double[0][]; visitedStops=0; }
+    private void clearRoute() { walking=false; route=new double[0][]; visitedStops=0; looping=false; }
     public synchronized void stop() { clearRoute(); east = north = 0; }
     public synchronized void pause() { enabled = false; stop(); }
     public synchronized double metersPerSecond() {
@@ -86,9 +98,17 @@ public final class MotionEngine {
         double distance = metersPerSecond() * Math.min(seconds, 0.25) / EARTH_RADIUS_METERS;
         if (walking) {
             // Carry this frame's unused distance across stops, never a new budget
-            // per leg. The bounded route also bounds duplicate-point processing.
-            while (walking && (distance>0 || angle(unit(latitude,longitude),unit(targetLatitude,targetLongitude))<=SAME_POINT_RADIANS))
+            // per leg. The bounded route also bounds duplicate-point processing. A
+            // looping route repeats within the same distance budget; zero-distance
+            // (coincident) arrivals are capped to one lap. A hard iteration limit also
+            // bounds tiny nonzero loops; unused travel is dropped rather than freezing a frame.
+            int coincidentArrivals=0,iterations=0;
+            while (walking && iterations++<MAX_ROUTE_STOPS*4 && (distance>0 || angle(unit(latitude,longitude),unit(targetLatitude,targetLongitude))<=SAME_POINT_RADIANS)) {
+                double before=distance;
                 distance=stepWalk(distance);
+                if (before-distance>SAME_POINT_RADIANS) coincidentArrivals=0;
+                else if (++coincidentArrivals>route.length) break;
+            }
             return;
         }
         if (distance == 0) return;
@@ -104,7 +124,8 @@ public final class MotionEngine {
     private void arrive() {
         latitude = targetLatitude; longitude = targetLongitude;
         visitedStops++;
-        walking=visitedStops<route.length;
+        if (visitedStops>=route.length) visitedStops = looping ? 0 : route.length;
+        walking = looping ? route.length>0 : visitedStops<route.length;
         if (walking) { targetLatitude=route[visitedStops][0]; targetLongitude=route[visitedStops][1]; }
         east = north = 0;
     }
