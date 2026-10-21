@@ -29,7 +29,7 @@ The Android package identity stays compatible with the game. An official-store i
 | Other automation | Rocket/raid/gym/Dynamax controls, buddy feeding, gift opening/sending, quick spin |
 | Interface | Quick menu, full-screen settings, separate joystick, cooldown history, light/dark themes |
 
-**Quick menu:** Map, speed presets (0, 9.3, 16, 30 km/h), Autowalk, Favorites, Teleport, and Settings. Feeds is a disabled placeholder. Favorites shares the map's saved places. Autowalk builds a route through up to 50 nearby loaded stops and gyms, with optional looping. Routes use direct segments between locations. Zero speed pauses travel; selecting another speed resumes the current route. Backgrounding stops routes rather than resuming movement automatically.
+**Quick menu:** Map, speed presets (0, 9.3, 16, 30 km/h), Autowalk, Feeds, Favorites, Teleport, and Settings. Favorites shares the map's saved places. Autowalk builds a route through up to 50 nearby loaded stops and gyms, with optional looping. Routes use direct segments between locations. Zero speed pauses travel; selecting another speed resumes the current route. Backgrounding stops routes rather than resuming movement automatically.
 
 **VGP:** the settings switch shows or hides its overlay. Tap the connected/disconnected device icon to start or stop VGP; ON/OFF labels show its state. VGP starts off and switches off when the app leaves the foreground. Optional **Stop on cooldown (estimated)** also switches it off until you manually restart it. Catch and item automation follow their existing settings and protection rules.
 
@@ -65,6 +65,8 @@ PGRazor uses the `pgrazor/` project directory and `dev.pgrazor` Java namespace. 
 ## License
 
 Original PGRazor source is available under the [MIT License](LICENSE). Third-party components retain their own licenses. Pokémon GO and its assets are not covered by this license. PGRazor is an independent project and is not affiliated with the game publisher.
+
+**LivePokeMap feeds:** Open **Feeds** and sign in with your own LivePokeMap account on the phone. The feed lists remote Pokémon, stops, gyms, raids, and stations around your current location. Filter by category, radius, and minimum Pokémon IV; select a result for Map, Walk, or Teleport. The session token is stored encrypted with Android Keystore; the password is never saved. Logout removes the token. Refresh stops when the feed closes or the app leaves the foreground. Remote sightings can expire and are separate from locations loaded by the game. This uses LivePokeMap's observed web interface, which may change; access depends on your account and service availability.
 
 The map and cooldown history open full screen using the selected PGRazor theme. Select a map pin, then choose Walk here or Teleport. The manual route planner also offers Loop route (off by default). Map tiles retain their original colors.
 

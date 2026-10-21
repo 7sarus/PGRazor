@@ -361,6 +361,7 @@ public final class Pad {
             public void onMap(){openWorldMap();}
             public double onCycleWalkSpeed(){double s=Control.cycleWalkSpeed();refresh();return s;}
             public void onAutoWalk(){stick.release(true);AutoWalkDialog.show(activity);}
+            public void onFeeds(){stick.release(true);LiveFeedDialog.show(activity);}
             public void onFavorites(){QuickLocationDialogs.showFavorites(activity,Pad.this::quickTeleport);}
             public void onTeleport(){QuickLocationDialogs.showTeleport(activity,Pad.this::quickTeleport);}
             public void onSettings(){openSettings();}
