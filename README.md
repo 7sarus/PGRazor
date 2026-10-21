@@ -4,7 +4,7 @@
 
 PGRazor adds an in-game menu, independent joystick, encounter controls, and optional automation. Settings persist across restarts, with light and dark themes.
 
-**Working APK releases are private.** This repository is prepared for source-only publication; original game files, signing keys, private build artifacts, and investigation logs are excluded. The release workflow refuses to build or publish a playable APK in a public repository.
+**Working APK releases are private.** Original game APKs, signing keys, private build artifacts, and investigation logs are excluded from Git. Selected map artwork is bundled with provenance; see [third-party notices](THIRD_PARTY.md). The release workflow refuses to build or publish a playable APK in a public repository.
 
 ## Install a private release
 
@@ -64,4 +64,4 @@ PGRazor uses the `pgrazor/` project directory and `dev.pgrazor` Java namespace. 
 
 Original PGRazor source is available under the [MIT License](LICENSE). Third-party components retain their own licenses. Pokémon GO and its assets are not covered by this license. PGRazor is an independent project and is not affiliated with the game publisher.
 
-The world map layers show locations currently loaded by the game near your avatar, not remote search results. Blue S markers are stops, orange G markers are gyms, and purple R/E markers are raids/eggs. Layer choices persist. Tile loading uses the [OpenStreetMap tile policy](https://operations.osmfoundation.org/policies/tiles/), including local caching and visible tiles only.
+The world map layers show locations currently loaded by the game near your avatar, not remote search results. Markers use bundled game artwork, with gym team-color rings and distinct raid categories. Tap a marker for live gym/raid details; overlapping markers open a chooser. Egg badges identify unhatched raids. Layer choices persist. Tile loading uses the [OpenStreetMap tile policy](https://operations.osmfoundation.org/policies/tiles/), including local caching and visible tiles only.

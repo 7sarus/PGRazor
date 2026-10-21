@@ -1,0 +1,103 @@
+{
+  "repository": "https://github.com/PokeMiners/pogo_assets",
+  "commit": "c2a686eb08ace6e890d8fe3d2134c76988db87b5",
+  "license_note": "Pokemon GO artwork; not covered by PGRazor MIT license. See NOTICE.txt.",
+  "icons": [
+    {
+      "source": "Images/Pokestops and Gyms/img_pokestop.png",
+      "name": "stop.png",
+      "purpose": "PokeStop map marker (blue stop). Drawn on a white halo for the 'stop' kind.",
+      "sha256": "1257371d66527286f4406a8da6422332e10e7c0b8a397f75b51341a91b40593e",
+      "upstream_blob_sha": "3b9e71ba9a2d61813e9b107a07d503458feba37e",
+      "bytes": 3401
+    },
+    {
+      "source": "Images/Pokestops and Gyms/TeamLess.png",
+      "name": "gym.png",
+      "purpose": "Gym map marker base disc (clean pokeball circle). Rendered over a resolved team-colour ring so one asset covers every team.",
+      "sha256": "3d3f346268d813e7f1bf6d9842af6e3c7df6ecaa2bfad4ae77db59438b7c50d2",
+      "upstream_blob_sha": "518c2a38252406c44952d3e9d5d24f00e01abb27",
+      "bytes": 17156
+    },
+    {
+      "source": "Images/Raids/ic_raid_egg_normal.png",
+      "name": "raid-normal.png",
+      "purpose": "Raid category cue for low-tier raids (pink egg). Chosen when the game-resolved RaidLevel name has no special keyword and its tier digit is 1-2.",
+      "sha256": "d7b4e114639fabccf2f5f2d5498d768aba15024ed22beacbc530f81d52b5ada7",
+      "upstream_blob_sha": "6a5db10e6c796531b4c51abd337ffc4a4ca687e1",
+      "bytes": 22668
+    },
+    {
+      "source": "Images/Raids/ic_raid_egg_rare.png",
+      "name": "raid-rare.png",
+      "purpose": "Raid category cue for mid-tier raids (gold egg). Chosen for RaidLevel tier digit 3-4.",
+      "sha256": "5e5800410c0c3a8597e2da5ad6899841e432ab8c2d443e043892abf150fb3fb4",
+      "upstream_blob_sha": "0444f90f3b31e1e87b0093d0b002dea0e2c60866",
+      "bytes": 21843
+    },
+    {
+      "source": "Images/Raids/ic_raid_egg_legendary.png",
+      "name": "raid-legendary.png",
+      "purpose": "Unhatched tier-5 raid egg only; not a guessed Mega category.",
+      "sha256": "6cabbdb662e5d8b181bd98fde889fd0f9e5dcb45fa82decc92be6b6bbd857a82",
+      "upstream_blob_sha": "3d03a32eb86a274f7805f39fbd3184bd28a26a26",
+      "bytes": 21213
+    },
+    {
+      "source": "Images/Raids/raid_egg_primal_icon.png",
+      "name": "raid-primal.png",
+      "purpose": "Raid category cue for Primal raids (red/orange glowing egg). Chosen when the resolved RaidLevel name contains 'Primal'.",
+      "sha256": "c21bb2c46e027c1e88d13ece6dd44b4c28c206fa424af309e3d07363e56b008f",
+      "upstream_blob_sha": "db4530675bbb76692100f9e207b8dded5c3f99f9",
+      "bytes": 23130
+    },
+    {
+      "source": "Images/Raids/raid_ultra_icon.png",
+      "name": "raid-ultra.png",
+      "purpose": "Raid category cue for Ultra Beast / Ultra Burst raids (blue-violet wormhole). Chosen when the resolved RaidLevel name contains 'Ultra'.",
+      "sha256": "e6329ebb8db369327bc79d378309e9e0d314ff6307cbad4421bc74b938ac566a",
+      "upstream_blob_sha": "8df11e880dfe8af66fe94bcc20b985c662267100",
+      "bytes": 24848
+    },
+    {
+      "source": "Images/Raids/shadow_icon.png",
+      "name": "raid-shadow.png",
+      "purpose": "Raid category cue for Shadow raids (purple smoke). Chosen when the resolved RaidLevel name contains 'Shadow'.",
+      "sha256": "eee9cdcf83b85d94983369d463c3c0029b8bcaade51917c6f0b9626a59576f70",
+      "upstream_blob_sha": "5b023806d860421a05cf2230c619483014ad5301",
+      "bytes": 8886
+    },
+    {
+      "source": "Images/Raids/ActivityLogRaidLogo.png",
+      "name": "raid-active.png",
+      "purpose": "Active ordinary raid; generic unknown raid category",
+      "sha256": "e8a5f333d88e490563edde7343f97eb920bea1990c4c3a767ba75b4e969b0db6",
+      "upstream_blob_sha": "524c932f7ba9b42d8dd5be2a34f766bb96a191a6",
+      "bytes": 4926
+    },
+    {
+      "source": "Images/Raids/ActivityLogMegaRaidLogo.png",
+      "name": "raid-mega-active.png",
+      "purpose": "Mega raid category emblem",
+      "sha256": "9f780874e6c517eac62710778d2361c96a7e5eb78218832f8ca25889f4bb75e4",
+      "upstream_blob_sha": "af9bb0a7f1d1a7f1a7ad0d5212458c0f99819ee5",
+      "bytes": 5226
+    },
+    {
+      "source": "Images/Raids/ActivityLogPrimalRaidLogo.png",
+      "name": "raid-primal-active.png",
+      "purpose": "Active Primal raid category emblem",
+      "sha256": "1c76b1794cb11cfa2dcb2b9ebd76bb3200efe4e65cdbc571193ad1f8606d6397",
+      "upstream_blob_sha": "f53c2e44683afd252689fae3abb6a81682f53f02",
+      "bytes": 5083
+    },
+    {
+      "source": "Images/Raids/ActivityLogShadowRaidLogo.png",
+      "name": "raid-shadow-active.png",
+      "purpose": "Active Shadow raid category emblem",
+      "sha256": "94655c96aec8696c6b0ae7ad43d14063cf9ac74abca8f31f9f211e5741e458e2",
+      "upstream_blob_sha": "a90537692fc26b68621366748810c9005ca1262d",
+      "bytes": 4150
+    }
+  ]
+}

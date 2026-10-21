@@ -396,6 +396,10 @@ public final class WorldMapDialog {
         private TextView poiStatus;
         private JSONArray pois=new JSONArray();
         private String lastPois="";
+        // Bundled POI art is decoded once and reused every frame; a null entry marks a tried-but-missing
+        // asset so the vector fallback renders without re-hitting the AssetManager each draw.
+        private final Map<String, Bitmap> markerIcons = new HashMap<>();
+        private final List<AlertDialog> poiDialogs = new ArrayList<>();
         private final Runnable poiRefresh=this::refreshPois;
         private volatile HttpURLConnection connection;
         private Future<?> pending;
@@ -417,6 +421,7 @@ public final class WorldMapDialog {
             selectionLabel = selection; this.status = status;
             tileSize = dp(activity, 256); slop = ViewConfiguration.get(activity).getScaledTouchSlop();
             cacheDirectory = new File(activity.getCacheDir(), "pgrazor-map-tiles-v1");
+            for(String icon:new String[]{"stop.png","gym.png","raid-normal.png","raid-rare.png","raid-legendary.png","raid-primal.png","raid-ultra.png","raid-shadow.png","raid-active.png","raid-mega-active.png","raid-primal-active.png","raid-shadow-active.png"})loadIcon(icon);
             setContentDescription("World map. Drag to pan, pinch to zoom, tap to select destination.");
             // Use the activity hardware renderer; tile I/O stays on the worker.
             pinch=new ScaleGestureDetector(activity,new ScaleGestureDetector.SimpleOnScaleGestureListener(){
@@ -520,18 +525,178 @@ public final class WorldMapDialog {
             invalidate();main.removeCallbacks(poiRefresh);main.postDelayed(poiRefresh,1000);
         }
         private void drawPois(Canvas canvas){
-            if(layers==0)return;float radius=dp((Activity)getContext(),9);long now=System.currentTimeMillis();
-            for(int i=0;i<pois.length();i++){JSONObject point=pois.optJSONObject(i);if(point==null)continue;
-                String kind=point.optString("kind");boolean stop="stop".equals(kind),raid=point.optLong("raidEnd")>now;
-                boolean showRaid=raid&&(layers&4)!=0;if(!(stop?(layers&1)!=0:(layers&2)!=0||showRaid))continue;
+            if(layers==0)return;float radius=dp((Activity)getContext(),11);long now=System.currentTimeMillis();
+            for(int i=0;i<pois.length();i++){JSONObject point=pois.optJSONObject(i);if(point==null||!poiVisible(point,now))continue;
                 double lat=point.optDouble("lat",Double.NaN),lon=point.optDouble("lon",Double.NaN);if(!Double.isFinite(lat)||!Double.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue;
-                float x=(float)(getWidth()/2.0+MapProjection.deltaX(MapProjection.x(lon),centerX)*world()),y=(float)(getHeight()/2.0+(MapProjection.y(lat)-centerY)*world());
+                float x=projectX(lon),y=projectY(lat);
                 if(x< -radius||x>getWidth()+radius||y< -radius||y>getHeight()+radius)continue;
-                paint.setStyle(Paint.Style.FILL);paint.setColor(Color.WHITE);canvas.drawCircle(x,y,radius+2,paint);
-                paint.setColor(showRaid?Color.rgb(151,65,205):stop?Color.rgb(20,157,208):Color.rgb(223,124,35));canvas.drawCircle(x,y,radius,paint);
-                paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(radius*1.25f);canvas.drawText(showRaid?(point.optBoolean("egg")?"E":"R"):stop?"S":"G",x,y+radius*.43f,paint);
+                drawMarker(canvas,point,x,y,radius,now);
             }
         }
+
+        /** Shared layer/time gate so only on-screen, currently drawn markers can be tapped. */
+        private boolean poiVisible(JSONObject point,long now){
+            boolean stop="stop".equals(point.optString("kind"));
+            boolean showRaid=point.optLong("raidEnd")>now&&(layers&4)!=0;
+            return stop?(layers&1)!=0:((layers&2)!=0||showRaid);
+        }
+        private float projectX(double lon){return (float)(getWidth()/2.0+MapProjection.deltaX(MapProjection.x(lon),centerX)*world());}
+        private float projectY(double lat){return (float)(getHeight()/2.0+(MapProjection.y(lat)-centerY)*world());}
+
+        private void drawMarker(Canvas canvas,JSONObject point,float x,float y,float radius,long now){
+            boolean showRaid=point.optLong("raidEnd")>now&&(layers&4)!=0;
+            boolean stop="stop".equals(point.optString("kind"));
+            paint.setStyle(Paint.Style.FILL);
+            if(showRaid){
+                paint.setColor(Color.WHITE);canvas.drawCircle(x,y,radius+3,paint);
+                if(!point.optBoolean("egg")){ // a hatched raid shows a solid accent ring; an egg stays plain
+                    paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Math.max(2,radius/5f));paint.setColor(Color.rgb(242,110,30));
+                    canvas.drawCircle(x,y,radius+2,paint);paint.setStyle(Paint.Style.FILL);
+                }
+                drawIconOrFallback(canvas,loadIcon(raidIcon(point)),x,y,radius,point.optBoolean("egg")?"E":"R",Color.rgb(151,65,205));
+                if(point.optBoolean("egg")){paint.setColor(Color.rgb(65,45,85));canvas.drawCircle(x+radius*.8f,y+radius*.8f,radius*.45f,paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(radius*.65f);canvas.drawText("E",x+radius*.8f,y+radius*1.02f,paint);}
+            } else if(stop){
+                paint.setColor(Color.WHITE);canvas.drawCircle(x,y,radius+3,paint);
+                drawIconOrFallback(canvas,loadIcon("stop.png"),x,y,radius,"S",Color.rgb(20,157,208));
+            } else { // gym: a team-colour ring sits behind the disc
+                paint.setColor(Color.WHITE);canvas.drawCircle(x,y,radius+3,paint);
+                paint.setColor(teamColor(point.optString("team",null)));canvas.drawCircle(x,y,radius+1,paint);
+                drawIconOrFallback(canvas,loadIcon("gym.png"),x,y,radius*0.92f,"G",Color.rgb(223,124,35));
+            }
+        }
+
+        private void drawIconOrFallback(Canvas canvas,Bitmap icon,float x,float y,float radius,String letter,int fallbackColor){
+            if(icon!=null){
+                RectF bounds=new RectF(x-radius,y-radius,x+radius,y+radius);
+                canvas.drawBitmap(icon,null,bounds,paint);return;
+            }
+            paint.setStyle(Paint.Style.FILL);paint.setColor(fallbackColor);canvas.drawCircle(x,y,radius,paint);
+            paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(radius*1.25f);canvas.drawText(letter,x,y+radius*.43f,paint);
+        }
+
+        /** Asset name for a raid cue, chosen from the game-resolved tier text (never the icon file name). */
+        private static String raidIcon(JSONObject point){
+            String tier=point.optString("tier","");String n=tier.toLowerCase(Locale.US);
+            boolean egg=point.optBoolean("egg");
+            if(n.contains("shadow"))return egg?"raid-shadow.png":"raid-shadow-active.png";
+            if(n.contains("primal"))return egg?"raid-primal.png":"raid-primal-active.png";
+            if(n.contains("ultra"))return "raid-ultra.png";
+            if(n.contains("mega"))return "raid-mega-active.png";
+            if(!egg)return "raid-active.png";
+            if(tier.matches("_?[1-5]")){
+                int level=tier.charAt(tier.length()-1)-'0';
+                return level>=5?"raid-legendary.png":level>=3?"raid-rare.png":"raid-normal.png";
+            }
+            return "raid-active.png"; // Unknown/special tier: generic cue, never guess egg rarity.
+        }
+        /** Team colour keyed on the game-resolved constant name, so no numeric team id is assumed. */
+        private static int teamColor(String name){
+            if(name==null)return Color.rgb(150,150,150);
+            String n=name.toLowerCase(Locale.US);
+            if(n.contains("mystic")||n.contains("blue"))return Color.rgb(29,120,230);
+            if(n.contains("valor")||n.contains("red"))return Color.rgb(221,60,60);
+            if(n.contains("instinct")||n.contains("yellow"))return Color.rgb(240,190,30);
+            return Color.rgb(150,150,150);
+        }
+        private Bitmap loadIcon(String name){
+            if(markerIcons.containsKey(name))return markerIcons.get(name);
+            Bitmap bitmap=null;
+            try(InputStream in=getContext().getAssets().open("pgrazor/map-icons/"+name)){bitmap=BitmapFactory.decodeStream(in);}
+            catch(IOException|RuntimeException ignored){bitmap=null;}
+            markerIcons.put(name,bitmap);return bitmap;
+        }
+
+        /** Visible markers within the tap radius, nearest first; respects the active layers. */
+        private List<JSONObject> poiHits(float px,float py){
+            List<JSONObject> hits=new ArrayList<>();final List<Double> distances=new ArrayList<>();
+            long now=System.currentTimeMillis();float reach=dp((Activity)getContext(),18);
+            for(int i=0;i<pois.length();i++){JSONObject point=pois.optJSONObject(i);if(point==null||!poiVisible(point,now))continue;
+                double lat=point.optDouble("lat",Double.NaN),lon=point.optDouble("lon",Double.NaN);if(!Double.isFinite(lat)||!Double.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue;
+                double distance=Math.hypot(px-projectX(lon),py-projectY(lat));if(distance<=reach){hits.add(point);distances.add(distance);}
+            }
+            List<Integer> order=new ArrayList<>();for(int i=0;i<hits.size();i++)order.add(i);
+            Collections.sort(order,(a,b)->Double.compare(distances.get(a),distances.get(b)));
+            List<JSONObject> sorted=new ArrayList<>();for(int i:order)sorted.add(hits.get(i));return sorted;
+        }
+
+        private void openPoiDetails(List<JSONObject> hits){
+            if(closed||hits.isEmpty())return;
+            if(hits.size()==1){showPoiDetails(hits.get(0));return;}
+            String[] labels=new String[hits.size()];for(int i=0;i<labels.length;i++)labels[i]=poiShortLabel(hits.get(i));
+            AlertDialog chooser=new AlertDialog.Builder(getContext()).setTitle("Nearby here ("+hits.size()+")")
+                .setItems(labels,(d,which)->showPoiDetails(hits.get(which))).setNegativeButton("Close",null).create();
+            registerPoiDialog(chooser);chooser.show();
+        }
+        private String poiShortLabel(JSONObject point){
+            long now=System.currentTimeMillis();
+            if(point.optLong("raidEnd")>now){String tier=point.optString("tier","");return "Raid"+(tier.isEmpty()?"":" "+tier)+(point.optBoolean("egg")?" (egg)":"");}
+            if("stop".equals(point.optString("kind")))return "PokéStop";
+            String team=point.optString("team","");return "Gym"+(team.isEmpty()?"":" ("+team+")");
+        }
+        private void registerPoiDialog(AlertDialog dialog){
+            poiDialogs.add(dialog);dialog.setOnDismissListener(d->poiDialogs.remove(dialog));
+        }
+        private void showPoiDetails(JSONObject initial){
+            if(closed)return;
+            final String id=initial.optString("id","");
+            final TextView body=new TextView(getContext());
+            int pad=dp((Activity)getContext(),18);body.setPadding(pad,pad,pad,pad);body.setTextSize(14);
+            final AlertDialog dialog=new AlertDialog.Builder(getContext()).setTitle(poiTitle(initial)).setView(body).setNegativeButton("Close",null).create();
+            final Runnable[] refresh=new Runnable[1];
+            refresh[0]=()->{
+                if(closed||!dialog.isShowing())return;
+                JSONObject live=id.isEmpty()?null:findPoi(id);
+                dialog.setTitle(poiTitle(live!=null?live:initial));
+                body.setText(poiDetailsText(live!=null?live:initial,live==null));
+                main.postDelayed(refresh[0],1000);
+            };
+            dialog.setOnDismissListener(d->{poiDialogs.remove(dialog);main.removeCallbacks(refresh[0]);});
+            poiDialogs.add(dialog);dialog.show();refresh[0].run();
+        }
+        private JSONObject findPoi(String id){
+            for(int i=0;i<pois.length();i++){JSONObject point=pois.optJSONObject(i);if(point!=null&&id.equals(point.optString("id")))return point;}
+            return null;
+        }
+        private static String poiTitle(JSONObject point){
+            long now=System.currentTimeMillis();
+            if(point.optLong("raidEnd")>now)return "Raid";
+            return "stop".equals(point.optString("kind"))?"PokéStop":"Gym";
+        }
+        /** Read-only; never changes the selected destination. "Unknown"/"unavailable" stay explicit. */
+        private String poiDetailsText(JSONObject p,boolean gone){
+            StringBuilder sb=new StringBuilder();
+            double lat=p.optDouble("lat",Double.NaN),lon=p.optDouble("lon",Double.NaN);
+            if(Double.isFinite(lat)&&Double.isFinite(lon))sb.append(String.format(Locale.US,"%.6f, %.6f\n\n",lat,lon));
+            long now=System.currentTimeMillis();
+            boolean stop="stop".equals(p.optString("kind"));
+            if(stop)sb.append("PokéStop loaded nearby by the game.\n");
+            else {
+                String team=p.optString("team","");
+                sb.append("Team: ").append(team.isEmpty()?"Unknown":team).append('\n');
+                // Six defenders per gym: official Pokemon GO Help Center, Battling at Gyms (verified 2026-10-21).
+                int slots=p.optInt("slots",-1);
+                if(slots>=0&&slots<=6)sb.append("Defenders: ").append(6-slots).append("/6 ("+slots+" slots open)\n");
+                else sb.append("Defenders: unavailable\n");
+            }
+            if(p.optLong("raidEnd")>now){
+                sb.append('\n');boolean egg=p.optBoolean("egg");String tier=p.optString("tier","");
+                sb.append("Raid tier: ").append(tier.isEmpty()?"Unknown":tier.replace("_", " ").replaceAll("([0-9])([A-Za-z])", "$1 $2").trim()).append('\n');
+                if(egg){
+                    long start=p.optLong("raidStart",0);
+                    sb.append("Egg — boss not yet revealed");
+                    if(start>now)sb.append("; hatches in ").append(countdown(start-now));
+                    sb.append('\n');
+                } else {
+                    int boss=p.optInt("boss",0);
+                    sb.append("Boss: ").append(boss>0?("#"+boss):"unknown").append('\n');
+                }
+                long end=p.optLong("raidEnd",0);if(end>now)sb.append("Ends in ").append(countdown(end-now)).append('\n');
+            }
+            if(p.optLong("raidEnd")>0&&p.optLong("raidEnd")<=now)sb.append("\nRaid ended.\n");
+            if(gone)sb.insert(0,"Last known data - no fresh nearby snapshot.\n\n");
+            return sb.toString().trim();
+        }
+        private static String countdown(long millis){long total=Math.max(0,millis)/1000;return String.format(Locale.US,"%d:%02d",total/60,total%60);}
 
         /** Each segment takes the shortest horizontal wrap, splitting at the dateline when needed. */
         private void drawRoute(Canvas canvas,boolean markers) {
@@ -588,10 +753,15 @@ public final class WorldMapDialog {
                     previousX = x; previousY = y; return true;
                 case MotionEvent.ACTION_UP:
                     boolean insideWorld = zoom != 0 || (Math.abs(event.getX() - getWidth() / 2.0) <= world() / 2 && Math.abs(event.getY() - getHeight() / 2.0) <= world() / 2);
-                    if (!dragged && !multiTouch && insideWorld) {
-                        longitude = MapProjection.longitude(MapProjection.offsetX(centerX, event.getX() - getWidth() / 2.0, world()));
-                        latitude = MapProjection.latitude(MapProjection.offsetY(centerY, event.getY() - getHeight() / 2.0, world()));
-                        updateSelection(); invalidate(); performClick();
+                    if (!dragged && !multiTouch) {
+                        // A tap on a visible marker opens read-only details and never moves the destination.
+                        List<JSONObject> hits = layers != 0 ? poiHits(event.getX(), event.getY()) : Collections.<JSONObject>emptyList();
+                        if (!hits.isEmpty()) { performClick(); openPoiDetails(hits); getParent().requestDisallowInterceptTouchEvent(false); return true; }
+                        if (insideWorld) {
+                            longitude = MapProjection.longitude(MapProjection.offsetX(centerX, event.getX() - getWidth() / 2.0, world()));
+                            latitude = MapProjection.latitude(MapProjection.offsetY(centerY, event.getY() - getHeight() / 2.0, world()));
+                            updateSelection(); invalidate(); performClick();
+                        }
                     }
                     getParent().requestDisallowInterceptTouchEvent(false); return true;
                 case MotionEvent.ACTION_CANCEL: getParent().requestDisallowInterceptTouchEvent(false); return true;
@@ -713,6 +883,8 @@ public final class WorldMapDialog {
             if (closed) return;
             closed = true; generation++;
             main.removeCallbacksAndMessages(null);
+            for (AlertDialog dialog : new ArrayList<>(poiDialogs)) dialog.dismiss();
+            poiDialogs.clear();
             if (pending != null) pending.cancel(true);
             worker.shutdownNow();
 

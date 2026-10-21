@@ -103,7 +103,9 @@ def signature_entry(name):
 def rewrite_apk(source,destination,*,base=False,dex=None,assets=None,preview=False):
     with zipfile.ZipFile(source) as original,zipfile.ZipFile(destination,'w') as output:
         names=original.namelist()
-        if any(name.startswith('assets/pgrazor/') for name in names): raise ValueError('Input already has PGRazor assets')
+        # Bundled map-icon art may already ride along in our own preview input; any other pre-existing
+        # PGRazor asset means the input was already instrumented and must be refused.
+        if any(name.startswith('assets/pgrazor/') and not (preview and name.startswith('assets/pgrazor/map-icons/')) for name in names): raise ValueError('Input already has PGRazor assets')
         if base:
             indices=[int(match.group(1) or '1') for name in names if (match:=re.fullmatch(r'classes(\d*)\.dex',name))]
             nextdex='classes'+str(max(indices,default=0)+1)+'.dex'
@@ -114,6 +116,7 @@ def rewrite_apk(source,destination,*,base=False,dex=None,assets=None,preview=Fal
                         raise ValueError('Input already contains PGRazor classes')
         for item in original.infolist():
             if signature_entry(item.filename): continue
+            if base and assets and item.filename in assets: continue  # re-added from the current asset set below; prevents duplicate entries
             if base and item.filename=='AndroidManifest.xml':
                 output.writestr(copy.copy(item),axml.patch_manifest(original.read(item))); continue
             with original.open(item) as reader,output.open(copy.copy(item),'w') as writer: shutil.copyfileobj(reader,writer)
@@ -176,6 +179,8 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
     if quick_close: mode['quickClose']=True
     if quick_ball: mode['quickBall']=True
     assets={'assets/pgrazor/mode.json':json.dumps(mode).encode()}
+    # POI marker art loaded by the Java map via AssetManager at pgrazor/map-icons/<name>.
+    for icon_name,icon_path in build.map_icon_assets().items(): assets['assets/pgrazor/map-icons/'+icon_name]=icon_path
     certificates=[]
     for path,_ in rows:
         verified=command(build.TOOLS/'apksigner.bat','verify','--print-certs',path,capture=True)

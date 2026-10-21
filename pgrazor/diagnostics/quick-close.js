@@ -251,7 +251,7 @@ function prepare(module,api,domain){
 
   if(total.compare(0)===0)return null;if(total.compare(LIMITS.assemblies)>0||list.isNull())throw Error('assembly-limit');
 
-  const required=[GUI,SGUI,SSTATE,RESP,OBJ,SYNC,BOOL],names=required.concat(Object.values(VGP),['Niantic.Holoholo.Gym.MapGym','Holoholo.Rpc.RaidInfoProto','Holoholo.Rpc.CharacterSize','System.Collections.IEnumerator','System.IDisposable','Holoholo.Rpc.GiftBoxProto',GIFT_OPEN_SEQUENCE,'Holoholo.Rpc.OpenGiftOutProto','Holoholo.Rpc.SendGiftOutProto'],Object.values(BUDDY_TYPES),['Niantic.Holoholo.Buddy.IBuddyStatsService','Holoholo.Rpc.BuddyObservedData','Holoholo.Rpc.BuddyFeedingOutProto','Holoholo.Rpc.BuddyPokemonProto'],Object.values(GIFT_TYPES),['Niantic.Platform.Internal.Protos.FriendDetailsProto','Niantic.Platform.Internal.Protos.PlayerSummaryProto','Holoholo.Rpc.GiftBoxDetailsProto','Holoholo.Rpc.StickerProto'],['Niantic.Holoholo.Encounter.Pokeball','Niantic.Holoholo.Encounter.PokeballThrow',SPAWN,BERRY,BERRYGUI,FEEDGUI],Object.values(BATTLE_TYPES),['UnityEngine.Behaviour','UnityEngine.UI.Button',RMINI,RMINIBASE,'UnityEngine.Component','UnityEngine.Transform','UnityEngine.GameObject','UnityEngine.Vector3',RVUI,RVGEST,RVBASE,RVCHARGE,ROCKET,RUI,RDIR,RCHARGE,RSHIELD,'UnityEngine.UI.Selectable','Niantic.Holoholo.UI.Items.ItemInventoryGuiService','Niantic.Holoholo.UI.Items.IItemInventoryGuiService','Niantic.Holoholo.MapSceneContext','Zenject.SceneContext','Zenject.DiContainer','Niantic.Holoholo.UI.Items.IItemInventoryService',IBAG,ISERVICE,IRESPONSE,ITEM,APPROACH,RESOLVE,SPLINE,SPINSTATE,SPINGUI,GESTURE,SPINNER,SPINBASE,SPINRESULT,RELEASE,BAG,DISPLAY,DGUI,DATA,VIEW,PK,INT,DELEGATE,ACTION]),classes={};
+  const required=[GUI,SGUI,SSTATE,RESP,OBJ,SYNC,BOOL],names=required.concat(Object.values(VGP),['Niantic.Holoholo.Gym.MapGym','Holoholo.Rpc.RaidInfoProto','Holoholo.Rpc.GymDisplayProto','Holoholo.Rpc.PokemonProto','Holoholo.Rpc.CharacterSize','System.Collections.IEnumerator','System.IDisposable','Holoholo.Rpc.GiftBoxProto',GIFT_OPEN_SEQUENCE,'Holoholo.Rpc.OpenGiftOutProto','Holoholo.Rpc.SendGiftOutProto'],Object.values(BUDDY_TYPES),['Niantic.Holoholo.Buddy.IBuddyStatsService','Holoholo.Rpc.BuddyObservedData','Holoholo.Rpc.BuddyFeedingOutProto','Holoholo.Rpc.BuddyPokemonProto'],Object.values(GIFT_TYPES),['Niantic.Platform.Internal.Protos.FriendDetailsProto','Niantic.Platform.Internal.Protos.PlayerSummaryProto','Holoholo.Rpc.GiftBoxDetailsProto','Holoholo.Rpc.StickerProto'],['Niantic.Holoholo.Encounter.Pokeball','Niantic.Holoholo.Encounter.PokeballThrow',SPAWN,BERRY,BERRYGUI,FEEDGUI],Object.values(BATTLE_TYPES),['UnityEngine.Behaviour','UnityEngine.UI.Button',RMINI,RMINIBASE,'UnityEngine.Component','UnityEngine.Transform','UnityEngine.GameObject','UnityEngine.Vector3',RVUI,RVGEST,RVBASE,RVCHARGE,ROCKET,RUI,RDIR,RCHARGE,RSHIELD,'UnityEngine.UI.Selectable','Niantic.Holoholo.UI.Items.ItemInventoryGuiService','Niantic.Holoholo.UI.Items.IItemInventoryGuiService','Niantic.Holoholo.MapSceneContext','Zenject.SceneContext','Zenject.DiContainer','Niantic.Holoholo.UI.Items.IItemInventoryService',IBAG,ISERVICE,IRESPONSE,ITEM,APPROACH,RESOLVE,SPLINE,SPINSTATE,SPINGUI,GESTURE,SPINNER,SPINBASE,SPINRESULT,RELEASE,BAG,DISPLAY,DGUI,DATA,VIEW,PK,INT,DELEGATE,ACTION]),classes={};
 
   const inputs=names.map(n=>{const i=n.lastIndexOf('.');return[n,Memory.allocUtf8String(n.slice(0,i)),Memory.allocUtf8String(n.slice(i+1))];});
 
@@ -881,6 +881,28 @@ function prepare(module,api,domain){
    if(!gym||!raid)throw Error('map-classes');
    const field=(owner,name,types)=>{const f=api.class_get_field_from_name(owner,Memory.allocUtf8String(name));if(f.isNull()||(api.field_get_flags(f)&16)||!types.includes(typeName(api,api.field_get_type(f))))throw Error('map-field:'+name);return f;};
    mapPoi={gym,raid,info:field(classes[VGP.fort],'RaidInfo',['Holoholo.Rpc.RaidInfoProto']),end:field(raid,'RaidEndMs',['System.Int64','System.UInt64']),spawn:field(raid,'RaidSpawnMs',['System.Int64','System.UInt64']),battle:field(raid,'RaidBattleMs',['System.Int64','System.UInt64']),hidden:field(raid,'IsRaidHidden',[BOOL])};
+   // Optional enrichment (raid tier/boss, gym team/slots). Any failure here degrades to the basic
+   // marker set instead of disabling every POI, and enum text is resolved from the game's own static
+   // constants rather than a guessed numeric mapping. Values are read non-static with the same field()
+   // name/type/non-static validation as the core fields.
+   try{
+    const enumMap=(klass)=>{
+     if(klass.isNull()||!api.class_is_enum(klass)||typeName(api,api.class_enum_basetype(klass))!=='System.Int32')throw Error('enum-basetype');
+     const nextField=new NativeFunction(module.findExportByName('il2cpp_class_get_fields'),'pointer',['pointer','pointer'],{scheduling:'exclusive',exceptions:'propagate'});
+     const fieldName=new NativeFunction(module.findExportByName('il2cpp_field_get_name'),'pointer',['pointer'],{scheduling:'exclusive',exceptions:'propagate'});
+     const it=Memory.alloc(8);it.writePointer(ptr(0));const v=Memory.alloc(4);const map={};
+     for(let i=0;i<4096;i++){const f=nextField(klass,it);if(f.isNull())break;if((api.field_get_flags(f)&0x8050)!==0x8050)continue;api.field_static_get_value(f,v);map[v.readS32()]=text(fieldName(f));}
+     return map;
+    };
+    mapPoi.level=field(raid,'RaidLevel',['Holoholo.Rpc.RaidLevel']);
+    mapPoi.raidTiers=enumMap(api.class_from_type(api.field_get_type(mapPoi.level)));
+    const pk=classes['Holoholo.Rpc.PokemonProto'];
+    if(pk){mapPoi.bossClass=pk;mapPoi.boss=field(raid,'RaidPokemon',['Holoholo.Rpc.PokemonProto']);mapPoi.bossId=field(pk,'pokemonId_',['System.Int32']);}
+    mapPoi.teamMethod=method(gym,'get_GymDisplayTeam','Niantic.Holoholo.Team',[],false,null);
+    mapPoi.teamNames=enumMap(api.class_from_type(api.method_get_return_type(mapPoi.teamMethod.method)));
+    const gd=classes['Holoholo.Rpc.GymDisplayProto'];
+    if(gd){mapPoi.gymDisplayClass=gd;mapPoi.gymDisplay=field(classes[VGP.fort],'GymDisplay',['Holoholo.Rpc.GymDisplayProto']);mapPoi.slots=field(gd,'SlotsAvailable',['System.Int32']);}
+   }catch(e){mapPoi.extraError=String(e);}
   }catch(e){mapPoiError=String(e);}
   // Projection is optional: the activity pill still works if camera metadata differs.
   if(vgp)try{vgp.marker={camera:method(classes[VGP.camera],'get_main',VGP.camera,[],true,null),transform:method(classes['UnityEngine.Component'],'get_transform','UnityEngine.Transform',[],false,null),position:method(classes['UnityEngine.Transform'],'get_position','UnityEngine.Vector3',[],false,null),project:method(classes[VGP.camera],'WorldToScreenPoint','UnityEngine.Vector3',['UnityEngine.Vector3'],false,null),width:method(classes[VGP.screen],'get_width',INT,[],true,null),height:method(classes[VGP.screen],'get_height',INT,[],true,null)};}catch(e){vgp.markerError=String(e);}
@@ -2132,9 +2154,31 @@ function install(s,p){
      const fort=root(vgpVirtual(t.m.fort,obj));if(!exact(fort,classes[VGP.fort]))continue;
      const id=readPtr(fort,t.f.fortId);if(id.isNull())continue;const length=id.add(16).readS32();if(length<1||length>256)continue;const key=id.add(20).readUtf16String(length);if(seen.has(key))continue;seen.add(key);
      const lat=number(fort,t.f.fortLat),lon=number(fort,t.f.fortLon);if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue;
-     let raidEnd=0,egg=false;
-     if(kind==='gym'){const raid=root(readPtr(fort,q.info));if(exact(raid,q.raid)){const hidden=Memory.alloc(1);api.field_get_value(raid,q.hidden,hidden);const start=millis(raid,q.spawn),end=millis(raid,q.end);if(!hidden.readU8()&&start<=wall&&end>wall){raidEnd=end;egg=millis(raid,q.battle)>wall;}}}
-     points.push({id:key,lat,lon,kind,raidEnd,egg});
+     let raidEnd=0,egg=false,raidStart=0,team=null,teamId=null,slots=null,tier=null,level=null,boss=null;
+     if(kind==='gym'){
+      // Each optional read is isolated: a malformed field on one gym must not drop the whole snapshot.
+      if(q.teamMethod&&q.teamNames){try{const bx=root(invoke(q.teamMethod.method,obj));if(!bx.isNull()){const tv=api.object_unbox(bx).readS32();teamId=tv;if(typeof q.teamNames[tv]==='string')team=q.teamNames[tv];}}catch(_){}}
+      if(q.gymDisplay&&q.slots&&q.gymDisplayClass){try{const gd=root(readPtr(fort,q.gymDisplay));if(exact(gd,q.gymDisplayClass)){const sv=readS32(gd,q.slots);if(Number.isInteger(sv)&&sv>=0&&sv<=6)slots=sv;}}catch(_){}}
+      const raid=root(readPtr(fort,q.info));
+      if(exact(raid,q.raid)){
+       const hidden=Memory.alloc(1);api.field_get_value(raid,q.hidden,hidden);
+       const start=millis(raid,q.spawn),end=millis(raid,q.end),battle=millis(raid,q.battle);
+       if(!hidden.readU8()&&start<=wall&&end>wall){
+        raidEnd=end;egg=battle>wall;raidStart=battle;
+        if(q.level){try{const lv=readS32(raid,q.level);level=lv;if(q.raidTiers&&typeof q.raidTiers[lv]==='string')tier=q.raidTiers[lv];}catch(_){}}
+        if(!egg&&q.boss&&q.bossId&&q.bossClass){try{const pkm=root(readPtr(raid,q.boss));if(exact(pkm,q.bossClass)){const sp=readS32(pkm,q.bossId);if(Number.isInteger(sp)&&sp>0&&sp<100000)boss=sp;}}catch(_){}}
+       }
+      }
+     }
+     const point={id:key,lat,lon,kind,raidEnd,egg};
+     if(raidStart)point.raidStart=raidStart;
+     if(team!=null)point.team=team;
+     if(teamId!=null)point.teamId=teamId;
+     if(slots!=null)point.slots=slots;
+     if(tier!=null)point.tier=tier;
+     if(level!=null)point.level=level;
+     if(boss!=null)point.boss=boss;
+     points.push(point);
     }
    }
    event(s,'map-pois',{points});
@@ -2188,7 +2232,7 @@ function install(s,p){
    }vgpStatus('Watching nearby Pokemon and PokeStops');
   }catch(e){vgpDrop();if(r.transfer){releaseRecord(r.transfer);r.transfer=null;}r.blocked=true;vgpStatus('Paused: '+String(e));event(s,'vgp-error',{reason:String(e)});}finally{for(const h of roots)freeHandle(h);}
  }
- event(s,'map-poi-ready',{available:!!p.mapPoi,reason:p.mapPoiError});
+ event(s,'map-poi-ready',{available:!!p.mapPoi,reason:p.mapPoiError,detailsError:p.mapPoi&&p.mapPoi.extraError});
  event(s,'vgp-ready',{available:!!p.vgp,reason:p.vgpError,marker:!!(p.vgp&&p.vgp.marker),markerError:p.vgp&&p.vgp.markerError});
 
  const itemState={service:null,next:0,pending:null,blocked:new Set(),config:null,rows:new Map(),invoking:false,filters:null,stage:''};

@@ -10,6 +10,23 @@ import hashlib
 import json
 
 ROOT = Path(__file__).resolve().parent
+
+def map_icon_assets():
+    """Bundled POI marker PNGs for assets/pgrazor/map-icons, de-duplicated by file name.
+
+    Only direct *.png children of assets/map-icons are taken (no recursion/traversal), and the
+    archive name is always the bare file name so a crafted source path cannot escape the folder.
+    """
+    source = ROOT / 'assets/map-icons'
+    icons = {}
+    if source.is_dir():
+        for path in sorted(source.glob('*.png')):
+            if path.is_symlink() or not path.resolve().is_relative_to(source.resolve()):
+                raise ValueError("Map icon escapes asset directory")
+            if path.is_file():
+                icons.setdefault(path.name, path)
+    return icons
+
 SDK = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'Android/Sdk')))
 TOOLS = SDK / 'build-tools' / os.environ.get('PGRAZOR_BUILD_TOOLS', '36.1.0')
 ANDROID = SDK / 'platforms' / os.environ.get('PGRAZOR_ANDROID_PLATFORM', 'android-36.1') / 'android.jar'
@@ -62,7 +79,9 @@ def main():
     run(TOOLS/'d8.bat','--min-api','28','--lib',ANDROID,'--output',BUILD/'dex',jar)
     unsigned=BUILD/'preview-unsigned.apk'
     run(TOOLS/'aapt.exe','package','-f','-M',ROOT/'AndroidManifest.xml','-I',ANDROID,'-F',unsigned)
-    with zipfile.ZipFile(unsigned,'a',zipfile.ZIP_DEFLATED) as out: out.write(BUILD/'dex/classes.dex','classes.dex')
+    with zipfile.ZipFile(unsigned,'a',zipfile.ZIP_DEFLATED) as out:
+        out.write(BUILD/'dex/classes.dex','classes.dex')
+        for name,path in map_icon_assets().items(): out.write(path,'assets/pgrazor/map-icons/'+name)
     run(TOOLS/'zipalign.exe','-f','4',unsigned,BUILD/'preview-aligned.apk')
     apk=BUILD/'pgrazor-preview.apk'
     run(TOOLS/'apksigner.bat','sign',*signing_args(),'--out',apk,BUILD/'preview-aligned.apk')
