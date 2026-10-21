@@ -39,7 +39,8 @@ public final class Control {
     private static volatile boolean instrumented;
     private static volatile boolean leaseExpired;
     private static volatile boolean preview = true, backendReady;
-    private static volatile boolean desiredEnabled = true, foreground;
+    private static final boolean desiredEnabled = true;
+    private static volatile boolean foreground;
     private static volatile boolean cameraDiagnosticsConfigured;
     private static volatile boolean cameraDiagnosticRunning;
     private static volatile String cameraDiagnosticStatus = "";
@@ -658,31 +659,26 @@ public final class Control {
         event("disconnected", "Runtime suspended; saved enabled preference unchanged");
     }
 
-    public static void setEnabled(boolean enabled) {
-        desiredEnabled = enabled;
-        engine.stop(); engine.enabled = enabled && foreground && canEnable();
-        saveState();
-    }
     public static void teleport(double latitude, double longitude) {
         engine.position(latitude, longitude); engine.stop();
-        desiredEnabled = true; engine.enabled = foreground && canEnable();
+        engine.enabled = foreground && canEnable();
         saveState();
     }
     public static void walkTo(double latitude, double longitude) {
-        engine.walkTo(latitude, longitude); desiredEnabled = true;
+        engine.walkTo(latitude, longitude);
         if (!foreground || !canEnable()) engine.pause();
         saveState();
     }
     public static void walkRoute(double[][] waypoints) { walkRoute(waypoints, false); }
     /** As {@link #walkRoute(double[][])}, but a looping route repeats from its first stop; same lifecycle/save/readiness. */
     public static void walkRoute(double[][] waypoints, boolean loop) {
-        engine.walkRoute(waypoints, loop); desiredEnabled = true;
+        engine.walkRoute(waypoints, loop);
         if (!foreground || !canEnable()) engine.pause();
         saveState();
     }
     public static void startAutoWalk(double[][] waypoints,boolean loop) {
         if(!foreground||!canEnable())throw new IllegalArgumentException("Location adapter is not ready");
-        engine.walkRoute(waypoints,loop);desiredEnabled=true;saveState();
+        engine.walkRoute(waypoints,loop);saveState();
         event("autowalk-started","stops="+waypoints.length+" loop="+loop+" speed="+engine.speedKmh);
     }
     public static double cycleWalkSpeed() {
@@ -750,9 +746,9 @@ public final class Control {
             } catch (IOException | RuntimeException error) {
                 event("state-load-error", "Using defaults: " + error);
             } finally { StrictMode.setThreadPolicy(policy); }
-            desiredEnabled = state.enabled;
+            // Location override is always requested; old paused snapshots cannot disable it.
             state.restoreStationary(engine, false, false);
-            event("state-restored", String.format(Locale.US,"source=%s lat=%.7f lon=%.7f speedKmh=%.2f bearing=%.2f desiredEnabled=%s; awaiting ready foreground; movement stopped",source,state.latitude,state.longitude,state.speedKmh,state.bearing,state.enabled));
+            event("state-restored", String.format(Locale.US,"source=%s lat=%.7f lon=%.7f speedKmh=%.2f bearing=%.2f desiredEnabled=%s; awaiting ready foreground; movement stopped",source,state.latitude,state.longitude,state.speedKmh,state.bearing,desiredEnabled));
         }
         saveState();
     }

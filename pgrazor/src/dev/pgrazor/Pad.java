@@ -26,7 +26,7 @@ public final class Pad {
     private TextView vgpActivity;
     private VgpMarker vgpMarker;
     // Primary action and cycle/dialog rows.
-    private Button toggle, mapTap, throwGrade, itemSettings, cameraSample, interactionCapture;
+    private Button mapTap, throwGrade, itemSettings, cameraSample, interactionCapture;
     private QuickMenu quickMenu;
     // Boolean settings use proper switches.
     private Switch vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
@@ -77,7 +77,6 @@ public final class Pad {
         for(TextView head:sectionHeads){head.setTextColor(accent());head.setTypeface(Typeface.DEFAULT,Typeface.BOLD);}
         for(TextView c:captions)c.setTextColor(muted());
         if(coords!=null)coords.setTextColor(ink());
-        if(toggle!=null){toggle.setBackground(rounded(accent(),10));toggle.setTextColor(surface());}
         if(launcher!=null)launcher.invalidate();
         if(closeIcon!=null)closeIcon.invalidate();
         if(themeIcon!=null){themeIcon.setContentDescription(Control.darkTheme()?"Switch to light theme":"Switch to dark theme");themeIcon.invalidate();}
@@ -212,17 +211,6 @@ public final class Pad {
 
         // Always-visible status and primary action.
         coords = text("", 16, ink()); coords.setPadding(dp(4), dp(6), dp(4), dp(10)); body.addView(coords);
-        toggle = button("Enable preview");
-        LinearLayout.LayoutParams toggleLayout = new LinearLayout.LayoutParams(-1,-2); toggleLayout.bottomMargin = dp(6); body.addView(toggle, toggleLayout);
-        toggle.setOnClickListener(v -> {
-            if (!Control.canEnable()) { Toast.makeText(activity,"Location adapter is not ready. Check the run log.",Toast.LENGTH_SHORT).show(); return; }
-            if (Control.engine.enabled) {
-                if (Control.engine.walking) Control.event("walk-cancelled", "Pause selected");
-                Control.setEnabled(false);
-            } else Control.setEnabled(true);
-            stick.release(); Control.event("enabled", Boolean.toString(Control.engine.enabled)); refresh();
-        });
-
         // ----- Location & overlays -----
         LinearLayout loc = section(body, "Location & overlays", true);
         steeringStatus = caption(loc, "Joystick follows the camera");
@@ -427,10 +415,8 @@ public final class Pad {
         coords.setText(String.format(Locale.US, "%.6f, %.6f\n%.1f km/h", Control.engine.latitude, Control.engine.longitude, Control.engine.speedKmh));
         if(encounterBerry!=null){boolean visible=Control.encounterBerryVisible();encounterBerry.setVisibility(visible?View.VISIBLE:View.GONE);int sel=Control.autoBerrySelected();int choice=0;for(int i=0;i<BERRY_IDS.length;i++)if(BERRY_IDS[i]==sel)choice=i;int count=Control.berryCount(sel);encounterBerry.setText(Control.encounterBerryBusy()?"Applying berry…":BERRY_NAMES[choice]+(choice==0?"\nTap to choose":" ("+count+")\nOn hit"));encounterBerry.setEnabled(!Control.encounterBerryBusy());}
         boolean preview = Control.preview();
-        toggle.setEnabled(Control.canEnable()); toggle.setAlpha(Control.canEnable()?1f:0.5f);
-        toggle.setText(!Control.canEnable() ? "Location adapter unavailable" : Control.engine.enabled ? "Pause" : (preview ? "Enable preview" : "Enable location override"));
         MotionEngine.RouteProgress route=Control.engine.routeProgress();
-        String movement=Control.engine.enabled ? (Control.engine.walking ? "WALKING" : "ON") : "PAUSED";
+        String movement=Control.engine.enabled ? (Control.engine.walking ? "WALKING" : "ON") : "WAITING FOR ADAPTER";
         if (route.total>1 && route.active) movement=String.format(Locale.US,"ROUTE %d/%d  ·  %.0f m left",route.visited+1,route.total,route.remainingMeters);
         else if (route.total>1 && route.visited==route.total) movement="ON  ·  route complete";
         state.setText(Control.connection + "\n" + movement + "  ·  coordinate reads " + Control.latitudeReads + "/" + Control.longitudeReads);
