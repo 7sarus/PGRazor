@@ -20,6 +20,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Module interface shared by the standalone preview and an instrumented host. */
 public final class Control {
+    private static volatile boolean mapPoiOpen;
+    private static volatile String mapPoiSnapshot="";
+    private static volatile long mapPoiAt;
+    public static void setMapPoiOpen(boolean open){mapPoiOpen=open;if(!open){mapPoiSnapshot="";mapPoiAt=0;}}
+    public static boolean mapPoiAllowed(){return mapPoiOpen&&foreground&&backendReady&&connected();}
+    public static void setMapPoiSnapshot(String value){if(mapPoiOpen&&value!=null&&value.length()<160000){mapPoiSnapshot=value;mapPoiAt=SystemClock.elapsedRealtime();}}
+    public static String mapPoiSnapshot(){return SystemClock.elapsedRealtime()-mapPoiAt<10000?mapPoiSnapshot:"";}
     public static final MotionEngine engine = new MotionEngine();
     public static volatile String connection = "PREVIEW - game not connected";
     public static volatile long latitudeReads, longitudeReads;

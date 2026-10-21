@@ -8,6 +8,13 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.Rect;
+import android.content.SharedPreferences;
+import android.widget.CheckBox;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.util.HashSet;
+import java.util.Set;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -94,6 +101,18 @@ public final class WorldMapDialog {
         layout.addView(attribution);
         TextView status = label(activity, "Loading map…", 12);
         MapView map = new MapView(activity, latitude, longitude, selected, status);
+        LinearLayout layers=new LinearLayout(activity);
+        SharedPreferences preferences=activity.getSharedPreferences("pgrazor-map",0);
+        String[] names={"Stops","Gyms","Raids"};
+        for(int i=0;i<names.length;i++){
+            final int bit=1<<i;CheckBox toggle=new CheckBox(activity);toggle.setText(names[i]);toggle.setTextSize(13);
+            boolean enabled=preferences.getBoolean(names[i],false);if(enabled)map.layers|=bit;toggle.setChecked(enabled);
+            final String key=names[i];toggle.setOnCheckedChangeListener((b,on)->{map.layers=on?map.layers|bit:map.layers&~bit;preferences.edit().putBoolean(key,on).apply();map.refreshPois();});
+            layers.addView(toggle,new LinearLayout.LayoutParams(0,-2,1));
+        }
+        layout.addView(layers);
+        TextView coverage=label(activity,"Nearby locations loaded by the game",12);layout.addView(coverage);map.poiStatus=coverage;
+        map.refreshPois();
         PlaceUi places = new PlaceUi(activity, map, saved);
         saved.setOnClickListener(v -> places.openLibrary());
         layout.map = map;
@@ -364,7 +383,7 @@ public final class WorldMapDialog {
         private final File cacheDirectory;
         // A single worker and a single replaceable viewport task bound network and queued work.
         private final ThreadPoolExecutor worker = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(1));
-        private final LruCache<String, Bitmap> bitmaps = new LruCache<String, Bitmap>(8 * 1024 * 1024) {
+        private static final LruCache<String, Bitmap> bitmaps = new LruCache<String, Bitmap>(16 * 1024 * 1024) {
             protected int sizeOf(String key, Bitmap b) { return b.getAllocationByteCount(); }
         };
         private final Map<String, Long> failures = new HashMap<>();
@@ -372,6 +391,12 @@ public final class WorldMapDialog {
         private List<double[]> route = Collections.emptyList();
         private volatile boolean closed;
         private volatile int generation;
+        private volatile Set<String> visibleKeys=Collections.emptySet();
+        private int layers;
+        private TextView poiStatus;
+        private JSONArray pois=new JSONArray();
+        private String lastPois="";
+        private final Runnable poiRefresh=this::refreshPois;
         private volatile HttpURLConnection connection;
         private Future<?> pending;
         private double centerX, centerY, latitude, longitude;
@@ -393,7 +418,7 @@ public final class WorldMapDialog {
             tileSize = dp(activity, 256); slop = ViewConfiguration.get(activity).getScaledTouchSlop();
             cacheDirectory = new File(activity.getCacheDir(), "pgrazor-map-tiles-v1");
             setContentDescription("World map. Drag to pan, pinch to zoom, tap to select destination.");
-            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            // Use the activity hardware renderer; tile I/O stays on the worker.
             pinch=new ScaleGestureDetector(activity,new ScaleGestureDetector.SimpleOnScaleGestureListener(){
                 public boolean onScaleBegin(ScaleGestureDetector detector){multiTouch=true;return true;}
                 public boolean onScale(ScaleGestureDetector detector){
@@ -447,13 +472,10 @@ public final class WorldMapDialog {
                 }
             }
             visible = tiles;
+            Set<String> keys=new HashSet<>();for(Tile tile:tiles)keys.add(tile.key);visibleKeys=keys;
             generation++;
-            if (pending != null) pending.cancel(true);
-            worker.purge();
-            HttpURLConnection active = connection;
-            if (active != null) active.disconnect();
-            main.removeCallbacks(request);
-            main.postDelayed(request, 180); // Only request the settled visible viewport, never adjacent tiles.
+            // Keep useful in-flight tiles; never disconnect a socket on the UI thread.
+            if(!main.hasCallbacks(request))main.postDelayed(request,60);
             invalidate();
         }
 
@@ -465,10 +487,11 @@ public final class WorldMapDialog {
                 float pixels = (float)displayedTileSize();
                 RectF bounds = new RectF(tile.left, tile.top, tile.left + pixels, tile.top + pixels);
                 if (bitmap != null) canvas.drawBitmap(bitmap, null, bounds, paint);
-                else {
+                else if(!drawParent(canvas,tile,bounds)) {
                     paint.setColor(Color.rgb(202, 211, 216)); paint.setStyle(Paint.Style.STROKE); canvas.drawRect(bounds, paint); paint.setStyle(Paint.Style.FILL);
                 }
             }
+            drawPois(canvas);
             drawRoute(canvas,false);
             float markerX = (float)(getWidth() / 2.0 + MapProjection.deltaX(MapProjection.x(longitude), centerX) * world());
             float markerY = (float)(getHeight() / 2.0 + (MapProjection.y(latitude) - centerY) * world());
@@ -477,6 +500,37 @@ public final class WorldMapDialog {
             paint.setColor(Color.rgb(197, 35, 52)); canvas.drawCircle(markerX, markerY, radius, paint);
             paint.setColor(Color.WHITE); canvas.drawCircle(markerX, markerY, radius / 3, paint);
             drawRoute(canvas,true);
+        }
+
+        private boolean drawParent(Canvas canvas,Tile tile,RectF bounds){
+            for(int z=tile.zoom-1;z>=Math.max(0,tile.zoom-5);z--){int factor=1<<(tile.zoom-z);Bitmap parent=bitmaps.get(z+"-"+(tile.x/factor)+"-"+(tile.y/factor));if(parent==null)continue;
+                int size=256/factor,x=(tile.x%factor)*size,y=(tile.y%factor)*size;
+                canvas.drawBitmap(parent,new Rect(x,y,x+size,y+size),bounds,paint);return true;
+            }return false;
+        }
+        void refreshPois(){
+            if(closed)return;Control.setMapPoiOpen(layers!=0);
+            String snapshot=Control.mapPoiSnapshot();
+            if(!snapshot.equals(lastPois)){lastPois=snapshot;try{pois=new JSONObject(snapshot).optJSONArray("points");}catch(Exception e){pois=null;}if(pois==null)pois=new JSONArray();invalidate();}
+            if(poiStatus!=null){String message=layers==0?"Nearby layers off":"Nearby locations loaded by the game ("+pois.length()+")";
+                if(layers!=0&&snapshot.isEmpty())message="Waiting for nearby game locations";
+                else if(layers!=0)try{if(new JSONObject(snapshot).has("error"))message="Nearby layers unavailable";}catch(Exception ignored){}
+                poiStatus.setText(message);
+            }
+            invalidate();main.removeCallbacks(poiRefresh);main.postDelayed(poiRefresh,1000);
+        }
+        private void drawPois(Canvas canvas){
+            if(layers==0)return;float radius=dp((Activity)getContext(),9);long now=System.currentTimeMillis();
+            for(int i=0;i<pois.length();i++){JSONObject point=pois.optJSONObject(i);if(point==null)continue;
+                String kind=point.optString("kind");boolean stop="stop".equals(kind),raid=point.optLong("raidEnd")>now;
+                boolean showRaid=raid&&(layers&4)!=0;if(!(stop?(layers&1)!=0:(layers&2)!=0||showRaid))continue;
+                double lat=point.optDouble("lat",Double.NaN),lon=point.optDouble("lon",Double.NaN);if(!Double.isFinite(lat)||!Double.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue;
+                float x=(float)(getWidth()/2.0+MapProjection.deltaX(MapProjection.x(lon),centerX)*world()),y=(float)(getHeight()/2.0+(MapProjection.y(lat)-centerY)*world());
+                if(x< -radius||x>getWidth()+radius||y< -radius||y>getHeight()+radius)continue;
+                paint.setStyle(Paint.Style.FILL);paint.setColor(Color.WHITE);canvas.drawCircle(x,y,radius+2,paint);
+                paint.setColor(showRaid?Color.rgb(151,65,205):stop?Color.rgb(20,157,208):Color.rgb(223,124,35));canvas.drawCircle(x,y,radius,paint);
+                paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(radius*1.25f);canvas.drawText(showRaid?(point.optBoolean("egg")?"E":"R"):stop?"S":"G",x,y+radius*.43f,paint);
+            }
         }
 
         /** Each segment takes the shortest horizontal wrap, splitting at the dateline when needed. */
@@ -547,7 +601,7 @@ public final class WorldMapDialog {
         public boolean performClick() { super.performClick(); return true; }
 
         private void loadVisible() {
-            if (closed) return;
+            if (closed || (pending!=null&&!pending.isDone())) return;
             final int revision = generation;
             final List<Tile> wanted = new ArrayList<>();
             long now = SystemClock.elapsedRealtime();
@@ -567,7 +621,8 @@ public final class WorldMapDialog {
                 try {
                     if (!cacheDirectory.isDirectory() && !cacheDirectory.mkdirs()) throw new IOException("Cannot create map cache");
                     for (Tile tile : wanted) {
-                        if (closed || revision != generation || Thread.currentThread().isInterrupted()) return;
+                        if(!visibleKeys.contains(tile.key))continue;
+                        if (closed || Thread.currentThread().isInterrupted()) return;
                         try {
                             Bitmap bitmap = readTile(tile, revision);
                             main.post(() -> {
@@ -575,7 +630,7 @@ public final class WorldMapDialog {
                                 bitmaps.put(tile.key, bitmap); failures.remove(tile.key); invalidate();
                             });
                         } catch (IOException | RuntimeException e) {
-                            if (closed || revision != generation || Thread.currentThread().isInterrupted()) return;
+                            if (closed || Thread.currentThread().isInterrupted()) return;
                             errors++;
                             main.post(() -> {
                                 if (!closed) {
@@ -590,7 +645,8 @@ public final class WorldMapDialog {
                     main.post(() -> { if (!closed && revision == generation) status.setText(finalErrors == 0 ? "Zoom " + zoom + " · Tap map to select" : "Map unavailable in some areas. Check internet, then Retry."); });
                 } catch (IOException | RuntimeException e) {
                     main.post(() -> { if (!closed && revision == generation) status.setText("Map cache unavailable. Close map and retry."); });
-                }
+                } finally {main.post(()->{if(!closed){pending=null;if(revision!=generation)loadVisible();}});}
+
             });
         }
 
@@ -601,19 +657,19 @@ public final class WorldMapDialog {
                 try (InputStream stream = new FileInputStream(file)) { return decode(readBounded(stream)); }
                 catch (IOException e) { file.delete(); }
             }
-            if (closed || revision != generation) throw new IOException("Viewport changed");
+            if (closed) throw new IOException("Map closed");
             HttpURLConnection request = (HttpURLConnection)new URL("https://tile.openstreetmap.org/" + tile.zoom + "/" + tile.x + "/" + tile.y + ".png").openConnection();
             connection = request;
             try {
                 request.setConnectTimeout(8000); request.setReadTimeout(8000);
                 request.setInstanceFollowRedirects(false);
-                request.setRequestProperty("User-Agent", "PGRazor-WorldMap/0.1 (Android; personal prototype)");
+                request.setRequestProperty("User-Agent", "PGRazor/0.1 (+https://github.com/jpitty03/PGRazor)");
                 request.setRequestProperty("Accept", "image/png");
                 if (request.getResponseCode() != 200) throw new IOException("Tile HTTP " + request.getResponseCode());
                 byte[] bytes;
                 try (InputStream stream = request.getInputStream()) { bytes = readBounded(stream); }
                 Bitmap bitmap = decode(bytes);
-                if (closed || revision != generation) { bitmap.recycle(); throw new IOException("Viewport changed"); }
+                if (closed) { bitmap.recycle(); throw new IOException("Map closed"); }
                 File temporary = new File(cacheDirectory, tile.key + ".part");
                 try {
                     try (FileOutputStream out = new FileOutputStream(temporary)) { out.write(bytes); }
@@ -659,8 +715,8 @@ public final class WorldMapDialog {
             main.removeCallbacksAndMessages(null);
             if (pending != null) pending.cancel(true);
             worker.shutdownNow();
-            HttpURLConnection active = connection; if (active != null) active.disconnect();
-            bitmaps.evictAll(); failures.clear();
+
+            failures.clear();Control.setMapPoiOpen(false);
         }
         protected void onDetachedFromWindow() { close(); super.onDetachedFromWindow(); }
     }

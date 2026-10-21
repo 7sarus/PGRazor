@@ -261,6 +261,7 @@ function scheduleQuickSummary() {
                     if(event.kind==='metadata-ready'&&control.setRocketReady)control.setRocketReady(!!event.rocketAvailable,event.rocketAvailable?'Ready: Team Rocket battles':'Unavailable: '+event.rocketError);
                     // Gift readiness must reach Control before the heartbeat can grant its lease.
                     if(event.kind==='encounter-berry')control.setEncounterBerry(!!event.active,!!event.busy);
+                    if(event.kind==='map-pois')control.setMapPoiSnapshot(JSON.stringify(event));
                     if(event.kind==='vgp-ready')control.setVgpReady(!!event.available,event.available?'Ready':'Unavailable: '+event.reason);
                     if(event.kind==='vgp-marker')control.setVgpTarget(!!event.visible,event.x||0,event.y||0,event.action==='spin');
                     if(event.kind==='vgp-status')control.setVgpStatus(event.message);
@@ -416,6 +417,7 @@ function heartbeat() {
                 if(quickSummary.setItemOptions)quickSummary.setItemOptions(control.itemTransferEnabled(),String(control.itemRules()),control.itemAccessAllowed());
                 if(quickSummary.setRocketOptions)quickSummary.setRocketOptions(control.rocketOptions(),control.rocketAllowed());
                 if(quickSummary.setBattleOptions)quickSummary.setBattleOptions(control.battleOptions(),control.battlesAllowed());
+                if(quickSummary.setMapPoiAllowed)quickSummary.setMapPoiAllowed(control.mapPoiAllowed());
                 if(quickSummary.setVgpOptions)quickSummary.setVgpOptions(control.vgpEnabled()?control.vgpOptions():0,control.vgpAllowed(),control.latitude(),control.longitude());
                 if(quickSummary.setBuddyOptions)quickSummary.setBuddyOptions(control.buddyBerry(),control.buddyAllowed());
                 if(quickSummary.setGiftOptions)quickSummary.setGiftOptions(control.giftOptions(),control.giftsAllowed());

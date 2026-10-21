@@ -251,7 +251,7 @@ function prepare(module,api,domain){
 
   if(total.compare(0)===0)return null;if(total.compare(LIMITS.assemblies)>0||list.isNull())throw Error('assembly-limit');
 
-  const required=[GUI,SGUI,SSTATE,RESP,OBJ,SYNC,BOOL],names=required.concat(Object.values(VGP),['Holoholo.Rpc.CharacterSize','System.Collections.IEnumerator','System.IDisposable','Holoholo.Rpc.GiftBoxProto',GIFT_OPEN_SEQUENCE,'Holoholo.Rpc.OpenGiftOutProto','Holoholo.Rpc.SendGiftOutProto'],Object.values(BUDDY_TYPES),['Niantic.Holoholo.Buddy.IBuddyStatsService','Holoholo.Rpc.BuddyObservedData','Holoholo.Rpc.BuddyFeedingOutProto','Holoholo.Rpc.BuddyPokemonProto'],Object.values(GIFT_TYPES),['Niantic.Platform.Internal.Protos.FriendDetailsProto','Niantic.Platform.Internal.Protos.PlayerSummaryProto','Holoholo.Rpc.GiftBoxDetailsProto','Holoholo.Rpc.StickerProto'],['Niantic.Holoholo.Encounter.Pokeball','Niantic.Holoholo.Encounter.PokeballThrow',SPAWN,BERRY,BERRYGUI,FEEDGUI],Object.values(BATTLE_TYPES),['UnityEngine.Behaviour','UnityEngine.UI.Button',RMINI,RMINIBASE,'UnityEngine.Component','UnityEngine.Transform','UnityEngine.GameObject','UnityEngine.Vector3',RVUI,RVGEST,RVBASE,RVCHARGE,ROCKET,RUI,RDIR,RCHARGE,RSHIELD,'UnityEngine.UI.Selectable','Niantic.Holoholo.UI.Items.ItemInventoryGuiService','Niantic.Holoholo.UI.Items.IItemInventoryGuiService','Niantic.Holoholo.MapSceneContext','Zenject.SceneContext','Zenject.DiContainer','Niantic.Holoholo.UI.Items.IItemInventoryService',IBAG,ISERVICE,IRESPONSE,ITEM,APPROACH,RESOLVE,SPLINE,SPINSTATE,SPINGUI,GESTURE,SPINNER,SPINBASE,SPINRESULT,RELEASE,BAG,DISPLAY,DGUI,DATA,VIEW,PK,INT,DELEGATE,ACTION]),classes={};
+  const required=[GUI,SGUI,SSTATE,RESP,OBJ,SYNC,BOOL],names=required.concat(Object.values(VGP),['Niantic.Holoholo.Gym.MapGym','Holoholo.Rpc.RaidInfoProto','Holoholo.Rpc.CharacterSize','System.Collections.IEnumerator','System.IDisposable','Holoholo.Rpc.GiftBoxProto',GIFT_OPEN_SEQUENCE,'Holoholo.Rpc.OpenGiftOutProto','Holoholo.Rpc.SendGiftOutProto'],Object.values(BUDDY_TYPES),['Niantic.Holoholo.Buddy.IBuddyStatsService','Holoholo.Rpc.BuddyObservedData','Holoholo.Rpc.BuddyFeedingOutProto','Holoholo.Rpc.BuddyPokemonProto'],Object.values(GIFT_TYPES),['Niantic.Platform.Internal.Protos.FriendDetailsProto','Niantic.Platform.Internal.Protos.PlayerSummaryProto','Holoholo.Rpc.GiftBoxDetailsProto','Holoholo.Rpc.StickerProto'],['Niantic.Holoholo.Encounter.Pokeball','Niantic.Holoholo.Encounter.PokeballThrow',SPAWN,BERRY,BERRYGUI,FEEDGUI],Object.values(BATTLE_TYPES),['UnityEngine.Behaviour','UnityEngine.UI.Button',RMINI,RMINIBASE,'UnityEngine.Component','UnityEngine.Transform','UnityEngine.GameObject','UnityEngine.Vector3',RVUI,RVGEST,RVBASE,RVCHARGE,ROCKET,RUI,RDIR,RCHARGE,RSHIELD,'UnityEngine.UI.Selectable','Niantic.Holoholo.UI.Items.ItemInventoryGuiService','Niantic.Holoholo.UI.Items.IItemInventoryGuiService','Niantic.Holoholo.MapSceneContext','Zenject.SceneContext','Zenject.DiContainer','Niantic.Holoholo.UI.Items.IItemInventoryService',IBAG,ISERVICE,IRESPONSE,ITEM,APPROACH,RESOLVE,SPLINE,SPINSTATE,SPINGUI,GESTURE,SPINNER,SPINBASE,SPINRESULT,RELEASE,BAG,DISPLAY,DGUI,DATA,VIEW,PK,INT,DELEGATE,ACTION]),classes={};
 
   const inputs=names.map(n=>{const i=n.lastIndexOf('.');return[n,Memory.allocUtf8String(n.slice(0,i)),Memory.allocUtf8String(n.slice(i+1))];});
 
@@ -874,11 +874,19 @@ function prepare(module,api,domain){
    const native=(name,ret,args)=>{const a=module.findExportByName('il2cpp_'+name);if(!a)throw Error('vgp-export:'+name);return new NativeFunction(a,ret,args,{scheduling:'exclusive',exceptions:'propagate'});};
    vgp={m,f,spinSuccess,rpcId,parent:native('class_get_parent','pointer',['pointer']),array:native('array_new','pointer',['pointer','uint64']),barrier:native('gc_wbarrier_set_field','void',['pointer','pointer','pointer']),unreflect:native('method_get_from_reflection','pointer',['pointer'])};
   }catch(e){vgp=null;vgpError=String(e);}
+  let mapPoi=null,mapPoiError=null;
+  try {
+   if(!vgp)throw Error('map-dependencies');
+   const gym=classes['Niantic.Holoholo.Gym.MapGym'],raid=classes['Holoholo.Rpc.RaidInfoProto'];
+   if(!gym||!raid)throw Error('map-classes');
+   const field=(owner,name,types)=>{const f=api.class_get_field_from_name(owner,Memory.allocUtf8String(name));if(f.isNull()||(api.field_get_flags(f)&16)||!types.includes(typeName(api,api.field_get_type(f))))throw Error('map-field:'+name);return f;};
+   mapPoi={gym,raid,info:field(classes[VGP.fort],'RaidInfo',['Holoholo.Rpc.RaidInfoProto']),end:field(raid,'RaidEndMs',['System.Int64','System.UInt64']),spawn:field(raid,'RaidSpawnMs',['System.Int64','System.UInt64']),battle:field(raid,'RaidBattleMs',['System.Int64','System.UInt64']),hidden:field(raid,'IsRaidHidden',[BOOL])};
+  }catch(e){mapPoiError=String(e);}
   // Projection is optional: the activity pill still works if camera metadata differs.
   if(vgp)try{vgp.marker={camera:method(classes[VGP.camera],'get_main',VGP.camera,[],true,null),transform:method(classes['UnityEngine.Component'],'get_transform','UnityEngine.Transform',[],false,null),position:method(classes['UnityEngine.Transform'],'get_position','UnityEngine.Vector3',[],false,null),project:method(classes[VGP.camera],'WorldToScreenPoint','UnityEngine.Vector3',['UnityEngine.Vector3'],false,null),width:method(classes[VGP.screen],'get_width',INT,[],true,null),height:method(classes[VGP.screen],'get_height',INT,[],true,null)};}catch(e){vgp.markerError=String(e);}
 
 
-  return{vgp,vgpError,buddy,buddyError,gifts,giftsError,spawn,spawnError,module,api,classes,fields,fieldMeta,methods,success,caughtIdSize:caughtId.size,details,detailsError,transfer,transferError,spin,spinError,spinCamera,spinCameraError,items,itemsError,rocket,rocketError,battles,battlesError,berries,berriesError};
+  return{mapPoi,mapPoiError,vgp,vgpError,buddy,buddyError,gifts,giftsError,spawn,spawnError,module,api,classes,fields,fieldMeta,methods,success,caughtIdSize:caughtId.size,details,detailsError,transfer,transferError,spin,spinError,spinCamera,spinCameraError,items,itemsError,rocket,rocketError,battles,battlesError,berries,berriesError};
 
  }finally{if(owned&&!owned.isNull())api.thread_detach(owned);}
 
@@ -978,6 +986,7 @@ function install(s,p){
 
    itemTick(now);
 
+   mapPoiTick(now);
    vgpTick(now);
 
    transferTick(now);
@@ -2105,6 +2114,33 @@ function install(s,p){
   vgpStatus(r.transferFailed?'Caught; transfer check failed':'Kept: '+(r.transferReason||'protected'));done();return false;
  }
 
+ let nextMapPoi=0;
+ function mapPoiTick(now){
+  if(!s.mapPoiLease||now>=s.mapPoiLease||s.stopping||now<nextMapPoi)return;
+  nextMapPoi=now+3000;
+  if(!p.mapPoi){event(s,'map-pois',{points:[],error:p.mapPoiError||'Unavailable'});return;}
+  const roots=[],root=o=>{if(!o.isNull())roots.push(hold(o));return o;};
+  try{
+   const t=p.vgp,q=p.mapPoi,points=[],seen=new Set(),l=p.items.lookup,wall=Date.now();
+   const number=(o,f)=>{const b=Memory.alloc(8);api.field_get_value(o,f,b);return b.readDouble();};
+   const millis=(o,f)=>{const b=Memory.alloc(8);api.field_get_value(o,f,b);return b.readU64().toNumber();};
+   for(const [kind,klass] of [['stop',classes[VGP.stop]],['gym',q.gym]]){
+    const array=root(invoke(t.m.findAll.method,ptr(0),itemArgs([l.typeObject(api.class_get_type(klass))])));
+    if(array.isNull())continue;const count=array.add(24).readU64().toNumber();if(count>2048)throw Error('map-count');
+    for(let i=0;i<count&&points.length<512;i++){
+     const obj=array.add(32+i*8).readPointer();if(!exact(obj,klass)||!alive(obj))continue;
+     const fort=root(vgpVirtual(t.m.fort,obj));if(!exact(fort,classes[VGP.fort]))continue;
+     const id=readPtr(fort,t.f.fortId);if(id.isNull())continue;const length=id.add(16).readS32();if(length<1||length>256)continue;const key=id.add(20).readUtf16String(length);if(seen.has(key))continue;seen.add(key);
+     const lat=number(fort,t.f.fortLat),lon=number(fort,t.f.fortLon);if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue;
+     let raidEnd=0,egg=false;
+     if(kind==='gym'){const raid=root(readPtr(fort,q.info));if(exact(raid,q.raid)){const hidden=Memory.alloc(1);api.field_get_value(raid,q.hidden,hidden);const start=millis(raid,q.spawn),end=millis(raid,q.end);if(!hidden.readU8()&&start<=wall&&end>wall){raidEnd=end;egg=millis(raid,q.battle)>wall;}}}
+     points.push({id:key,lat,lon,kind,raidEnd,egg});
+    }
+   }
+   event(s,'map-pois',{points});
+  }catch(e){event(s,'map-pois',{points:[],error:String(e).slice(0,120)});}
+  finally{for(const h of roots)freeHandle(h);}
+ }
  function vgpTick(now){const t=p.vgp,r=vgpState;if(!t)return;
   if(s.stopping){vgpDrop();if(r.transfer){releaseRecord(r.transfer);r.transfer=null;}freeHandle(r.reflection);r.reflection=null;r.rpcMethod=null;return;}
   const allowed=()=>s.vgpMask&&now<s.vgpLease;
@@ -2152,6 +2188,7 @@ function install(s,p){
    }vgpStatus('Watching nearby Pokemon and PokeStops');
   }catch(e){vgpDrop();if(r.transfer){releaseRecord(r.transfer);r.transfer=null;}r.blocked=true;vgpStatus('Paused: '+String(e));event(s,'vgp-error',{reason:String(e)});}finally{for(const h of roots)freeHandle(h);}
  }
+ event(s,'map-poi-ready',{available:!!p.mapPoi,reason:p.mapPoiError});
  event(s,'vgp-ready',{available:!!p.vgp,reason:p.vgpError,marker:!!(p.vgp&&p.vgp.marker),markerError:p.vgp&&p.vgp.markerError});
 
  const itemState={service:null,next:0,pending:null,blocked:new Set(),config:null,rows:new Map(),invoking:false,filters:null,stage:''};
@@ -2519,6 +2556,7 @@ function setSpinAllowed(value){const s=running;if(!s||!s.active||!s.ready||s.sto
 
 function setSpawnOptions(enabled,allowed){const s=running;if(!s||!s.ready||s.stopping)return false;s.spawnEnabled=enabled===true;s.spawnLease=allowed===true?s.now()+LIMITS.leaseMs:0;return s.spawnEnabled;}
 
+function setMapPoiAllowed(allowed){const s=running;if(!s||!s.active||s.stopping)return false;s.mapPoiLease=allowed===true?s.now()+2500:0;return true;}
 function setVgpOptions(mask,allowed,lat,lon){const s=running;if(!s||!s.active||s.stopping)return false;s.vgpMask=(mask|0)&3;s.vgpLat=lat;s.vgpLon=lon;s.vgpLease=allowed===true&&Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180?s.now()+2500:0;return true;}
 
 function setBuddyOptions(berry,allowed){const s=running;if(!s||!s.active||s.stopping)return false;const next=[701,703,705,706,707].includes(berry)?berry:0;s.buddyBerry=next;s.buddyLease=allowed===true?s.now()+2500:0;return true;}
@@ -2551,6 +2589,6 @@ function setTransferOptions(enabled,protect,dismiss){const s=running;if(!s||!s.a
 
  s.transferEnabled=next;s.protect=mask;s.dismissEnabled=dismiss===true;return true;}
 
-const api=Object.freeze({start,setVgpOptions,setAllowed,setSpinAllowed,setTransferOptions,setItemOptions,setRocketOptions,setBattleOptions,setBerryOptions,setBerryImpactReady,setSpawnOptions,setGiftOptions,setBuddyOptions,transferDecision,stop});root.PGRazorQuickClose=api;return api;
+const api=Object.freeze({start,setMapPoiAllowed,setVgpOptions,setAllowed,setSpinAllowed,setTransferOptions,setItemOptions,setRocketOptions,setBattleOptions,setBerryOptions,setBerryImpactReady,setSpawnOptions,setGiftOptions,setBuddyOptions,transferDecision,stop});root.PGRazorQuickClose=api;return api;
 
 })(globalThis);

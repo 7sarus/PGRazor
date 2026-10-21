@@ -21,7 +21,7 @@ The Android package identity stays compatible with the game. An official-store i
 
 | Area | Controls |
 | --- | --- |
-| Map | Joystick, saved locations, routes, tap-to-walk/teleport, camera steering |
+| Map | Joystick, saved locations, routes, tap-to-walk/teleport, camera steering, nearby stop/gym/raid layers |
 | Catching | Quick Catch with 20× ball animation, throw grade/curveball options, IV display, berry selector |
 | Inventory | Transfer newly caught Pokémon below 90% IV; configurable item limits |
 | Keep rules | Legendary/mythical/Ultra Beasts, shiny, event/costume, background, **XXS**, **XXL**; favorites and eggs always kept |
@@ -63,3 +63,5 @@ PGRazor uses the `pgrazor/` project directory and `dev.pgrazor` Java namespace. 
 ## License
 
 Original PGRazor source is available under the [MIT License](LICENSE). Third-party components retain their own licenses. Pokémon GO and its assets are not covered by this license. PGRazor is an independent project and is not affiliated with the game publisher.
+
+The world map layers show locations currently loaded by the game near your avatar, not remote search results. Blue S markers are stops, orange G markers are gyms, and purple R/E markers are raids/eggs. Layer choices persist. Tile loading uses the [OpenStreetMap tile policy](https://operations.osmfoundation.org/policies/tiles/), including local caching and visible tiles only.
