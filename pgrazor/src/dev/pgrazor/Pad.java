@@ -208,6 +208,18 @@ public final class Pad {
         bodyScroll = new ScrollView(host); bodyScroll.setFillViewport(false); bodyScroll.setVerticalScrollBarEnabled(false);
         bodyScroll.addView(body, new ScrollView.LayoutParams(-1,-2));
         panel.addView(bodyScroll, new LinearLayout.LayoutParams(-1,0,1));
+        TextView discord = text("Join our Discord", 14, accent());
+        discord.setGravity(Gravity.CENTER); discord.setMinimumHeight(dp(48));
+        discord.setContentDescription("Join the PGRazor Discord community");
+        discord.setClickable(true); discord.setFocusable(true); sectionHeads.add(discord);
+        panel.addView(discord, new LinearLayout.LayoutParams(-1,dp(48)));
+        discord.setOnClickListener(v -> {
+            try { activity.startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://discord.gg/9QqfkDSQX3"))); }
+            catch (android.content.ActivityNotFoundException unavailable) {
+                android.widget.Toast.makeText(activity, "No app available to open Discord links", android.widget.Toast.LENGTH_SHORT).show();
+            }
+        });
+
 
         stick = new Stick(host);
         joystickOverlay = new LinearLayout(host); joystickOverlay.setOrientation(LinearLayout.VERTICAL);
