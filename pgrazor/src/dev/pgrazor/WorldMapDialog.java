@@ -427,7 +427,7 @@ public final class WorldMapDialog {
             selectionLabel = selection; this.status = status;
             tileSize = dp(activity, 256); slop = ViewConfiguration.get(activity).getScaledTouchSlop();
             cacheDirectory = new File(activity.getCacheDir(), "pgrazor-map-tiles-v1");
-            for(String icon:new String[]{"stop.png","gym.png","raid-normal.png","raid-rare.png","raid-legendary.png","raid-primal.png","raid-ultra.png","raid-shadow.png","raid-active.png","raid-mega-active.png","raid-primal-active.png","raid-shadow-active.png"})loadIcon(icon);
+            for(String icon:new String[]{"gym.png","raid-normal.png","raid-rare.png","raid-legendary.png","raid-primal.png","raid-ultra.png","raid-shadow.png","raid-active.png","raid-mega-active.png","raid-primal-active.png","raid-shadow-active.png"})loadIcon(icon);
             setContentDescription("World map. Drag to pan, pinch to zoom, tap to select destination.");
             // White glyphs on a dark outline keep the count legible over any street colour.
             labelFill.setColor(Color.WHITE); labelFill.setTextAlign(Paint.Align.CENTER); labelFill.setFakeBoldText(true);
@@ -567,8 +567,10 @@ public final class WorldMapDialog {
                 drawIconOrFallback(canvas,loadIcon(raidIcon(point)),x,y,radius,point.optBoolean("egg")?"E":"R",Color.rgb(151,65,205));
                 if(point.optBoolean("egg")){paint.setColor(Color.rgb(65,45,85));canvas.drawCircle(x+radius*.8f,y+radius*.8f,radius*.45f,paint);paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(radius*.65f);canvas.drawText("E",x+radius*.8f,y+radius*1.02f,paint);}
             } else if(stop){
-                paint.setColor(Color.WHITE);canvas.drawCircle(x,y,radius+3,paint);
-                drawIconOrFallback(canvas,loadIcon("stop.png"),x,y,radius,"S",Color.rgb(20,157,208));
+                // Vector cyan disc with a thin white halo and white "S"; no bundled bitmap (stop.png was squashed with a white box).
+                paint.setColor(Color.WHITE);canvas.drawCircle(x,y,radius+2,paint);
+                paint.setColor(Color.rgb(20,157,208));canvas.drawCircle(x,y,radius,paint);
+                paint.setColor(Color.WHITE);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(radius*1.25f);canvas.drawText("S",x,y+radius*.43f,paint);
             } else { // gym: a team-colour ring sits behind the disc
                 paint.setColor(Color.WHITE);canvas.drawCircle(x,y,radius+3,paint);
                 paint.setColor(teamColor(point.optString("team",null)));canvas.drawCircle(x,y,radius+1,paint);
