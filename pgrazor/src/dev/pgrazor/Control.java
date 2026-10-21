@@ -180,6 +180,17 @@ public final class Control {
             manager.notify(7301,new android.app.Notification.Builder(app,"pgrazor-vgp").setSmallIcon(android.R.drawable.stat_notify_sync).setContentTitle("PGRazor VGP").setContentText(message).setAutoCancel(true).build());
         }catch(RuntimeException error){event("vgp-notification-error",error.toString());}
     }
+    private static volatile boolean autoIncubate, incubateLongest, incubatorReady;
+    private static volatile String incubatorStatus="Waiting for incubation support";
+    public static boolean autoIncubate(){return autoIncubate;}
+    public static boolean incubateLongest(){return incubateLongest;}
+    public static void setAutoIncubate(boolean v){autoIncubate=v;saveSettings();}
+    public static void setIncubateLongest(boolean v){incubateLongest=v;saveSettings();}
+    public static void setIncubatorReady(boolean ready,String status){incubatorReady=ready;incubatorStatus=status;}
+    public static void setIncubatorStatus(String status){incubatorStatus=status;}
+    public static String incubatorStatus(){return incubatorStatus;}
+    public static boolean incubatorAvailable(){return incubatorReady&&itemAccessAllowed();}
+    public static boolean incubatorAllowed(){long age=SystemClock.elapsedRealtime()-buddyMapSample;return autoIncubate&&incubatorAvailable()&&buddyMapSample>0&&age>=0&&age<1500;}
     private static volatile int buddyBerry;
     private static volatile boolean buddyReady;
     private static volatile long buddyMapSample;
@@ -190,7 +201,7 @@ public final class Control {
     public static void setBuddyStatus(String status){buddyStatus=status;}
     public static String buddyStatus(){return buddyStatus;}
     public static boolean buddyAvailable(){return buddyReady&&itemAccessAllowed();}
-    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled)&&foreground&&backendReady&&connected();}
+    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate)&&foreground&&backendReady&&connected();}
     public static boolean buddyAllowed(){long age=SystemClock.elapsedRealtime()-buddyMapSample;return buddyAvailable()&&buddyMapSample>0&&age>=0&&age<1500;}
     private static volatile boolean encounterBerryActive,encounterBerryBusy;
     private static volatile long encounterBerrySeen;
@@ -771,6 +782,8 @@ public final class Control {
                 try{giftOptions=Integer.parseInt(p.getProperty("giftOptions","0"));}catch(NumberFormatException ignored){giftOptions=0;}
                 if(giftOptions<0||giftOptions>7)giftOptions=0;
                 // VGP active state is runtime only: always start OFF, ignoring any legacy persisted vgpEnabled.
+                autoIncubate=Boolean.parseBoolean(p.getProperty("autoIncubate","false"));
+                incubateLongest=Boolean.parseBoolean(p.getProperty("incubateLongest","false"));
                 vgpEnabled=false;vgpTargetAt=0;
                 vgpOverlay=Boolean.parseBoolean(p.getProperty("vgpOverlay","false"));
                 vgpStopOnCooldown=Boolean.parseBoolean(p.getProperty("vgpStopOnCooldown","false"));
@@ -821,6 +834,8 @@ public final class Control {
                 p.setProperty("vgpStopOnCooldown",String.valueOf(vgpStopOnCooldown));
                 p.setProperty("vgpOptions",String.valueOf(vgpOptions));
                 p.setProperty("buddyBerry",String.valueOf(buddyBerry));
+                p.setProperty("autoIncubate",String.valueOf(autoIncubate));
+                p.setProperty("incubateLongest",String.valueOf(incubateLongest));
                 p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("autoBerry",String.valueOf(autoBerry));
                 p.setProperty("encounterBerry",String.valueOf(encounterBerryEnabled));
                 p.setProperty("battleOptions",String.valueOf(battleOptions));

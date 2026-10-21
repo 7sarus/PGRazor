@@ -189,7 +189,7 @@ function failQuickSummary(reason) {
     // Latch before revocation, cleanup or status callbacks can re-enter the lifecycle hooks.
     quickSummaryFailed = true;
     if (quickSummary && !quickSummaryStop) {
-        try { quickSummary.setAllowed(false);if(quickSummary.setSpinAllowed)quickSummary.setSpinAllowed(false);if(quickSummary.setItemOptions)quickSummary.setItemOptions(false,"",false);if(quickSummary.setRocketOptions)quickSummary.setRocketOptions(0,false);if(quickSummary.setBattleOptions)quickSummary.setBattleOptions(0,false);if(quickSummary.setVgpOptions)quickSummary.setVgpOptions(0,false,0,0);if(quickSummary.setBuddyOptions)quickSummary.setBuddyOptions(0,false);if(quickSummary.setGiftOptions)quickSummary.setGiftOptions(0,false);if(quickSummary.setBerryImpactReady&&(quickBallNativeReady||bootParameters.quickBall!==true))quickSummary.setBerryImpactReady();
+        try { quickSummary.setAllowed(false);if(quickSummary.setSpinAllowed)quickSummary.setSpinAllowed(false);if(quickSummary.setItemOptions)quickSummary.setItemOptions(false,"",false);if(quickSummary.setRocketOptions)quickSummary.setRocketOptions(0,false);if(quickSummary.setBattleOptions)quickSummary.setBattleOptions(0,false);if(quickSummary.setVgpOptions)quickSummary.setVgpOptions(0,false,0,0);if(quickSummary.setBuddyOptions)quickSummary.setBuddyOptions(0,false);if(quickSummary.setIncubatorOptions)quickSummary.setIncubatorOptions(false,false,false);if(quickSummary.setGiftOptions)quickSummary.setGiftOptions(0,false);if(quickSummary.setBerryImpactReady&&(quickBallNativeReady||bootParameters.quickBall!==true))quickSummary.setBerryImpactReady();
                 if(quickSummary.setBerryOptions)quickSummary.setBerryOptions(0,false);if(quickSummary.setSpawnOptions)quickSummary.setSpawnOptions(false,false); }
         catch (error) { bootLog('quick-summary-revoke-error: '+error); }
     }
@@ -198,7 +198,7 @@ function failQuickSummary(reason) {
 }
 function revokeQuickSummary() {
     if (!quickSummary || quickSummaryFailed) return;
-    try { quickSummary.setAllowed(false);if(quickSummary.setSpinAllowed)quickSummary.setSpinAllowed(false);if(quickSummary.setItemOptions)quickSummary.setItemOptions(false,"",false);if(quickSummary.setRocketOptions)quickSummary.setRocketOptions(0,false);if(quickSummary.setBattleOptions)quickSummary.setBattleOptions(0,false);if(quickSummary.setVgpOptions)quickSummary.setVgpOptions(0,false,0,0);if(quickSummary.setBuddyOptions)quickSummary.setBuddyOptions(0,false);if(quickSummary.setGiftOptions)quickSummary.setGiftOptions(0,false);if(quickSummary.setBerryImpactReady&&(quickBallNativeReady||bootParameters.quickBall!==true))quickSummary.setBerryImpactReady();
+    try { quickSummary.setAllowed(false);if(quickSummary.setSpinAllowed)quickSummary.setSpinAllowed(false);if(quickSummary.setItemOptions)quickSummary.setItemOptions(false,"",false);if(quickSummary.setRocketOptions)quickSummary.setRocketOptions(0,false);if(quickSummary.setBattleOptions)quickSummary.setBattleOptions(0,false);if(quickSummary.setVgpOptions)quickSummary.setVgpOptions(0,false,0,0);if(quickSummary.setBuddyOptions)quickSummary.setBuddyOptions(0,false);if(quickSummary.setIncubatorOptions)quickSummary.setIncubatorOptions(false,false,false);if(quickSummary.setGiftOptions)quickSummary.setGiftOptions(0,false);if(quickSummary.setBerryImpactReady&&(quickBallNativeReady||bootParameters.quickBall!==true))quickSummary.setBerryImpactReady();
                 if(quickSummary.setBerryOptions)quickSummary.setBerryOptions(0,false);if(quickSummary.setSpawnOptions)quickSummary.setSpawnOptions(false,false); }
     catch (error) {
         // Keep a failed optional feature from affecting the original Java lifecycle.
@@ -268,6 +268,8 @@ function scheduleQuickSummary() {
                     if(event.kind==='vgp-result')control.vgpResult(event.action,!!event.success);
                     if(event.kind==='buddy-ready')control.setBuddyReady(!!event.available,event.available?'Ready: choose a berry':'Unavailable: '+event.reason);
                     if(event.kind==='buddy-status')control.setBuddyStatus(event.message);
+                    if(event.kind==='incubator-ready')control.setIncubatorReady(!!event.available,event.available?'Ready':'Unavailable: '+event.reason);
+                    if(event.kind==='incubator-status')control.setIncubatorStatus(event.message);
                     if(event.kind==='gift-ready')control.setGiftsReady(!!event.available,event.available?'Ready: tap a friend with a gift':'Unavailable: '+event.reason);
                     if(event.kind==='gift-status')control.setGiftStatus(event.message);
                     if(event.kind==='gift-wait')control.setGiftStatus(event.reason);
@@ -420,6 +422,7 @@ function heartbeat() {
                 if(quickSummary.setMapPoiAllowed)quickSummary.setMapPoiAllowed(control.mapPoiAllowed());
                 if(quickSummary.setVgpOptions)quickSummary.setVgpOptions(control.vgpEnabled()?control.vgpOptions():0,control.vgpAllowed(),control.latitude(),control.longitude());
                 if(quickSummary.setBuddyOptions)quickSummary.setBuddyOptions(control.buddyBerry(),control.buddyAllowed());
+                if(quickSummary.setIncubatorOptions)quickSummary.setIncubatorOptions(control.autoIncubate(),control.incubateLongest(),control.incubatorAllowed());
                 if(quickSummary.setGiftOptions)quickSummary.setGiftOptions(control.giftOptions(),control.giftsAllowed());
                 if(quickSummary.setBerryImpactReady&&(quickBallNativeReady||bootParameters.quickBall!==true))quickSummary.setBerryImpactReady();
                 if(quickSummary.setBerryOptions)quickSummary.setBerryOptions(control.autoBerry(),control.berriesAllowed());

@@ -251,7 +251,7 @@ function prepare(module,api,domain){
 
   if(total.compare(0)===0)return null;if(total.compare(LIMITS.assemblies)>0||list.isNull())throw Error('assembly-limit');
 
-  const required=[GUI,SGUI,SSTATE,RESP,OBJ,SYNC,BOOL],names=required.concat(Object.values(VGP),['Niantic.Holoholo.Gym.MapGym','Holoholo.Rpc.RaidInfoProto','Holoholo.Rpc.GymDisplayProto','Holoholo.Rpc.PokemonProto','Holoholo.Rpc.CharacterSize','System.Collections.IEnumerator','System.IDisposable','Holoholo.Rpc.GiftBoxProto',GIFT_OPEN_SEQUENCE,'Holoholo.Rpc.OpenGiftOutProto','Holoholo.Rpc.SendGiftOutProto'],Object.values(BUDDY_TYPES),['Niantic.Holoholo.Buddy.IBuddyStatsService','Holoholo.Rpc.BuddyObservedData','Holoholo.Rpc.BuddyFeedingOutProto','Holoholo.Rpc.BuddyPokemonProto'],Object.values(GIFT_TYPES),['Niantic.Platform.Internal.Protos.FriendDetailsProto','Niantic.Platform.Internal.Protos.PlayerSummaryProto','Holoholo.Rpc.GiftBoxDetailsProto','Holoholo.Rpc.StickerProto'],['Niantic.Holoholo.Encounter.Pokeball','Niantic.Holoholo.Encounter.PokeballThrow',SPAWN,BERRY,BERRYGUI,FEEDGUI],Object.values(BATTLE_TYPES),['UnityEngine.Behaviour','UnityEngine.UI.Button',RMINI,RMINIBASE,'UnityEngine.Component','UnityEngine.Transform','UnityEngine.GameObject','UnityEngine.Vector3',RVUI,RVGEST,RVBASE,RVCHARGE,ROCKET,RUI,RDIR,RCHARGE,RSHIELD,'UnityEngine.UI.Selectable','Niantic.Holoholo.UI.Items.ItemInventoryGuiService','Niantic.Holoholo.UI.Items.IItemInventoryGuiService','Niantic.Holoholo.MapSceneContext','Zenject.SceneContext','Zenject.DiContainer','Niantic.Holoholo.UI.Items.IItemInventoryService',IBAG,ISERVICE,IRESPONSE,ITEM,APPROACH,RESOLVE,SPLINE,SPINSTATE,SPINGUI,GESTURE,SPINNER,SPINBASE,SPINRESULT,RELEASE,BAG,DISPLAY,DGUI,DATA,VIEW,PK,INT,DELEGATE,ACTION]),classes={};
+  const required=[GUI,SGUI,SSTATE,RESP,OBJ,SYNC,BOOL],names=required.concat(Object.values(VGP),['System.Collections.IEnumerable','Niantic.Holoholo.Items.IncubatorService','Niantic.Holoholo.Items.IIncubatorService','Holoholo.Rpc.EggIncubatorProto','Niantic.Holoholo.Gym.MapGym','Holoholo.Rpc.RaidInfoProto','Holoholo.Rpc.GymDisplayProto','Holoholo.Rpc.PokemonProto','Holoholo.Rpc.CharacterSize','System.Collections.IEnumerator','System.IDisposable','Holoholo.Rpc.GiftBoxProto',GIFT_OPEN_SEQUENCE,'Holoholo.Rpc.OpenGiftOutProto','Holoholo.Rpc.SendGiftOutProto'],Object.values(BUDDY_TYPES),['Niantic.Holoholo.Buddy.IBuddyStatsService','Holoholo.Rpc.BuddyObservedData','Holoholo.Rpc.BuddyFeedingOutProto','Holoholo.Rpc.BuddyPokemonProto'],Object.values(GIFT_TYPES),['Niantic.Platform.Internal.Protos.FriendDetailsProto','Niantic.Platform.Internal.Protos.PlayerSummaryProto','Holoholo.Rpc.GiftBoxDetailsProto','Holoholo.Rpc.StickerProto'],['Niantic.Holoholo.Encounter.Pokeball','Niantic.Holoholo.Encounter.PokeballThrow',SPAWN,BERRY,BERRYGUI,FEEDGUI],Object.values(BATTLE_TYPES),['UnityEngine.Behaviour','UnityEngine.UI.Button',RMINI,RMINIBASE,'UnityEngine.Component','UnityEngine.Transform','UnityEngine.GameObject','UnityEngine.Vector3',RVUI,RVGEST,RVBASE,RVCHARGE,ROCKET,RUI,RDIR,RCHARGE,RSHIELD,'UnityEngine.UI.Selectable','Niantic.Holoholo.UI.Items.ItemInventoryGuiService','Niantic.Holoholo.UI.Items.IItemInventoryGuiService','Niantic.Holoholo.MapSceneContext','Zenject.SceneContext','Zenject.DiContainer','Niantic.Holoholo.UI.Items.IItemInventoryService',IBAG,ISERVICE,IRESPONSE,ITEM,APPROACH,RESOLVE,SPLINE,SPINSTATE,SPINGUI,GESTURE,SPINNER,SPINBASE,SPINRESULT,RELEASE,BAG,DISPLAY,DGUI,DATA,VIEW,PK,INT,DELEGATE,ACTION]),classes={};
 
   const inputs=names.map(n=>{const i=n.lastIndexOf('.');return[n,Memory.allocUtf8String(n.slice(0,i)),Memory.allocUtf8String(n.slice(i+1))];});
 
@@ -695,6 +695,24 @@ function prepare(module,api,domain){
 
   }catch(e){berries=null;berriesError=String(e);}
 
+
+  let incubator=null,incubatorError=null;
+  try{
+   const service='Niantic.Holoholo.Items.IncubatorService',contract='Niantic.Holoholo.Items.IIncubatorService',inc='Holoholo.Rpc.EggIncubatorProto';
+   if(!items||!items.lookup||![service,contract,inc,'System.Collections.IEnumerable',VGP.player,VGP.playerContract,VGP.bagContract].every(n=>classes[n]))throw Error('incubator-dependencies');
+   const typed=(k,n,o,ty)=>{const f=raw(classes[k],n,o);if(typeName(api,api.field_get_type(f))!==ty)throw Error('incubator-field:'+n);return f;};
+   const literal=(k,n)=>{const f=api.class_get_field_from_name(k,Memory.allocUtf8String(n)),v=Memory.alloc(4);if(f.isNull()||(api.field_get_flags(f)&0x8050)!==0x8050)throw Error('incubator-enum:'+n);api.field_static_get_value(f,v);return v.readS32();};
+   const f={egg:typed(PK,'isEgg_',0x50,BOOL),id:typed(PK,'id_',0x20,'System.UInt64'),target:typed(PK,'eggKmWalkedTarget_',0x58,'System.Double'),start:typed(PK,'eggKmWalkedStart_',0x60,'System.Double'),assignment:typed(PK,'eggIncubatorId_',0x98,'System.String'),eggType:enumI32Field(classes[PK],'eggType_',0x154),item:typed(inc,'Item',0x18,ITEM),incId:typed(inc,'ItemId',0x10,'System.String'),pokemonId:typed(inc,'PokemonId',0x28,'System.Int64'),expiry:typed(inc,'UnconvertedLocalExpirationTimeMs',0x40,'System.Int64')};
+   const m={put:method(classes[service],'PutEggInIncubator',n=>/^Niantic\.Promises\.IPromise(?:`1)?<Holoholo\.Rpc\.UseItemEggIncubatorOutProto>$/.test(n),['System.Int64',inc],false,[163477644,'ffc301d1fe1300f9fa6703a9f85f04a9f65705a9f44f06a914a702d0f60302aa']),
+    incubators:method(classes[VGP.player],'get_Incubators',n=>/^System\.Collections\.Generic\.IEnumerable(?:`1)?<Holoholo\.Rpc\.EggIncubatorProto>$/.test(n),[],false,[178505260,'fe57bea9f44f01a9943402d0f30300aa88125c3908010037200b02b000801b91']),
+    eggs:method(classes[BAG],'get_AllPokemon',n=>/^System\.Collections\.Generic\.ICollection(?:`1)?<Holoholo\.Rpc\.PokemonProto>$/.test(n),[],false,[168081584,'fe0f1df8f65701a9f44f02a914840290f30300aa889a4f3908010037e05b02f0']),
+    enumerate:method(classes['System.Collections.IEnumerable'],'GetEnumerator','System.Collections.IEnumerator',[],false,null),
+    move:method(classes['System.Collections.IEnumerator'],'MoveNext',BOOL,[],false,null),
+    current:method(classes['System.Collections.IEnumerator'],'get_Current','System.Object',[],false,null),
+    dispose:method(classes['System.IDisposable'],'Dispose','System.Void',[],false,null)};
+   incubator={service,contract,inc,f,m,unlimited:literal(classes[ITEM],'IncubatorBasicUnlimited'),special:literal(api.class_from_type(api.field_get_type(f.eggType)),'EggTypeSpecial')};
+  }catch(e){incubatorError=String(e);incubator=null;}
+
   let buddy=null,buddyError=null;
 
   try{if(!items||!items.lookup)throw Error('buddy-item-lookup');
@@ -909,7 +927,7 @@ function prepare(module,api,domain){
   if(vgp)try{vgp.marker={camera:method(classes[VGP.camera],'get_main',VGP.camera,[],true,null),transform:method(classes['UnityEngine.Component'],'get_transform','UnityEngine.Transform',[],false,null),position:method(classes['UnityEngine.Transform'],'get_position','UnityEngine.Vector3',[],false,null),project:method(classes[VGP.camera],'WorldToScreenPoint','UnityEngine.Vector3',['UnityEngine.Vector3'],false,null),width:method(classes[VGP.screen],'get_width',INT,[],true,null),height:method(classes[VGP.screen],'get_height',INT,[],true,null)};}catch(e){vgp.markerError=String(e);}
 
 
-  return{mapPoi,mapPoiError,vgp,vgpError,buddy,buddyError,gifts,giftsError,spawn,spawnError,module,api,classes,fields,fieldMeta,methods,success,caughtIdSize:caughtId.size,details,detailsError,transfer,transferError,spin,spinError,spinCamera,spinCameraError,items,itemsError,rocket,rocketError,battles,battlesError,berries,berriesError};
+  return{incubator,incubatorError,mapPoi,mapPoiError,vgp,vgpError,buddy,buddyError,gifts,giftsError,spawn,spawnError,module,api,classes,fields,fieldMeta,methods,success,caughtIdSize:caughtId.size,details,detailsError,transfer,transferError,spin,spinError,spinCamera,spinCameraError,items,itemsError,rocket,rocketError,battles,battlesError,berries,berriesError};
 
  }finally{if(owned&&!owned.isNull())api.thread_detach(owned);}
 
@@ -998,6 +1016,8 @@ function install(s,p){
    giftTick(now);
 
    buddyTick(now);
+
+   incubatorTick(now);
 
    berryTick(now);
 
@@ -1493,6 +1513,61 @@ function install(s,p){
   observe(m.shieldClose,function(a){if(rocketState.shield&&target(rocketState.shield).equals(a[0]))rocketDrop('shield');});
 
  }
+
+
+ // Auto incubation: only the permanent unlimited item, confirmed through inventory.
+ const incubatorState={next:0,pending:null,blocked:false,enabled:false,status:''};
+ function incubationStatus(message){if(message!==incubatorState.status){incubatorState.status=message;event(s,'incubator-status',{message});}}
+ function incubationClear(){const q=incubatorState.pending;if(q)for(const h of q.handles)freeHandle(h);incubatorState.pending=null;}
+ function incubationScalar(o,f,kind){const v=Memory.alloc(8);v.writeU64(0);api.field_get_value(o,f,v);return kind==='double'?v.readDouble():kind==='bool'?v.readU8()!==0:v.readU64().toString();}
+ function incubationString(o){if(o.isNull())return '';const n=api.string_length(o);if(n<0||n>256)throw Error('incubator-string');return n?api.string_chars(o).readUtf16String(n):'';}
+ function incubationVirtual(m,o){const v=api.object_get_virtual_method(o,m.method);if(v.isNull())throw Error('incubator-interface');return invoke(v,o);}
+ function incubationEach(collection,limit,visit){const m=p.incubator.m,h=hold(collection);let eh=null;
+  try{const e=incubationVirtual(m.enumerate,collection);eh=hold(e);for(let i=0;i<=limit;i++){const box=incubationVirtual(m.move,target(eh));if(box.isNull())throw Error('incubator-enumerator');if(!api.object_unbox(box).readU8())return;if(i===limit)throw Error('incubator-inventory-limit');const value=incubationVirtual(m.current,target(eh)),vh=hold(value);try{visit(target(vh));}finally{freeHandle(vh);}}}
+  finally{if(eh){try{incubationVirtual(m.dispose,target(eh));}finally{freeHandle(eh);}}freeHandle(h);}
+ }
+ function incubatorTick(now){const t=p.incubator,r=incubatorState;if(!t)return;
+  if(s.stopping){incubationClear();return;}
+  if(!s.incubatorEnabled){r.enabled=false;incubationStatus('Off');return;}
+  if(!r.enabled){r.enabled=true;if(!r.pending)r.blocked=false;r.next=0;}
+  if(!(now<s.incubatorLease)){incubationStatus('Waiting for the map');return;}
+  if(now<r.next)return;r.next=now+5000;
+  const roots=[],keep=o=>{const h=hold(o);roots.push(h);return o;},f=t.f,m=t.m;
+  try{
+   const l=p.items.lookup,map=invoke(l.find.method,ptr(0),itemArgs([l.typeObject(api.class_get_type(l.map))]));if(map.isNull())return;keep(map);
+   const container=keep(invoke(l.container.method,map));
+   const resolve=(contract,concrete)=>{const o=keep(invoke(l.resolve.method,container,itemArgs([l.typeObject(api.class_get_type(classes[contract]))])));if(!exact(o,classes[concrete]))throw Error('incubator-service-type');return o;};
+   const player=resolve(VGP.playerContract,VGP.player);let free=null,seen=false,matched=false;
+   incubationEach(invoke(m.incubators.method,player),128,o=>{
+    if(!exact(o,classes[t.inc]))throw Error('incubator-proto');
+    const item=readS32(o,f.item),id=incubationString(readPtr(o,f.incId)),assigned=incubationScalar(o,f.pokemonId);
+    if(r.pending&&id===r.pending.incubator){seen=true;if(assigned!=='0'){matched=true;const ours=assigned===r.pending.egg;incubationClear();r.blocked=false;incubationStatus(ours?'Egg incubating':'Incubator already in use');}}
+    if(!free&&item===t.unlimited&&id&&assigned==='0'&&incubationScalar(o,f.expiry)==='0')free={o:keep(o),id};
+   });
+   if(matched)return;
+   if(r.pending){if(now>=r.pending.deadline){r.blocked=true;incubationStatus('Assignment unconfirmed; waiting for inventory');}else incubationStatus('Confirming egg assignment');return;}
+   if(r.blocked){incubationStatus('Incubation stopped; toggle off/on to retry');return;}
+   if(!free){incubationStatus('Unlimited incubator in use or unavailable');return;}
+   const bag=resolve(VGP.bagContract,BAG);let choice=null;
+   incubationEach(invoke(m.eggs.method,bag),25000,o=>{
+    if(!exact(o,classes[PK]))throw Error('incubator-egg-proto');
+    if(!incubationScalar(o,f.egg,'bool')||readS32(o,f.eggType)===t.special||incubationString(readPtr(o,f.assignment)))return;
+    const id=incubationScalar(o,f.id),km=incubationScalar(o,f.target,'double')-incubationScalar(o,f.start,'double');
+    if(id==='0'||!Number.isFinite(km)||km<=0||km>100)return;
+    if(!choice||(s.incubatorLongest?km>choice.km:km<choice.km)){if(choice)freeHandle(choice.h);choice={h:hold(o),id,km};roots.push(choice.h);}
+   });
+   if(!choice){incubationStatus('No eggs waiting');r.next=now+15000;return;}
+   // Recheck both assignment fields immediately before the single service call.
+   if(!s.incubatorEnabled||!(s.now()<s.incubatorLease)||incubationScalar(free.o,f.pokemonId)!=='0'||incubationString(readPtr(target(choice.h),f.assignment)))return;
+   const service=resolve(t.contract,t.service),idArg=Memory.alloc(8);idArg.writeU64(choice.id);
+   const q={egg:choice.id,incubator:free.id,deadline:now+30000,handles:[hold(target(choice.h)),hold(free.o),hold(service)]};r.pending=q;
+   incubationStatus('Starting '+choice.km+' km egg');
+   const promise=invoke(m.put.method,service,itemArgs([idArg,free.o]));if(!promise.isNull())q.handles.push(hold(promise));
+   event(s,'incubator-request',{distance:choice.km,priority:s.incubatorLongest?'longest':'shortest'});
+  }catch(e){r.blocked=true;incubationStatus(r.pending?'Assignment unconfirmed; waiting for inventory':'Incubation unavailable; toggle off/on to retry');event(s,'incubator-error',{reason:String(e).slice(0,180)});}
+  finally{for(const h of roots)freeHandle(h);}
+ }
+ event(s,'incubator-ready',{available:!!p.incubator,reason:p.incubatorError});
 
  // Buddy feeding uses the normal service and never enters the play/food UI.
 
@@ -2616,6 +2691,8 @@ function setSpawnOptions(enabled,allowed){const s=running;if(!s||!s.ready||s.sto
 function setMapPoiAllowed(allowed){const s=running;if(!s||!s.active||s.stopping)return false;s.mapPoiLease=allowed===true?s.now()+2500:0;return true;}
 function setVgpOptions(mask,allowed,lat,lon){const s=running;if(!s||!s.active||s.stopping)return false;s.vgpMask=(mask|0)&3;s.vgpLat=lat;s.vgpLon=lon;s.vgpLease=allowed===true&&Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180?s.now()+2500:0;return true;}
 
+function setIncubatorOptions(enabled,longest,allowed){const s=running;if(!s||!s.active||s.stopping)return false;s.incubatorEnabled=enabled===true;s.incubatorLongest=longest===true;s.incubatorLease=allowed===true?s.now()+2500:0;return !!s.incubatorEnabled;}
+
 function setBuddyOptions(berry,allowed){const s=running;if(!s||!s.active||s.stopping)return false;const next=[701,703,705,706,707].includes(berry)?berry:0;s.buddyBerry=next;s.buddyLease=allowed===true?s.now()+2500:0;return true;}
 
 function setGiftOptions(mask,allowed){const s=running;if(!s||!s.ready||s.stopping)return false;s.giftMask=Number.isInteger(mask)&&mask>=0&&mask<=7?mask:0;s.giftLease=allowed===true?s.now()+LIMITS.leaseMs:0;const key=s.giftMask+':'+(allowed===true);if(s.giftPermission!==key){s.giftPermission=key;event(s,'gift-permission',{mask:s.giftMask,allowed:allowed===true});}return !!(s.giftMask&3);}
@@ -2646,6 +2723,6 @@ function setTransferOptions(enabled,protect,dismiss){const s=running;if(!s||!s.a
 
  s.transferEnabled=next;s.protect=mask;s.dismissEnabled=dismiss===true;return true;}
 
-const api=Object.freeze({start,setMapPoiAllowed,setVgpOptions,setAllowed,setSpinAllowed,setTransferOptions,setItemOptions,setRocketOptions,setBattleOptions,setBerryOptions,setBerryImpactReady,setSpawnOptions,setGiftOptions,setBuddyOptions,transferDecision,stop});root.PGRazorQuickClose=api;return api;
+const api=Object.freeze({start,setIncubatorOptions,setMapPoiAllowed,setVgpOptions,setAllowed,setSpinAllowed,setTransferOptions,setItemOptions,setRocketOptions,setBattleOptions,setBerryOptions,setBerryImpactReady,setSpawnOptions,setGiftOptions,setBuddyOptions,transferDecision,stop});root.PGRazorQuickClose=api;return api;
 
 })(globalThis);

@@ -21,10 +21,15 @@ public final class Pad {
     private final Stick stick;
     private View launcher, closeIcon, themeIcon;
     private VgpToggle vgpToggle;
+    private Switch incubatorSwitch;
+    private Button incubatorPriority;
+    private TextView incubatorStatus;
     private LinearLayout joystickOverlay;
     private Button encounterBerry, cooldownTimer;
     private TextView vgpActivity;
     private VgpMarker vgpMarker;
+    // Draggable, position-persisting handles for the cooldown and VGP overlays.
+    private OverlayDrag cooldownDrag, vgpDrag;
     // Primary action and cycle/dialog rows.
     private Button mapTap, throwGrade, itemSettings, cameraSample, interactionCapture;
     private QuickMenu quickMenu;
@@ -265,6 +270,17 @@ public final class Pad {
         vgpStatus=caption(vgpC,Control.vgpStatus());
 
         // ----- Auto feed buddy -----
+        LinearLayout eggsC = section(body, "Auto incubate eggs", false);
+        incubatorSwitch = switchRow(eggsC, "Auto incubate");
+        incubatorSwitch.setChecked(Control.autoIncubate());
+        incubatorSwitch.setOnCheckedChangeListener((v, checked) -> {
+            if (checked != Control.autoIncubate()) Control.setAutoIncubate(checked);
+        });
+        incubatorPriority = button("Priority: shortest distance"); eggsC.addView(incubatorPriority);
+        incubatorPriority.setOnClickListener(v -> { Control.setIncubateLongest(!Control.incubateLongest()); refresh(); });
+        caption(eggsC, "Unlimited incubator only");
+        incubatorStatus = caption(eggsC, Control.incubatorStatus());
+
         LinearLayout buddyC = section(body, "Auto feed buddy", false); buddyRoot = (View)buddyC.getParent();
         buddyStatus = caption(buddyC, Control.buddyStatus());
         RadioGroup buddyBerries = new RadioGroup(host); buddyBerries.setOrientation(LinearLayout.VERTICAL);
@@ -345,7 +361,7 @@ public final class Pad {
         FrameLayout.LayoutParams berryLayout=new FrameLayout.LayoutParams(dp(126),dp(58),Gravity.RIGHT|Gravity.CENTER_VERTICAL);berryLayout.rightMargin=dp(10);parent.addView(encounterBerry,berryLayout);encounterBerry.setVisibility(View.GONE);
         encounterBerry.setOnClickListener(v->{PopupMenu choices=new PopupMenu(activity,encounterBerry);for(int i=0;i<BERRY_IDS.length;i++){int id=BERRY_IDS[i],count=Control.berryCount(id);MenuItem item=choices.getMenu().add(0,id,i,BERRY_NAMES[i]+(id==0?"":" ("+count+")"));item.setCheckable(true);item.setChecked(Control.autoBerrySelected()==id);item.setEnabled(id==0||(count>0&&Control.berriesAllowed()));}choices.setOnMenuItemClickListener(item->{Control.setAutoBerry(item.getItemId());refresh();return true;});choices.show();});
 
-        cooldownTimer=button("History  --:--");cooldownTimer.setTextSize(14);cooldownTimer.setAllCaps(false);cooldownTimer.setTextColor(accent());FrameLayout.LayoutParams timerLayout=new FrameLayout.LayoutParams(dp(165),dp(44),Gravity.TOP|Gravity.RIGHT);timerLayout.topMargin=dp(44);timerLayout.rightMargin=dp(12);parent.addView(cooldownTimer,timerLayout);cooldownTimer.setOnClickListener(v->Cooldown.show(activity));
+        cooldownTimer=button("History  --:--");cooldownTimer.setTextSize(14);cooldownTimer.setAllCaps(false);cooldownTimer.setTextColor(accent());FrameLayout.LayoutParams timerLayout=new FrameLayout.LayoutParams(dp(165),dp(44),Gravity.TOP|Gravity.RIGHT);timerLayout.topMargin=dp(44);timerLayout.rightMargin=dp(12);parent.addView(cooldownTimer,timerLayout);cooldownTimer.setOnClickListener(v->Cooldown.show(activity));cooldownDrag=OverlayDrag.attach(parent,cooldownTimer,"cooldown");
 
         panel.setOnApplyWindowInsetsListener((view,insets) -> {applyPanelInsets(insets);return insets;});
         panel.requestApplyInsets();
@@ -353,6 +369,8 @@ public final class Pad {
         vgpToggle=new VgpToggle(host);FrameLayout.LayoutParams vgpButtonLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);vgpButtonLayout.leftMargin=dp(12);vgpButtonLayout.topMargin=dp(156);parent.addView(vgpToggle,vgpButtonLayout);vgpToggle.setOnClickListener(v->{Control.setVgpEnabled(!Control.vgpEnabled());refresh();});
         vgpActivity=text("VGP",12,ink());vgpActivity.setPadding(dp(10),dp(6),dp(10),dp(6));vgpActivity.setMaxLines(2);vgpActivity.setEllipsize(android.text.TextUtils.TruncateAt.END);
         FrameLayout.LayoutParams vgpLayout=new FrameLayout.LayoutParams(dp(220),-2,Gravity.TOP|Gravity.LEFT);vgpLayout.leftMargin=dp(12);vgpLayout.topMargin=dp(216);parent.addView(vgpActivity,vgpLayout);vgpActivity.setVisibility(View.GONE);
+        // The toggle is the drag handle; the status pill follows it as one coherent unit. Tap still flips VGP.
+        vgpDrag=OverlayDrag.attach(parent,vgpToggle,vgpActivity,"vgp");
         vgpMarker=new VgpMarker(host);parent.addView(vgpMarker,new FrameLayout.LayoutParams(dp(38),dp(46)));vgpMarker.setVisibility(View.GONE);
         launcher=new RazorIcon(host);FrameLayout.LayoutParams iconLayout=new FrameLayout.LayoutParams(dp(48),dp(48),Gravity.TOP|Gravity.LEFT);iconLayout.leftMargin=dp(12);iconLayout.topMargin=dp(100);parent.addView(launcher,iconLayout);
         launcher.setContentDescription("Open PGRazor quick menu. Drag to reposition.");
@@ -439,6 +457,10 @@ public final class Pad {
         for(int i=0;i<6;i++)transferProtection[i].setChecked((Control.transferProtect()&(1<<i))!=0);
         transferStatus.setText(Control.transferStatus());
         vgpSwitch.setChecked(Control.vgpOverlay());vgpStatus.setText(Control.vgpStatus());
+        incubatorSwitch.setChecked(Control.autoIncubate());
+        incubatorSwitch.setEnabled(Control.incubatorAvailable());
+        incubatorPriority.setText("Priority: " + (Control.incubateLongest() ? "longest" : "shortest") + " distance");
+        incubatorStatus.setText(Control.autoIncubate() ? Control.incubatorStatus() : "Off");
         for(int i=0;i<3;i++)vgpChoices[i].setChecked((Control.vgpOptions()&(1<<i))!=0);
         vgpCooldownStop.setChecked(Control.vgpStopOnCooldown());
         buddyStatus.setText(Control.buddyStatus());
@@ -560,6 +582,7 @@ public final class Pad {
         if (closed) return;
         closed = true; stick.release(true); Control.suspendForBackground(); handler.removeCallbacks(tick);
         if(quickMenu!=null){quickMenu.destroy();quickMenu=null;}
+        if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}
         parent.removeView(panel);parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null)parent.removeView(encounterBerry);if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);
         panel.setOnApplyWindowInsetsListener(null);
         Control.event("panel-closed", "Runtime suspended on activity change; desiredEnabled=" + Control.desiredEnabled() + "; movement stopped");

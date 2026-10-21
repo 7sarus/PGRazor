@@ -31,6 +31,10 @@ The Android package identity stays compatible with the game. An official-store i
 
 **Quick menu:** Map, speed presets (0, 9.3, 16, 30 km/h), Autowalk, Feeds, Favorites, Teleport, and Settings. Favorites shares the map's saved places. Autowalk builds a route through up to 50 nearby loaded stops and gyms, with optional looping. Routes use direct segments between locations. Zero speed pauses travel; selecting another speed resumes the current route. Backgrounding stops routes rather than resuming movement automatically.
 
+**Auto incubation:** Uses only the unlimited incubator, with shortest- or longest-distance egg priority. Checks while on the game map and starts another egg after the incubator becomes free. Limited-use, Super, and timed incubators are not used.
+
+**Overlay positions:** Drag the cooldown timer or VGP icon to reposition it. Positions are saved; the VGP status label follows its icon. A tap still opens cooldown history or toggles VGP.
+
 **VGP:** the settings switch shows or hides its overlay. Tap the connected/disconnected device icon to start or stop VGP; ON/OFF labels show its state. VGP starts off and switches off when the app leaves the foreground. Optional **Stop on cooldown (estimated)** also switches it off until you manually restart it. Catch and item automation follow their existing settings and protection rules.
 
 These are experimental client modifications. Server outcomes are not guaranteed. The AR+ option and local spawn-range changes do not prove server-side bonuses. Cooldown is a local estimate. Do not interpret a successful build as device validation.
