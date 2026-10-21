@@ -54,7 +54,7 @@ public final class QuickMenu {
         LinearLayout walkRow = (LinearLayout) row(WALK, "Walk", true, this::onWalk); walkLabel = (TextView) walkRow.getChildAt(1);
         card.addView(walkRow);
         card.addView(row(AUTOWALK, "Autowalk", true, listener::onAutoWalk));
-        card.addView(row(FEEDS, "Feeds (coming soon)", false, null));
+        card.addView(row(FEEDS, "Feeds", false, null));
         card.addView(row(FAVORITES, "Favorites", true, listener::onFavorites));
         card.addView(row(TELEPORT, "Teleport", true, listener::onTeleport));
         card.addView(row(SETTINGS, "Settings", true, listener::onSettings));

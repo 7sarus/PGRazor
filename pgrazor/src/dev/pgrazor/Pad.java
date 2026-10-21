@@ -149,11 +149,13 @@ public final class Pad {
         int top,bottom,left,right;
         if(Build.VERSION.SDK_INT>=30){
             android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.ime());
-            top=bars.top;bottom=bars.bottom;left=bars.left;right=bars.right;
+            android.graphics.Insets safe=insets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
+            top=Math.max(bars.top,safe.top);bottom=Math.max(bars.bottom,safe.bottom);left=Math.max(bars.left,safe.left);right=Math.max(bars.right,safe.right);
         }else{
             top=insets.getSystemWindowInsetTop();bottom=insets.getSystemWindowInsetBottom();
             left=insets.getSystemWindowInsetLeft();right=insets.getSystemWindowInsetRight();
         }
+        if(top==0){int id=activity.getResources().getIdentifier("status_bar_height","dimen","android");top=id!=0?activity.getResources().getDimensionPixelSize(id):dp(28);}
         panel.setPadding(dp(12)+left,dp(8)+top,dp(12)+right,dp(12)+bottom);
     }
     private void showItemSettings(){
@@ -414,10 +416,10 @@ public final class Pad {
     }
 
     private void refresh() {
-        if(vgpToggle!=null){vgpToggle.setVisibility(Control.vgpOverlayVisible()&&panel.getVisibility()!=View.VISIBLE?View.VISIBLE:View.GONE);vgpToggle.setContentDescription("Virtual Go Plus "+(Control.vgpEnabled()?"on; tap to turn off":"off; tap to turn on")+". "+Control.vgpStatus());vgpToggle.invalidate();}
+        if(vgpToggle!=null){vgpToggle.setVisibility(Control.vgpOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpToggle.setContentDescription("Virtual Go Plus "+(Control.vgpEnabled()?"on; tap to turn off":"off; tap to turn on")+". "+Control.vgpStatus());vgpToggle.invalidate();}
 
         // Pair the status line with the toggle so the cooldown shutoff reason is visible even when VGP is off.
-        if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&panel.getVisibility()!=View.VISIBLE?View.VISIBLE:View.GONE);vgpActivity.setText("VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());vgpActivity.setBackground(rounded(surface(),10));}
+        if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpActivity.setText("VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());vgpActivity.setBackground(rounded(surface(),10));}
         if(vgpMarker!=null){boolean show=Control.vgpTargetVisible()&&panel.getVisibility()!=View.VISIBLE;vgpMarker.setVisibility(show?View.VISIBLE:View.GONE);if(show){vgpMarker.setX(Control.vgpTargetX()*parent.getWidth()-dp(19));vgpMarker.setY(Control.vgpTargetY()*parent.getHeight()-dp(82));vgpMarker.invalidate();}}
 
         if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);cooldownTimer.setText("☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}
@@ -554,7 +556,7 @@ public final class Pad {
     private void openSettings() {
         if(quickMenu!=null)quickMenu.hide();
         stick.release(true);
-        panel.setVisibility(View.VISIBLE); panel.bringToFront(); panel.requestApplyInsets();
+        panel.setVisibility(View.VISIBLE); panel.bringToFront(); panel.requestApplyInsets(); applyPanelInsets(parent.getRootWindowInsets());
         Control.event("settings-open", "Full-screen panel; runtime unaffected");
         refresh();
     }
