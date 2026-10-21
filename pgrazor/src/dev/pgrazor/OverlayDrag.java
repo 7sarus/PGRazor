@@ -38,6 +38,9 @@ public final class OverlayDrag implements View.OnTouchListener {
         float density = view.getResources().getDisplayMetrics().density;
         threshold = android.view.ViewConfiguration.get(view.getContext()).getScaledTouchSlop(); gap = Math.round(6 * density);
         view.setOnTouchListener(this);
+        view.setEnabled(true);
+        view.setElevation(8 * density);
+        view.post(() -> { int[] xy = new int[2]; view.getLocationOnScreen(xy); Control.event("overlay-layout", key + " x=" + xy[0] + " y=" + xy[1] + " w=" + view.getWidth() + " h=" + view.getHeight() + " enabled=" + view.isEnabled()); });
         // Restore when the handle is (re)laid out: first show, a visibility flip, or a rotation.
         viewLayout = (v, l, t, r, b, ol, ot, or, ob) -> applySaved();
         view.addOnLayoutChangeListener(viewLayout);
