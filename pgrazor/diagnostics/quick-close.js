@@ -1559,7 +1559,7 @@ function install(s,p){
    if(!choice){incubationStatus('No eggs waiting');r.next=now+15000;return;}
    // Recheck both assignment fields immediately before the single service call.
    if(!s.incubatorEnabled||!(s.now()<s.incubatorLease)||incubationScalar(free.o,f.pokemonId)!=='0'||incubationString(readPtr(target(choice.h),f.assignment)))return;
-   const service=resolve(t.contract,t.service),idArg=Memory.alloc(8);idArg.writeU64(choice.id);
+   const service=resolve(t.contract,t.service),idArg=Memory.alloc(8);idArg.writeU64(uint64(choice.id));
    const q={egg:choice.id,incubator:free.id,deadline:now+30000,handles:[hold(target(choice.h)),hold(free.o),hold(service)]};r.pending=q;
    incubationStatus('Starting '+choice.km+' km egg');
    const promise=invoke(m.put.method,service,itemArgs([idArg,free.o]));if(!promise.isNull())q.handles.push(hold(promise));
