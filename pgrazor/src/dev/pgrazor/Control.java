@@ -673,8 +673,10 @@ public final class Control {
         if (!foreground || !canEnable()) engine.pause();
         saveState();
     }
-    public static void walkRoute(double[][] waypoints) {
-        engine.walkRoute(waypoints); desiredEnabled = true;
+    public static void walkRoute(double[][] waypoints) { walkRoute(waypoints, false); }
+    /** As {@link #walkRoute(double[][])}, but a looping route repeats from its first stop; same lifecycle/save/readiness. */
+    public static void walkRoute(double[][] waypoints, boolean loop) {
+        engine.walkRoute(waypoints, loop); desiredEnabled = true;
         if (!foreground || !canEnable()) engine.pause();
         saveState();
     }

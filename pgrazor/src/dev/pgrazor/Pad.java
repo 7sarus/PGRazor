@@ -542,12 +542,12 @@ public final class Pad {
                 if (!Control.engine.walking) Control.event("walk-arrived", "Already at selected destination");
                 refresh(); return true;
             } catch (IllegalArgumentException error) { Toast.makeText(activity,"Select valid coordinates",Toast.LENGTH_SHORT).show(); return false; }
-        }, waypoints -> {
+        }, (waypoints, loop) -> {
             if (!Control.canEnable()) { Toast.makeText(activity,"Location adapter is not ready",Toast.LENGTH_SHORT).show(); return false; }
             try {
-                stick.release(true); Control.walkRoute(waypoints);
+                stick.release(true); Control.walkRoute(waypoints, loop);
                 MotionEngine.RouteProgress progress=Control.engine.routeProgress();
-                Control.event("route-started", String.format(Locale.US,"stops=%d visited=%d remainingMeters=%.2f speedKmh=%.2f",progress.total,progress.visited,progress.remainingMeters,Control.engine.speedKmh));
+                Control.event("route-started", String.format(Locale.US,"stops=%d visited=%d remainingMeters=%.2f speedKmh=%.2f loop=%s",progress.total,progress.visited,progress.remainingMeters,Control.engine.speedKmh,loop));
                 refresh(); return true;
             } catch (IllegalArgumentException error) { Toast.makeText(activity,error.getMessage(),Toast.LENGTH_SHORT).show(); return false; }
         });

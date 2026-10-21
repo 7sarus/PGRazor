@@ -66,4 +66,6 @@ PGRazor uses the `pgrazor/` project directory and `dev.pgrazor` Java namespace. 
 
 Original PGRazor source is available under the [MIT License](LICENSE). Third-party components retain their own licenses. Pokémon GO and its assets are not covered by this license. PGRazor is an independent project and is not affiliated with the game publisher.
 
+The map and cooldown history open full screen using the selected PGRazor theme. Select a map pin, then choose Walk here or Teleport. The manual route planner also offers Loop route (off by default). Map tiles retain their original colors.
+
 The world map layers show locations currently loaded by the game near your avatar, not remote search results. Markers use bundled game artwork, with gym team-color rings and distinct raid categories. Tap a marker for live gym/raid details; overlapping markers open a chooser. Egg badges identify unhatched raids. Small x/6 labels show gym defenders directly on the map; raid details resolve base-species names from bundled English game text. Unknown species keep their numeric fallback. Layer choices persist. Tile loading uses the [OpenStreetMap tile policy](https://operations.osmfoundation.org/policies/tiles/), including local caching and visible tiles only.

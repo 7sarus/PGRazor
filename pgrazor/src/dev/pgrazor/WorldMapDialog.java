@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Rect;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.widget.CheckBox;
 import org.json.JSONArray;
@@ -61,8 +62,8 @@ public final class WorldMapDialog {
         boolean onDestination(double latitude, double longitude);
     }
     public interface RouteListener {
-        /** Coordinates are copied in visit order; return true only after accepting the route. */
-        boolean onRoute(double[][] waypoints);
+        /** Coordinates are copied in visit order; loop repeats from the first stop. Return true only after accepting the route. */
+        boolean onRoute(double[][] waypoints, boolean loop);
     }
 
     public static AlertDialog show(Activity activity, double latitude, double longitude, DestinationListener listener) {
@@ -76,62 +77,67 @@ public final class WorldMapDialog {
     public static AlertDialog show(Activity activity, double latitude, double longitude, DestinationListener listener, DestinationListener walk, RouteListener route) {
         if (!Double.isFinite(latitude) || !Double.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
             throw new IllegalArgumentException("Invalid map coordinates");
+        Context ui = MapTheme.wrap(activity); // themed chrome; the map view itself keeps the real Activity
         ResponsiveLayout layout = new ResponsiveLayout(activity);
         layout.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(activity, 12);
         layout.setPadding(pad, pad, pad, pad);
-        TextView hint = label(activity, "Drag to pan. Pinch to zoom. Tap to select a destination.", 13);
+        TextView hint = label(ui, "Drag to pan. Pinch to zoom. Tap to select a destination.", 13);
         layout.addView(hint);
-        TextView selected = label(activity, "", 15);
+        TextView selected = label(ui, "", 15);
         selected.setPadding(0, dp(activity, 8), 0, dp(activity, 8));
-        LinearLayout selectionRow = new LinearLayout(activity);
+        LinearLayout selectionRow = new LinearLayout(ui);
         selectionRow.setGravity(Gravity.CENTER_VERTICAL);
         selectionRow.addView(selected, new LinearLayout.LayoutParams(0, -2, 1));
-        Button saved = button(activity, "Saved places");
+        Button saved = button(ui, "Saved places");
         selectionRow.addView(saved, new LinearLayout.LayoutParams(dp(activity, route == null ? 116 : 100), dp(activity, 48)));
-        Button routeMode = button(activity, "Route"); routeMode.setContentDescription("Open route builder");
+        Button routeMode = button(ui, "Route"); routeMode.setContentDescription("Open route builder");
         routeMode.setVisibility(route == null ? View.GONE : View.VISIBLE);
         selectionRow.addView(routeMode,new LinearLayout.LayoutParams(dp(activity, 64),dp(activity, 48)));
         layout.addView(selectionRow);
-        TextView attribution = label(activity, "", 12);
+        TextView attribution = label(ui, "", 12);
         attribution.setGravity(Gravity.RIGHT);
         attribution.setPadding(0, 0, 0, dp(activity, 6));
         attribution.setText(Html.fromHtml("© <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap contributors</a>", Html.FROM_HTML_MODE_LEGACY));
         attribution.setMovementMethod(LinkMovementMethod.getInstance());
         layout.addView(attribution);
-        TextView status = label(activity, "Loading map…", 12);
+        TextView status = label(ui, "Loading map…", 12);
         MapView map = new MapView(activity, latitude, longitude, selected, status);
-        LinearLayout layers=new LinearLayout(activity);
+        LinearLayout layers=new LinearLayout(ui);
         SharedPreferences preferences=activity.getSharedPreferences("pgrazor-map",0);
         String[] names={"Stops","Gyms","Raids"};
         for(int i=0;i<names.length;i++){
-            final int bit=1<<i;CheckBox toggle=new CheckBox(activity);toggle.setText(names[i]);toggle.setTextSize(13);
+            final int bit=1<<i;CheckBox toggle=new CheckBox(ui);toggle.setText(names[i]);toggle.setTextSize(13);
             boolean enabled=preferences.getBoolean(names[i],false);if(enabled)map.layers|=bit;toggle.setChecked(enabled);
             final String key=names[i];toggle.setOnCheckedChangeListener((b,on)->{map.layers=on?map.layers|bit:map.layers&~bit;preferences.edit().putBoolean(key,on).apply();map.refreshPois();});
             layers.addView(toggle,new LinearLayout.LayoutParams(0,-2,1));
         }
         layout.addView(layers);
-        TextView coverage=label(activity,"Nearby locations loaded by the game",12);layout.addView(coverage);map.poiStatus=coverage;
+        TextView coverage=label(ui,"Nearby locations loaded by the game",12);layout.addView(coverage);map.poiStatus=coverage;
         map.refreshPois();
-        PlaceUi places = new PlaceUi(activity, map, saved);
+        PlaceUi places = new PlaceUi(activity, ui, map, saved);
         saved.setOnClickListener(v -> places.openLibrary());
         layout.map = map;
-        layout.addView(map, new LinearLayout.LayoutParams(-1, dp(activity, 420)));
-        LinearLayout actions = new LinearLayout(activity);
-        Button globe = button(activity, "World"), center = button(activity, "Selected"), retry = button(activity, "Retry");
+        // The map fills the space left by the controls (see ResponsiveLayout); this is only a baseline height.
+        layout.addView(map, new LinearLayout.LayoutParams(-1, dp(activity, 240)));
+        CheckBox loop = new CheckBox(ui); loop.setText("Loop route"); loop.setTextSize(13);
+        loop.setContentDescription("Repeat the route from the first stop after the last"); loop.setVisibility(View.GONE);
+        layout.addView(loop);
+        LinearLayout actions = new LinearLayout(ui);
+        Button globe = button(ui, "World"), center = button(ui, "Selected"), retry = button(ui, "Retry");
         for (Button b : new Button[] {globe, center, retry}) actions.addView(b, new LinearLayout.LayoutParams(0, dp(activity, 48), 1));
         globe.setOnClickListener(v -> map.worldView());
         center.setOnClickListener(v -> map.centerSelection()); retry.setOnClickListener(v -> map.retry());
         layout.addView(actions);
         layout.addView(status);
-        RouteUi routes = route == null ? null : new RouteUi(activity,map,routeMode,hint,globe,center,retry,route,walk != null);
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity).setTitle("World map").setView(layout)
+        RouteUi routes = route == null ? null : new RouteUi(activity,ui,map,routeMode,hint,globe,center,retry,loop,route,walk != null);
+        AlertDialog.Builder builder = new AlertDialog.Builder(ui).setTitle("World map").setView(layout)
             .setNegativeButton("Cancel", null).setPositiveButton("Teleport", null);
         if (walk != null) builder.setNeutralButton("Walk here", null);
         AlertDialog dialog = builder.create();
-        dialog.setOnDismissListener(d -> { if(routes!=null)routes.close(); places.close(); map.close(); });
+        DialogLifecycle.bind(activity, dialog, () -> { if(routes!=null)routes.close(); places.close(); map.close(); });
         dialog.setOnShowListener(d -> {
-            if (dialog.getWindow() != null) dialog.getWindow().setLayout(-1, -2);
+            MapTheme.fullScreen(dialog); MapTheme.style(layout); MapTheme.styleButtons(dialog);
             if(routes!=null)routes.attach(dialog);
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 if(routes!=null && routes.editing) { routes.start(); return; }
@@ -145,25 +151,27 @@ public final class WorldMapDialog {
         return dialog;
     }
 
-    private static int dp(Activity a, float value) { return Math.round(value * a.getResources().getDisplayMetrics().density); }
-    private static TextView label(Activity a, String text, int size) { TextView v = new TextView(a); v.setText(text); v.setTextSize(size); return v; }
-    private static Button button(Activity a, String text) { Button b = new Button(a); b.setText(text); b.setAllCaps(false); b.setTextSize(13); b.setPadding(0, 0, 0, 0); return b; }
+    private static int dp(Context c, float value) { return Math.round(value * c.getResources().getDisplayMetrics().density); }
+    private static TextView label(Context c, String text, int size) { TextView v = new TextView(c); v.setText(text); v.setTextSize(size); return v; }
+    private static Button button(Context c, String text) { Button b = new Button(c); b.setText(text); b.setAllCaps(false); b.setTextSize(13); b.setPadding(0, 0, 0, 0); return b; }
 
     /** Route mode reuses the map toolbar and dialog action rather than consuming another row. */
     private static final class RouteUi {
         static final int LIMIT=50;
         final Activity activity;
+        final Context ui;
         final MapView map;
         final Button mode,add,undo,stops;
         final TextView hint;
+        final CheckBox loop;
         final RouteListener listener;
         final boolean hasWalk;
         final List<double[]> draft=new ArrayList<>();
         final List<AlertDialog> dialogs=new ArrayList<>();
         AlertDialog parent;
         boolean editing;
-        RouteUi(Activity activity,MapView map,Button mode,TextView hint,Button add,Button undo,Button stops,RouteListener listener,boolean hasWalk) {
-            this.activity=activity;this.map=map;this.mode=mode;this.hint=hint;
+        RouteUi(Activity activity,Context ui,MapView map,Button mode,TextView hint,Button add,Button undo,Button stops,CheckBox loop,RouteListener listener,boolean hasWalk) {
+            this.activity=activity;this.ui=ui;this.map=map;this.mode=mode;this.hint=hint;this.loop=loop;
             this.add=add;this.undo=undo;this.stops=stops;this.listener=listener;this.hasWalk=hasWalk;
             mode.setOnClickListener(v -> {editing=!editing;refresh();});
             add.setOnClickListener(v -> {if(editing)addStop();else map.worldView();});
@@ -179,6 +187,7 @@ public final class WorldMapDialog {
             undo.setText(editing ? "Undo" : "Selected"); undo.setContentDescription(editing ? "Undo last route stop" : "Center selected destination");
             stops.setText(editing ? "Stops ("+draft.size()+")" : "Retry"); stops.setContentDescription(editing ? "View ordered route stops and clear route" : "Retry map tiles");
             add.setEnabled(!editing || draft.size()<LIMIT);undo.setEnabled(!editing || !draft.isEmpty());
+            loop.setVisibility(editing ? View.VISIBLE : View.GONE); // route-only toggle; defaults to stopping at the last stop
             if(parent!=null) {
                 parent.setTitle(editing ? "Build route" : "World map");
                 Button action=parent.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -200,7 +209,7 @@ public final class WorldMapDialog {
         }
         void undo() {if(!draft.isEmpty())draft.remove(draft.size()-1);refresh();}
         void showStops() {
-            AlertDialog.Builder builder=new AlertDialog.Builder(activity).setTitle("Route stops ("+draft.size()+"/50)")
+            AlertDialog.Builder builder=new AlertDialog.Builder(ui).setTitle("Route stops ("+draft.size()+"/50)")
                 .setNegativeButton("Close",null).setPositiveButton("Clear route",null);
             if(draft.isEmpty())builder.setMessage("Select a destination on the map and tap Add stop. Add at least two stops before starting.");
             else {
@@ -220,7 +229,7 @@ public final class WorldMapDialog {
             if(draft.size()<2 || draft.size()>LIMIT)return;
             double[][] points=new double[draft.size()][2];
             for(int i=0;i<points.length;i++) {points[i][0]=draft.get(i)[0];points[i][1]=draft.get(i)[1];}
-            if(listener.onRoute(points))parent.dismiss();
+            if(listener.onRoute(points,loop.isChecked()))parent.dismiss();
         }
         void close() {for(AlertDialog dialog:new ArrayList<>(dialogs))dialog.dismiss();draft.clear();}
     }
@@ -228,6 +237,7 @@ public final class WorldMapDialog {
     /** Child dialogs share the map's activity; selecting a saved place never invokes Teleport. */
     private static final class PlaceUi {
         final Activity activity;
+        final Context ui;
         final MapView map;
         final Button opener;
         final Handler main = new Handler(Looper.getMainLooper());
@@ -235,7 +245,7 @@ public final class WorldMapDialog {
         final List<AlertDialog> dialogs = new ArrayList<>();
         SavedPlaces places;
         boolean closed;
-        PlaceUi(Activity activity, MapView map, Button opener) { this.activity = activity; this.map = map; this.opener = opener; }
+        PlaceUi(Activity activity, Context ui, MapView map, Button opener) { this.activity = activity; this.ui = ui; this.map = map; this.opener = opener; }
         private SavedPlaces store() { if (places == null) places = new SavedPlaces(activity); return places; }
         private void show(AlertDialog dialog) {
             if (closed) return;
@@ -256,7 +266,7 @@ public final class WorldMapDialog {
             });
         }
         private void showLibrary(SavedPlaces.Snapshot snapshot) {
-            AlertDialog.Builder builder = new AlertDialog.Builder(activity).setTitle("Saved places (" + snapshot.entries.size() + "/50)")
+            AlertDialog.Builder builder = new AlertDialog.Builder(ui).setTitle("Saved places (" + snapshot.entries.size() + "/50)")
                 .setNegativeButton("Close", null).setPositiveButton("Save selected", null);
             final AlertDialog[] holder = new AlertDialog[1];
             if (snapshot.entries.isEmpty()) builder.setMessage(snapshot.damaged ? "Saved places could not be read. You can save new destinations here." : "No saved places yet. Save the selected map destination to find it again later.");
@@ -275,14 +285,14 @@ public final class WorldMapDialog {
         }
         private void showSave(AlertDialog library) {
             final double latitude = map.latitude, longitude = map.longitude;
-            LinearLayout form = new LinearLayout(activity); form.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout form = new LinearLayout(ui); form.setOrientation(LinearLayout.VERTICAL);
             int pad = dp(activity, 20); form.setPadding(pad, 0, pad, 0);
-            form.addView(label(activity, String.format(Locale.US, "%.6f, %.6f", latitude, longitude), 14));
-            EditText name = new EditText(activity); name.setHint("Place name (up to 40 characters)"); name.setSingleLine(true);
+            form.addView(label(ui, String.format(Locale.US, "%.6f, %.6f", latitude, longitude), 14));
+            EditText name = new EditText(ui); name.setHint("Place name (up to 40 characters)"); name.setSingleLine(true);
             name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
             name.setFilters(new InputFilter[] {new InputFilter.LengthFilter(SavedPlaces.NAME_LIMIT)});
             form.addView(name);
-            AlertDialog dialog = new AlertDialog.Builder(activity).setTitle("Save selected place").setView(form)
+            AlertDialog dialog = new AlertDialog.Builder(ui).setTitle("Save selected place").setView(form)
                 .setNegativeButton("Cancel", null).setPositiveButton("Save", null).create();
             dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 final SavedPlaces.Entry entry;
@@ -305,7 +315,7 @@ public final class WorldMapDialog {
             show(dialog);
         }
         private void showPlace(SavedPlaces.Entry entry) {
-            AlertDialog dialog = new AlertDialog.Builder(activity).setTitle(entry.name)
+            AlertDialog dialog = new AlertDialog.Builder(ui).setTitle(entry.name)
                 .setMessage(String.format(Locale.US, "%.6f, %.6f\n\nSelect shows this destination on the map. Choose Teleport or Walk here there to apply it.", entry.latitude, entry.longitude))
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Select on map", (d, which) -> map.select(entry.latitude, entry.longitude))
@@ -314,7 +324,7 @@ public final class WorldMapDialog {
             show(dialog);
         }
         private void confirmDelete(SavedPlaces.Entry entry, AlertDialog details) {
-            AlertDialog confirm = new AlertDialog.Builder(activity).setTitle("Delete saved place?")
+            AlertDialog confirm = new AlertDialog.Builder(ui).setTitle("Delete saved place?")
                 .setMessage(entry.name + " will be removed from your saved places. The current location stays unchanged.")
                 .setNegativeButton("Cancel", null).setPositiveButton("Delete", null).create();
             confirm.setOnShowListener(d -> confirm.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
@@ -358,8 +368,17 @@ public final class WorldMapDialog {
                     LinearLayout.LayoutParams params = (LinearLayout.LayoutParams)child.getLayoutParams();
                     reserved += child.getMeasuredHeight() + params.topMargin + params.bottomMargin;
                 }
-                int available = MeasureSpec.getMode(heightSpec) == MeasureSpec.UNSPECIFIED ? maximumMapHeight : Math.max(0, MeasureSpec.getSize(heightSpec) - reserved);
-                map.getLayoutParams().height = Math.min(maximumMapHeight, available);
+                // Fill the space left by the controls so the actions stay visible; never a fixed height that pushes them off screen.
+                int mode = MeasureSpec.getMode(heightSpec);
+                int available;
+                if (mode == MeasureSpec.UNSPECIFIED) available = maximumMapHeight;
+                else {
+                    available = Math.max(0, MeasureSpec.getSize(heightSpec) - reserved);
+                    // EXACTLY means the dialog already reserved the action bar: fill it. AT_MOST (unweighted panel)
+                    // keeps a cap so the Teleport/Walk here row can never be pushed below the screen.
+                    if (mode == MeasureSpec.AT_MOST) available = Math.min(available, maximumMapHeight);
+                }
+                map.getLayoutParams().height = available;
             }
             super.onMeasure(widthSpec, heightSpec);
         }
@@ -377,6 +396,7 @@ public final class WorldMapDialog {
 
     private static final class MapView extends View {
         private final TextView selectionLabel, status;
+        private final Context dialogContext; // themed wrapper for POI detail dialogs; the view keeps the real Activity
         private final Handler main = new Handler(Looper.getMainLooper());
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         private final int tileSize, slop;
@@ -424,7 +444,7 @@ public final class WorldMapDialog {
             super(activity);
             this.latitude = latitude; this.longitude = longitude;
             centerX = MapProjection.x(longitude); centerY = MapProjection.y(latitude);
-            selectionLabel = selection; this.status = status;
+            selectionLabel = selection; this.status = status; dialogContext = MapTheme.wrap(activity);
             tileSize = dp(activity, 256); slop = ViewConfiguration.get(activity).getScaledTouchSlop();
             cacheDirectory = new File(activity.getCacheDir(), "pgrazor-map-tiles-v1");
             for(String icon:new String[]{"stop.png","gym.png","raid-normal.png","raid-rare.png","raid-legendary.png","raid-primal.png","raid-ultra.png","raid-shadow.png","raid-active.png","raid-mega-active.png","raid-primal-active.png","raid-shadow-active.png"})loadIcon(icon);
@@ -658,7 +678,7 @@ public final class WorldMapDialog {
             if(closed||hits.isEmpty())return;
             if(hits.size()==1){showPoiDetails(hits.get(0));return;}
             String[] labels=new String[hits.size()];for(int i=0;i<labels.length;i++)labels[i]=poiShortLabel(hits.get(i));
-            AlertDialog chooser=new AlertDialog.Builder(getContext()).setTitle("Nearby here ("+hits.size()+")")
+            AlertDialog chooser=new AlertDialog.Builder(dialogContext).setTitle("Nearby here ("+hits.size()+")")
                 .setItems(labels,(d,which)->showPoiDetails(hits.get(which))).setNegativeButton("Close",null).create();
             registerPoiDialog(chooser);chooser.show();
         }
@@ -674,9 +694,9 @@ public final class WorldMapDialog {
         private void showPoiDetails(JSONObject initial){
             if(closed)return;
             final String id=initial.optString("id","");
-            final TextView body=new TextView(getContext());
+            final TextView body=new TextView(dialogContext);
             int pad=dp((Activity)getContext(),18);body.setPadding(pad,pad,pad,pad);body.setTextSize(14);
-            final AlertDialog dialog=new AlertDialog.Builder(getContext()).setTitle(poiTitle(initial)).setView(body).setNegativeButton("Close",null).create();
+            final AlertDialog dialog=new AlertDialog.Builder(dialogContext).setTitle(poiTitle(initial)).setView(body).setNegativeButton("Close",null).create();
             final Runnable[] refresh=new Runnable[1];
             refresh[0]=()->{
                 if(closed||!dialog.isShowing())return;
