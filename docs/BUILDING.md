@@ -21,11 +21,11 @@ Supply your own unmodified, Niantic-signed ARM64 game APK/APKM. The supported in
 aabe3f866bb20b008d10646d35615fe8845ad0164ddc5ac7984e1a5565836e53
 ```
 
-Keep the original under the ignored `pogo-prototype/input/` directory. From the repository root:
+Keep the original under the ignored `pgrazor/input/` directory. From the repository root:
 
 ```powershell
-python -B pogo-prototype/nonroot.py --apk pogo-prototype/input/game.apkm --download-runtime --camera-steering --interaction-probe --quick-ball --quick-close
-python -B pogo-prototype/release_apk.py --run pogo-prototype/build/nonroot/RUN-ID --output pogo-prototype/build/release
+python -B pgrazor/nonroot.py --apk pgrazor/input/game.apkm --download-runtime --camera-steering --interaction-probe --quick-ball --quick-close
+python -B pgrazor/release_apk.py --run pgrazor/build/nonroot/RUN-ID --output pgrazor/build/release
 ```
 
 Use the run directory printed by the first command. The second command merges the library-only ARM64 configuration split, removes split-install requirements, labels the application PGRazor, aligns and signs **PGRazor.apk**, and writes checksums. It rejects resource/code splits rather than silently dropping them. No command installs anything on a phone.
@@ -34,11 +34,11 @@ Single-APK packaging is new and still needs a disconnected-phone install/launch 
 
 ## Signing
 
-Local development retains the existing ignored `build/preview-debug.jks` key and alias `fieldpad`. Never delete it if you need to update previously installed builds. This local key uses a development password; use a dedicated strong-password keystore for a new release lineage.
+Local development creates an ignored `build/pgrazor-development.jks` key with alias `pgrazor`. This key uses a development password; configure a dedicated strong-password keystore for releases. Pre-release builds do not migrate previous pre-release settings or identifiers.
 
 For explicit signing, set `PGRAZOR_KEYSTORE`, `PGRAZOR_KEY_ALIAS`, `PGRAZOR_STORE_PASSWORD`, and `PGRAZOR_KEY_PASSWORD`. Passwords are passed to Android signing tools through environment variable references, not command-line values. A missing configured key or password fails the build. Keep the same certificate across updates.
 
-The `build.py` output named `fieldpad-preview.apk` is a controls preview, **not the game**. Do not publish it as a working PGRazor release.
+The `build.py` output named `pgrazor-preview.apk` is a controls preview, **not the game**. Do not publish it as a working PGRazor release.
 
 ## GitHub Actions: private APK releases
 
@@ -48,7 +48,7 @@ The repository must be private. Configure these Actions secrets:
 | --- | --- |
 | `PGRAZOR_INPUT_URL` | HTTPS URL to the private supported original APKM, or a GitHub release-asset API URL in this private repository |
 | `PGRAZOR_KEYSTORE_BASE64` | Base64-encoded release keystore |
-| `PGRAZOR_KEY_ALIAS` | Signing alias, e.g. `fieldpad` for the existing development lineage |
+| `PGRAZOR_KEY_ALIAS` | Signing alias, e.g. `pgrazor` for PGRazor |
 | `PGRAZOR_STORE_PASSWORD` | Keystore password |
 | `PGRAZOR_KEY_PASSWORD` | Private-key password |
 

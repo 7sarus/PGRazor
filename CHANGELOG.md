@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rename the project, Java namespace, assets, settings, logs, signing alias, and tooling to PGRazor throughout; remove legacy settings migrations. A fresh installation is required.
+
 - Added independent XXS and XXL keep rules for caught-Pokémon transfers, shared by manual catches and VGP.
 - Changed the VGP settings switch to control overlay visibility; the overlay power button starts/stops VGP and displays ON/OFF.
 - Added a compact VGP activity display, projected target marker, caught-ID transfer integration, and item cleanup sequencing.

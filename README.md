@@ -1,4 +1,4 @@
-<p align="center"><img src="pogo-prototype/branding/pgrazor.svg" width="88" alt="PGRazor logo"></p>
+<p align="center"><img src="pgrazor/branding/pgrazor.svg" width="88" alt="PGRazor logo"></p>
 <h1 align="center">PGRazor</h1>
 <p align="center">A compact Android interface for location controls and Pokémon GO automation.</p>
 
@@ -13,9 +13,9 @@ PGRazor adds an in-game menu, independent joystick, encounter controls, and opti
 3. Transfer it to your ARM64 Android phone, allow installation from your chosen file manager, and open the APK.
 4. Launch PGRazor and tap the small **R** icon to open settings.
 
-A release must first be built and tested; this README does not mean a release already exists. The current game baseline is **Pokémon GO 0.433.1 / 2026101502**. Native hooks are version-specific. A different game version can leave features unavailable.
+Private releases are test candidates; check their release notes for device-validation status. The current game baseline is **Pokémon GO 0.433.1 / 2026101502**. Native hooks are version-specific. A different game version can leave features unavailable.
 
-The Android package identity stays compatible with the game. An official-store installation uses a different signing certificate and cannot be updated in place with a PGRazor build. Existing PGRazor users should use releases signed with the same key. See [installation and builds](docs/BUILDING.md).
+The Android package identity stays compatible with the game. An official-store installation uses a different signing certificate and cannot be updated in place with a PGRazor build. This pre-release uses a fresh PGRazor signing key and settings namespace; install it fresh. See [installation and builds](docs/BUILDING.md).
 
 ## Features
 
@@ -51,14 +51,14 @@ Source CI runs device-free checks and compiles the Android controls. Its downloa
 ```text
 .github/workflows/       Source CI and private release workflow
 docs/                    Build and architecture guides
-pogo-prototype/src/      Android UI and control bridge
-pogo-prototype/diagnostics/  Version-specific native hooks
-pogo-prototype/test/     Regression tests
-pogo-prototype/vendor/   Pinned bridge, provenance, and licenses
+pgrazor/src/      Android UI and control bridge
+pgrazor/diagnostics/  Version-specific native hooks
+pgrazor/test/     Regression tests
+pgrazor/vendor/   Pinned bridge, provenance, and licenses
 tools/                   Checks, source packaging, private CI setup
 ```
 
-The `pogo-prototype` directory and `dev.fieldpad` identifiers are retained internally for compatibility with existing packages, settings, and tooling. User-facing branding is PGRazor.
+PGRazor uses the `pgrazor/` project directory and `dev.pgrazor` Java namespace. Assets, settings, logs, build outputs, and tooling use the same name. There are no legacy-name aliases or settings migrations.
 
 ## License
 

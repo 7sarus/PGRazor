@@ -10,7 +10,7 @@ for name in sorted(set(filter(None,names))):
     path=Path(name)
     if path.suffix.lower() in blocked or any(part in {'build','input','.artifacts','hermes-swarm','frida-monitor','__pycache__'} for part in path.parts):
         raise SystemExit('Private/generated file is Git-visible: '+name)
-    if name=='pogo-prototype/build-retention.json' or path.name.startswith('.env'):
+    if name=='pgrazor/build-retention.json' or path.name.startswith('.env'):
         raise SystemExit('Local configuration is Git-visible: '+name)
     full=ROOT/path
     if full.is_symlink() or not full.is_file(): raise SystemExit('Source file missing or symlinked: '+name)

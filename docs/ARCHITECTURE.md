@@ -2,7 +2,7 @@
 
 PGRazor has three layers:
 
-1. Java controls (`src/dev/fieldpad`) own settings, the menu, overlays, lifecycle, location state, and notifications.
+1. Java controls (`src/dev/pgrazor`) own settings, the menu, overlays, lifecycle, location state, and notifications.
 2. `embedded-agent.js` bridges those controls to the pinned Frida Java bridge and native modules.
 3. `diagnostics/*.js` validate IL2CPP metadata before enabling version-specific behavior. Unity-thread work and short foreground/map leases gate gameplay operations.
 

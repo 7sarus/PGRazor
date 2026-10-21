@@ -30,7 +30,7 @@ jobs:
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - run: python -B tools/check.py
       - name: Compile Android controls (not a playable game build)
-        run: python -B pogo-prototype/build.py
+        run: python -B pgrazor/build.py
       - name: Package source and tools only
         run: python -B tools/source_bundle.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

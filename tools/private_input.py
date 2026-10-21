@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import urllib.parse
 import urllib.request
-ROOT = Path(__file__).resolve().parents[1]/'pogo-prototype'
+ROOT = Path(__file__).resolve().parents[1]/'pgrazor'
 class HttpsRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         if urllib.parse.urlsplit(newurl).scheme != 'https': raise ValueError('Insecure redirect')

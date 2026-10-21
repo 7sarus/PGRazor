@@ -55,12 +55,12 @@ jobs:
           PGRAZOR_KEYSTORE_BASE64: ${{ secrets.PGRAZOR_KEYSTORE_BASE64 }}
         run: python -B tools/private_input.py
       - name: Build playable package
-        run: python -B pogo-prototype/nonroot.py --apk pogo-prototype/input/game.apkm --download-runtime --camera-steering --interaction-probe --quick-ball --quick-close
+        run: python -B pgrazor/nonroot.py --apk pgrazor/input/game.apkm --download-runtime --camera-steering --interaction-probe --quick-ball --quick-close
       - name: Produce single installable APK
         shell: pwsh
         run: |
-          $candidate = Get-ChildItem -LiteralPath pogo-prototype/build/nonroot -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          python -B pogo-prototype/release_apk.py --run $candidate.FullName --output dist/private
+          $candidate = Get-ChildItem -LiteralPath pgrazor/build/nonroot -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          python -B pgrazor/release_apk.py --run $candidate.FullName --output dist/private
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

@@ -5,7 +5,7 @@ hermes-swarm/
 frida-monitor/
 AGENTS.md
 *_HANDOFF.*
-FIELD_PAD_NEXT_LLM.txt
+PGRazor_NEXT_LLM.txt
 NEXT_LLM_PROMPT.txt
 **/build/
 **/input/
@@ -30,5 +30,5 @@ NEXT_LLM_PROMPT.txt
 Thumbs.db
 .vscode/
 .idea/
-/pogo-prototype/build-retention.json
+/pgrazor/build-retention.json
 /dist/
