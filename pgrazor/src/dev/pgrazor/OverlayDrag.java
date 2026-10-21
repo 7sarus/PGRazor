@@ -51,6 +51,7 @@ public final class OverlayDrag implements View.OnTouchListener {
     public boolean onTouch(View v, MotionEvent e) {
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
+                Control.event("overlay-touch", key + " down " + e.getRawX() + "," + e.getRawY());
                 downX = e.getRawX(); downY = e.getRawY(); originX = view.getX(); originY = view.getY(); moved = false; dragging = true; view.setPressed(true); return true;
             case MotionEvent.ACTION_POINTER_DOWN:
                 moved = true; view.setPressed(false); return true;
@@ -60,6 +61,7 @@ public final class OverlayDrag implements View.OnTouchListener {
                 if (moved) { view.setPressed(false); view.setX(clampX(originX + dx)); view.setY(clampY(originY + dy)); positionFollower(); }
                 return true;
             case MotionEvent.ACTION_UP:
+                Control.event("overlay-touch", key + " up moved=" + moved + " x=" + view.getX() + " y=" + view.getY());
                 dragging = false; view.setPressed(false);
                 if (moved) save(); else v.performClick(); // tap below the threshold still opens history / toggles VGP
                 return true;
