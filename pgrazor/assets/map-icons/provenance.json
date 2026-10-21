@@ -114,6 +114,27 @@
       "sha256": "bb48b6996ddb63f60bcb40984621ab8690d99ef16c0410bd81c1e382a16ab4db",
       "upstream_blob_sha": "3f614667a4067ebc15ea09ab9e7fa7615746446b",
       "bytes": 6207
+    },
+    {
+      "source": "Images/Pokestops and Gyms/team_blue.png",
+      "name": "team-blue.png",
+      "purpose": "Live feed gym team emblem",
+      "sha256": "dd23a8c11069f2b2f908e0d02cac448f4540caa8eabc2914b89b4107576315c1",
+      "bytes": 31423
+    },
+    {
+      "source": "Images/Pokestops and Gyms/team_red.png",
+      "name": "team-red.png",
+      "purpose": "Live feed gym team emblem",
+      "sha256": "06b784be5255fc684ddc35601625adf2047e07cde43ffbf293238d0090214ea0",
+      "bytes": 30538
+    },
+    {
+      "source": "Images/Pokestops and Gyms/team_yellow.png",
+      "name": "team-yellow.png",
+      "purpose": "Live feed gym team emblem",
+      "sha256": "8e0738ce9be08efe2393e4b2a7ddf919454cbefc97eb494effafe632a36705cf",
+      "bytes": 45119
     }
   ],
   "species_names": {

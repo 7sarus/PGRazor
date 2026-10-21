@@ -1,6 +1,12 @@
-﻿# Changelog
+# Changelog
 
-## Unreleased
+## v0.1.0-alpha.3
+
+[Full release notes](docs/releases/v0.1.0-alpha.3.md)
+
+Quick menu, map layers and routes, LivePokeMap integration, movable overlays, unlimited egg incubation, VGP improvements, Discord footer, and restored Pokémon GO launcher label.
+
+## Earlier pre-release work
 
 - Rename the project, Java namespace, assets, settings, logs, signing alias, and tooling to PGRazor throughout; remove legacy settings migrations. A fresh installation is required.
 
@@ -11,3 +17,5 @@
 - Prepared source-only CI artifacts, build/contribution documentation, licensing notices, and repository exclusions.
 
 The new single-APK release path and latest UI changes still require device testing.
+
+Earlier release notes are available on [GitHub Releases](https://github.com/jpitty03/PGRazor/releases).

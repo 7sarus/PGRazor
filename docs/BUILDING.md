@@ -15,7 +15,7 @@ python -B tools/check.py
 
 ## Local playable build
 
-Supply your own unmodified, Niantic-signed ARM64 game APK/APKM. The supported input is Pokémon GO 0.433.1, version code 2026101502. The private workflow additionally pins its SHA-256:
+Supply your own unmodified, Niantic-signed ARM64 game APK/APKM. The supported input is Pokémon GO 0.433.1, version code 2026101502. The release workflow additionally pins its SHA-256:
 
 ```text
 aabe3f866bb20b008d10646d35615fe8845ad0164ddc5ac7984e1a5565836e53
@@ -40,25 +40,25 @@ For explicit signing, set `PGRAZOR_KEYSTORE`, `PGRAZOR_KEY_ALIAS`, `PGRAZOR_STOR
 
 The `build.py` output named `pgrazor-preview.apk` is a controls preview, **not the game**. Do not publish it as a working PGRazor release.
 
-## GitHub Actions: private APK releases
+## GitHub Actions: APK releases
 
-The repository must be private. Configure these Actions secrets:
+Configure these Actions secrets:
 
 | Secret | Value |
 | --- | --- |
-| `PGRAZOR_INPUT_URL` | HTTPS URL to the private supported original APKM, or a GitHub release-asset API URL in this private repository |
+| `PGRAZOR_INPUT_URL` | HTTPS URL to the supported original APKM, or a GitHub release-asset API URL in this repository |
 | `PGRAZOR_KEYSTORE_BASE64` | Base64-encoded release keystore |
 | `PGRAZOR_KEY_ALIAS` | Signing alias, e.g. `pgrazor` for PGRazor |
 | `PGRAZOR_STORE_PASSWORD` | Keystore password |
 | `PGRAZOR_KEY_PASSWORD` | Private-key password |
 
-For a private GitHub input asset, use its `https://api.github.com/repos/OWNER/REPO/releases/assets/ID` URL. The workflow supplies its scoped token; authorization is removed when GitHub redirects to the signed download host. Keep build-input releases private and remove them before any public visibility change.
+For a private GitHub input asset, use its `https://api.github.com/repos/OWNER/REPO/releases/assets/ID` URL. The workflow supplies its scoped token; authorization is removed when GitHub redirects to the signed download host.
 
-Run **Actions → Private playable APK → Run workflow**, enter a version tag such as `v0.1.0`, and leave `publish` off for a candidate. Download **PGRazor-private-apk** from the completed run and extract **PGRazor.apk**. Repository read access is required to download private [workflow artifacts](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts).
+Run **Actions → Playable APK release → Run workflow**, enter a version tag such as `v0.1.0`, and leave `publish` off for a candidate. Download **PGRazor-apk** from the completed run and extract **PGRazor.apk**. Repository read access is required to download private [workflow artifacts](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts).
 
-After device testing, run with `publish` enabled to create a private prerelease containing the APK, checksums, and build information. An existing tag/release is not overwritten. The workflow is manually triggered, does not run on pull requests, and both build and publish jobs check repository privacy. No secrets or game files are uploaded by source CI.
+After device testing, run with `publish` enabled to create a prerelease containing the APK, checksums, and build information. An existing tag/release is not overwritten. The workflow is manually triggered, does not run on pull requests, and requires a versioned release-notes file at `docs/releases/TAG.md`. No secrets or game files are uploaded by source CI.
 
-Before changing repository visibility, remove private releases/artifacts and review existing history; workflow guards prevent future public builds but cannot hide files already uploaded.
+The published release contains the installable APK, checksum, build information, and the versioned changelog. The signing key remains an Actions secret; keep it unchanged across releases.
 
 ## Installation and updates
 

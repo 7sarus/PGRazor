@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
@@ -18,6 +19,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -84,6 +86,7 @@ public final class LiveFeedDialog {
             Thread t = new Thread(task, "pgrazor-livefeed"); t.setDaemon(true); return t;
         });
         private final LiveFeedClient client;
+        private final LiveFeedIcons icons;
         private volatile org.json.JSONObject speciesNames;
         private final List<AlertDialog> children = new ArrayList<>();
         private final Runnable tick = this::tick;
@@ -115,6 +118,7 @@ public final class LiveFeedDialog {
             // The session constructor must not touch the keystore on the main thread; token use is
             // confined to login()/fetch() which run on the network worker.
             client = new LiveFeedClient(new LiveFeedSession(activity));
+            icons = new LiveFeedIcons(activity);
             showingLogin = !client.signedIn();
             net.execute(() -> {
                 try (java.io.InputStream in = activity.getAssets().open("pgrazor/map-icons/pokemon-names.json")) {
@@ -544,8 +548,21 @@ public final class LiveFeedDialog {
                 else holder = (RowHolder) convertView.getTag();
                 LiveFeedData.Entry e = visible.get(position);
                 long now = System.currentTimeMillis();
-                holder.glyphShape.setColor(kindColor(e.kind));
-                holder.glyph.setText(glyphLetter(e.kind));
+                Bitmap icon = icons.iconFor(e, now);
+                if (icon != null) {
+                    holder.icon.setImageBitmap(icon);
+                    holder.icon.setVisibility(View.VISIBLE);
+                    holder.fallback.setVisibility(View.GONE);
+                } else {
+                    holder.icon.setImageDrawable(null);
+                    holder.icon.setVisibility(View.GONE);
+                    holder.fallbackShape.setColor(kindColor(e.kind));
+                    holder.fallback.setText(glyphLetter(e.kind));
+                    holder.fallback.setVisibility(View.VISIBLE);
+                }
+                String description = iconDescription(e, now);
+                holder.icon.setContentDescription(description);
+                holder.fallback.setContentDescription(description);
                 holder.title.setText(displayName(e));
                 String sub = displaySubtitle(e, now);
                 Double d = distCache.get(e);
@@ -564,16 +581,24 @@ public final class LiveFeedDialog {
             row.setGravity(Gravity.CENTER_VERTICAL);
             int pad = dp(10);
             row.setPadding(pad, pad, pad, pad);
-            h.glyph = new TextView(context);
-            h.glyph.setGravity(Gravity.CENTER);
-            h.glyph.setTextColor(Color.WHITE);
-            h.glyph.setTextSize(15);
-            h.glyphShape = new GradientDrawable();
-            h.glyphShape.setShape(GradientDrawable.OVAL);
-            h.glyph.setBackground(h.glyphShape);
-            LinearLayout.LayoutParams glyphLp = new LinearLayout.LayoutParams(dp(34), dp(34));
-            glyphLp.rightMargin = dp(12);
-            row.addView(h.glyph, glyphLp);
+            // A 44dp aspect-fit icon; a lettered oval sits behind it and only shows when the bundled
+            // asset is missing, so a recycled row never leaks the previous entry's glyph or sprite.
+            FrameLayout iconHolder = new FrameLayout(context);
+            h.fallback = new TextView(context);
+            h.fallback.setGravity(Gravity.CENTER);
+            h.fallback.setTextColor(Color.WHITE);
+            h.fallback.setTextSize(15);
+            h.fallbackShape = new GradientDrawable();
+            h.fallbackShape.setShape(GradientDrawable.OVAL);
+            h.fallback.setBackground(h.fallbackShape);
+            iconHolder.addView(h.fallback, new FrameLayout.LayoutParams(-1, -1));
+            h.icon = new ImageView(context);
+            h.icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            h.icon.setAdjustViewBounds(true);
+            iconHolder.addView(h.icon, new FrameLayout.LayoutParams(-1, -1));
+            LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(44), dp(44));
+            iconLp.rightMargin = dp(12);
+            row.addView(iconHolder, iconLp);
             LinearLayout text = new LinearLayout(context);
             text.setOrientation(LinearLayout.VERTICAL);
             h.title = new TextView(context); h.title.setTextSize(15.5f); h.title.setTextColor(MapTheme.ink());
@@ -586,7 +611,15 @@ public final class LiveFeedDialog {
         }
 
         private static final class RowHolder {
-            View view; TextView glyph, title, subtitle; GradientDrawable glyphShape;
+            View view; ImageView icon; TextView fallback, title, subtitle; GradientDrawable fallbackShape;
+        }
+
+        /** Meaningful, text-independent accessibility label for a row's leading icon. */
+        private String iconDescription(LiveFeedData.Entry e, long now) {
+            if (e == null || e.kind == null) return "Result";
+            if (e.kind == LiveFeedData.Kind.RAID)
+                return e.raidHatchAt > now ? "Raid egg" : "Raid";
+            return kindLabel(e.kind) + " " + displayName(e);
         }
 
         // ------------------------------------------------------------------ detail + actions

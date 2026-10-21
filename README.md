@@ -4,16 +4,16 @@
 
 PGRazor adds an in-game menu, independent joystick, encounter controls, and optional automation. Settings persist across restarts, with light and dark themes.
 
-**Working APK releases are private.** Original game APKs, signing keys, private build artifacts, and investigation logs are excluded from Git. Selected map artwork is bundled with provenance; see [third-party notices](THIRD_PARTY.md). The release workflow refuses to build or publish a playable APK in a public repository.
+Download the installable **PGRazor.apk** from [Releases](https://github.com/jpitty03/PGRazor/releases). Each release includes a changelog, SHA-256 checksum, and build information. Signing keys, original build inputs, and investigation logs are excluded from Git. Selected map artwork includes [third-party notices](THIRD_PARTY.md).
 
-## Install a private release
+## Install a release
 
-1. Open [Releases](https://github.com/jpitty03/PGRazor/releases) with an account that has access.
+1. Open [Releases](https://github.com/jpitty03/PGRazor/releases).
 2. Download **PGRazor.apk**, not a source archive or preview.
 3. Transfer it to your ARM64 Android phone, allow installation from your chosen file manager, and open the APK.
 4. Launch **Pokémon GO** (the installed app name) and tap the small **R** icon to open the quick menu. Choose **Settings** for the full-screen controls.
 
-Private releases are test candidates; check their release notes for device-validation status. The current game baseline is **Pokémon GO 0.433.1 / 2026101502**. Native hooks are version-specific. A different game version can leave features unavailable.
+Pre-releases are test candidates; check their release notes for device-validation status. The current game baseline is **Pokémon GO 0.433.1 / 2026101502**. Native hooks are version-specific. A different game version can leave features unavailable.
 
 The Android package identity stays compatible with the game. An official-store installation uses a different signing certificate and cannot be updated in place with a PGRazor build. This pre-release uses a fresh PGRazor signing key and settings namespace; install it fresh. See [installation and builds](docs/BUILDING.md).
 
@@ -43,7 +43,7 @@ The Android package identity stays compatible with the game. An official-store i
 
 **VGP:** the settings switch shows or hides its overlay. Tap the connected/disconnected device icon to start or stop VGP; ON/OFF labels show its state. VGP starts off and switches off when the app leaves the foreground. Optional **Stop on cooldown (estimated)** also switches it off until you manually restart it. Catch and item automation follow their existing settings and protection rules.
 
-**LivePokeMap feeds:** Requires an active subscription to [LivePokeMap](https://play.livepokemap.com/), purchased separately from their service. Open **Feeds** and sign in with your own account on the phone. The feed lists remote Pokémon, stops, gyms, raids, and stations around your current location. Filter by category, radius, and minimum Pokémon IV; select a result for Map, Walk, or Teleport. The session token is stored encrypted with Android Keystore; the password is never saved. Logout removes the token. Refresh stops when the feed closes or the app leaves the foreground. Remote sightings can expire and are separate from locations loaded by the game. This uses LivePokeMap's observed web interface, which may change; access depends on your account and service availability.
+**LivePokeMap feeds:** Requires an active subscription to [LivePokeMap](https://play.livepokemap.com/), purchased separately from their service. Open **Feeds** and sign in with your own account on the phone. The feed lists remote Pokémon, stops, gyms, raids, and stations around your current location. Rows show base-species sprites, gym team emblems, and raid bosses or eggs. Forms and shiny variants share the base-species image. Filter by category, radius, and minimum Pokémon IV; select a result for Map, Walk, or Teleport. The session token is stored encrypted with Android Keystore; the password is never saved. Logout removes the token. Refresh stops when the feed closes or the app leaves the foreground. Remote sightings can expire and are separate from locations loaded by the game. This uses LivePokeMap's observed web interface, which may change; access depends on your account and service availability.
 
 The map and cooldown history open full screen using the selected PGRazor theme. Select a map pin, then choose Walk here or Teleport. The manual route planner also offers Loop route (off by default). Map tiles retain their original colors.
 
@@ -55,7 +55,7 @@ Join the [PGRazor Discord community](https://discord.gg/9QqfkDSQX3). You can als
 
 ## Build and contribute
 
-- [Build, signing, private CI, and installation](docs/BUILDING.md)
+- [Build, signing, release CI, and installation](docs/BUILDING.md)
 - [Architecture and compatibility](docs/ARCHITECTURE.md)
 - [Contributing and checks](CONTRIBUTING.md)
 - [Third-party notices](THIRD_PARTY.md)
@@ -64,18 +64,18 @@ Join the [PGRazor Discord community](https://discord.gg/9QqfkDSQX3). You can als
 python -B tools/check.py
 ```
 
-Source CI runs device-free checks and compiles the Android controls. Its downloadable artifact contains **source and tools only**, not a playable APK. Private playable releases are produced separately by the manually triggered **Private playable APK** workflow.
+Source CI runs device-free checks and compiles the Android controls. Its downloadable artifact contains **source and tools only**, not a playable APK. Playable releases are produced separately by the manually triggered **Playable APK release** workflow. See the [changelog](CHANGELOG.md).
 
 ## Repository layout
 
 ```text
-.github/workflows/       Source CI and private release workflow
+.github/workflows/       Source CI and APK release workflow
 docs/                    Build and architecture guides
 pgrazor/src/      Android UI and control bridge
 pgrazor/diagnostics/  Version-specific native hooks
 pgrazor/test/     Regression tests
 pgrazor/vendor/   Pinned bridge, provenance, and licenses
-tools/                   Checks, source packaging, private CI setup
+tools/                   Checks, source packaging, release CI setup
 ```
 
 PGRazor uses the `pgrazor/` project directory and `dev.pgrazor` Java namespace. Assets, settings, logs, build outputs, and tooling use the same name. There are no legacy-name aliases or settings migrations.

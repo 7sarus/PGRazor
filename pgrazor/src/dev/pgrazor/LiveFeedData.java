@@ -35,9 +35,23 @@ public final class LiveFeedData {
         public final double iv;
         public final long expiresAt;
         public final boolean hasStats;
+        /** Raw PoGo team id for gyms/raids: 0 uncontested/unknown, 1 Mystic, 2 Valor, 3 Instinct. */
+        public final int team;
+        /** Raid egg hatch time (ms); 0 when not a raid or unknown. An egg is {@code raidHatchAt > now}. */
+        public final long raidHatchAt;
+        /** True only when a hatched boss was confirmed at fetch time; eggs never set this. Gates the live
+         *  boss sprite so a stale egg row cannot flip to a predicted boss once its hatch time passes. */
+        public final boolean raidBossLive;
 
+        /** Backwards-compatible overload (no team/raid metadata) kept for existing call sites and tests. */
         public Entry(String id, Kind kind, String name, String details, double lat, double lon,
                      int dexId, int cp, double level, double iv, long expiresAt, boolean hasStats) {
+            this(id, kind, name, details, lat, lon, dexId, cp, level, iv, expiresAt, hasStats, 0, 0L, false);
+        }
+
+        public Entry(String id, Kind kind, String name, String details, double lat, double lon,
+                     int dexId, int cp, double level, double iv, long expiresAt, boolean hasStats,
+                     int team, long raidHatchAt, boolean raidBossLive) {
             this.id = id;
             this.kind = kind;
             this.name = name;
@@ -50,6 +64,9 @@ public final class LiveFeedData {
             this.iv = iv;
             this.expiresAt = expiresAt;
             this.hasStats = hasStats;
+            this.team = team;
+            this.raidHatchAt = raidHatchAt;
+            this.raidBossLive = raidBossLive;
         }
 
         /** True only when a real future expiry was known and has now passed. */
@@ -224,7 +241,11 @@ public final class LiveFeedData {
             else if (!egg) d.append(" · boss unknown");
             if (!egg && cp > 0) d.append(" · CP ").append(cp);
 
-            out.add(new Entry(id, Kind.RAID, name, d.toString(), lat, lon, boss, cp, rawLevel, -1, raidEnd, false));
+            // Only a hatched raid with a boss id is a confirmed live boss; an egg's boss id is a prediction
+            // and must never become a live sprite once this stale row's hatch time quietly passes.
+            boolean bossLive = !egg && boss > 0;
+            out.add(new Entry(id, Kind.RAID, name, d.toString(), lat, lon, boss, cp, rawLevel, -1, raidEnd, false,
+                    team, hatch, bossLive));
             return;
         }
 
@@ -233,7 +254,7 @@ public final class LiveFeedData {
         StringBuilder d = new StringBuilder(teamName(team));
         d.append(" · ").append(occupancy(o));
         if (o.optBoolean("in_battle", false)) d.append(" · in battle");
-        out.add(new Entry(id, Kind.GYM, name, d.toString(), lat, lon, -1, -1, -1, -1, 0, false));
+        out.add(new Entry(id, Kind.GYM, name, d.toString(), lat, lon, -1, -1, -1, -1, 0, false, team, 0L, false));
     }
 
     private static String occupancy(JSONObject o) {

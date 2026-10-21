@@ -33,6 +33,19 @@ def map_icon_assets():
             icons.setdefault(names.name, names)
     return icons
 
+def feed_icon_assets():
+    """Only numeric base-species PNGs under the bundled feed sprite directory."""
+    source = ROOT / 'assets/feed-icons/pokemon'
+    icons = {}
+    for path in sorted(source.glob('*.png')):
+        if not path.stem.isascii() or not path.stem.isdecimal():
+            continue
+        if path.is_symlink() or not path.resolve().is_relative_to(source.resolve()):
+            raise ValueError('Feed icon escapes asset directory')
+        if path.is_file():
+            icons[path.name] = path
+    return icons
+
 SDK = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'Android/Sdk')))
 TOOLS = SDK / 'build-tools' / os.environ.get('PGRAZOR_BUILD_TOOLS', '36.1.0')
 ANDROID = SDK / 'platforms' / os.environ.get('PGRAZOR_ANDROID_PLATFORM', 'android-36.1') / 'android.jar'
@@ -90,6 +103,7 @@ def main():
     with zipfile.ZipFile(unsigned,'a',zipfile.ZIP_DEFLATED) as out:
         out.write(BUILD/'dex/classes.dex','classes.dex')
         for name,path in map_icon_assets().items(): out.write(path,'assets/pgrazor/map-icons/'+name)
+        for name,path in feed_icon_assets().items(): out.write(path,'assets/pgrazor/feed-icons/pokemon/'+name)
     run(TOOLS/'zipalign.exe','-f','4',unsigned,BUILD/'preview-aligned.apk')
     apk=BUILD/'pgrazor-preview.apk'
     run(TOOLS/'apksigner.bat','sign',*signing_args(),'--out',apk,BUILD/'preview-aligned.apk')

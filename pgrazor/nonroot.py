@@ -105,7 +105,7 @@ def rewrite_apk(source,destination,*,base=False,dex=None,assets=None,preview=Fal
         names=original.namelist()
         # Bundled map-icon art may already ride along in our own preview input; any other pre-existing
         # PGRazor asset means the input was already instrumented and must be refused.
-        if any(name.startswith('assets/pgrazor/') and not (preview and name.startswith('assets/pgrazor/map-icons/')) for name in names): raise ValueError('Input already has PGRazor assets')
+        if any(name.startswith('assets/pgrazor/') and not (preview and name.startswith(('assets/pgrazor/map-icons/','assets/pgrazor/feed-icons/pokemon/'))) for name in names): raise ValueError('Input already has PGRazor assets')
         if base:
             indices=[int(match.group(1) or '1') for name in names if (match:=re.fullmatch(r'classes(\d*)\.dex',name))]
             nextdex='classes'+str(max(indices,default=0)+1)+'.dex'
@@ -181,6 +181,7 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
     assets={'assets/pgrazor/mode.json':json.dumps(mode).encode()}
     # POI marker art loaded by the Java map via AssetManager at pgrazor/map-icons/<name>.
     for icon_name,icon_path in build.map_icon_assets().items(): assets['assets/pgrazor/map-icons/'+icon_name]=icon_path
+    for icon_name,icon_path in build.feed_icon_assets().items(): assets['assets/pgrazor/feed-icons/pokemon/'+icon_name]=icon_path
     certificates=[]
     for path,_ in rows:
         verified=command(build.TOOLS/'apksigner.bat','verify','--print-certs',path,capture=True)

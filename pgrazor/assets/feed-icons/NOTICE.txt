@@ -1,0 +1,4 @@
+Base-species Pokemon sprites from https://github.com/PokeAPI/sprites
+Pinned revision and original paths/hashes: provenance.json.
+Artwork belongs to its respective rights holders; not covered by PGRazor MIT license.
+Images are unchanged. Forms and shiny variants use the base-species image.
