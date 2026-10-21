@@ -12,10 +12,13 @@ import json
 ROOT = Path(__file__).resolve().parent
 
 def map_icon_assets():
-    """Bundled POI marker PNGs for assets/pgrazor/map-icons, de-duplicated by file name.
+    """Bundled POI marker PNGs plus the Pokemon name table for assets/pgrazor/map-icons.
 
     Only direct *.png children of assets/map-icons are taken (no recursion/traversal), and the
     archive name is always the bare file name so a crafted source path cannot escape the folder.
+    pokemon-names.json (the raid-boss name lookup read by the Java map) is included under the same
+    bare-name, no-symlink, stays-inside-the-folder checks. Both preview and nonroot packaging reuse
+    this helper, so the name table reaches the APK at assets/pgrazor/map-icons/pokemon-names.json.
     """
     source = ROOT / 'assets/map-icons'
     icons = {}
@@ -25,6 +28,9 @@ def map_icon_assets():
                 raise ValueError("Map icon escapes asset directory")
             if path.is_file():
                 icons.setdefault(path.name, path)
+        names = source / 'pokemon-names.json'
+        if names.is_file() and not names.is_symlink() and names.resolve().is_relative_to(source.resolve()):
+            icons.setdefault(names.name, names)
     return icons
 
 SDK = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'Android/Sdk')))

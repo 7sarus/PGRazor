@@ -99,5 +99,14 @@
       "upstream_blob_sha": "a90537692fc26b68621366748810c9005ca1262d",
       "bytes": 4150
     }
-  ]
+  ],
+  "species_names": {
+    "repository": "https://github.com/PokeMiners/pogo_assets",
+    "commit": "c2a686eb08ace6e890d8fe3d2134c76988db87b5",
+    "source": "Texts/Latest APK/English.txt",
+    "source_sha256": "1f9b1ff0b456498e542f1b222df94ae20ab76bc8ce53775c0ca64911b707e79b",
+    "output_sha256": "67c93dea3c31368c64cb2134e8bd421b8bd976311acfcff6f68d24b52224555f",
+    "entries": 1009,
+    "selection": "Exact pokemon_name_NNNN keys; base species only, no inferred forms"
+  }
 }

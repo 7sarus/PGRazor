@@ -399,6 +399,12 @@ public final class WorldMapDialog {
         // Bundled POI art is decoded once and reused every frame; a null entry marks a tried-but-missing
         // asset so the vector fallback renders without re-hitting the AssetManager each draw.
         private final Map<String, Bitmap> markerIcons = new HashMap<>();
+        // Compact gym defender count has its own paints so the shared marker/route style is never disturbed.
+        private final Paint labelFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint labelOutline = new Paint(Paint.ANTI_ALIAS_FLAG);
+        // Raid-boss base-species id -> English game name, read once from the bundled table (null if unreadable).
+        private Map<String, String> bossNames;
+        private boolean bossNamesLoaded;
         private final List<AlertDialog> poiDialogs = new ArrayList<>();
         private final Runnable poiRefresh=this::refreshPois;
         private volatile HttpURLConnection connection;
@@ -423,6 +429,10 @@ public final class WorldMapDialog {
             cacheDirectory = new File(activity.getCacheDir(), "pgrazor-map-tiles-v1");
             for(String icon:new String[]{"stop.png","gym.png","raid-normal.png","raid-rare.png","raid-legendary.png","raid-primal.png","raid-ultra.png","raid-shadow.png","raid-active.png","raid-mega-active.png","raid-primal-active.png","raid-shadow-active.png"})loadIcon(icon);
             setContentDescription("World map. Drag to pan, pinch to zoom, tap to select destination.");
+            // White glyphs on a dark outline keep the count legible over any street colour.
+            labelFill.setColor(Color.WHITE); labelFill.setTextAlign(Paint.Align.CENTER); labelFill.setFakeBoldText(true);
+            labelOutline.setColor(Color.rgb(20, 24, 28)); labelOutline.setTextAlign(Paint.Align.CENTER);
+            labelOutline.setStyle(Paint.Style.STROKE); labelOutline.setFakeBoldText(true);
             // Use the activity hardware renderer; tile I/O stays on the worker.
             pinch=new ScaleGestureDetector(activity,new ScaleGestureDetector.SimpleOnScaleGestureListener(){
                 public boolean onScaleBegin(ScaleGestureDetector detector){multiTouch=true;return true;}
@@ -529,7 +539,8 @@ public final class WorldMapDialog {
             for(int i=0;i<pois.length();i++){JSONObject point=pois.optJSONObject(i);if(point==null||!poiVisible(point,now))continue;
                 double lat=point.optDouble("lat",Double.NaN),lon=point.optDouble("lon",Double.NaN);if(!Double.isFinite(lat)||!Double.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue;
                 float x=projectX(lon),y=projectY(lat);
-                if(x< -radius||x>getWidth()+radius||y< -radius||y>getHeight()+radius)continue;
+                float extent="stop".equals(point.optString("kind"))?radius:dp((Activity)getContext(),27);
+                if(x< -radius-3||x>getWidth()+radius+3||y< -extent||y>getHeight()+radius+3)continue;
                 drawMarker(canvas,point,x,y,radius,now);
             }
         }
@@ -563,6 +574,18 @@ public final class WorldMapDialog {
                 paint.setColor(teamColor(point.optString("team",null)));canvas.drawCircle(x,y,radius+1,paint);
                 drawIconOrFallback(canvas,loadIcon("gym.png"),x,y,radius*0.92f,"G",Color.rgb(223,124,35));
             }
+            if(!stop)drawDefenderLabel(canvas,point,x,y,radius); // gyms and gym-hosted raids; never stops
+        }
+
+        /** "(6-slots)/6" defenders just below a gym/raid marker; invalid or missing slots show "--/6". */
+        private void drawDefenderLabel(Canvas canvas,JSONObject point,float x,float y,float radius){
+            int slots=point.optInt("slots",-1);
+            String text=(slots>=0&&slots<=6)?((6-slots)+"/6"):"--/6"; // 0 slots open = full (6/6), 6 open = empty (0/6)
+            float textSize=Math.max(dp((Activity)getContext(),9),radius*0.78f);
+            labelFill.setTextSize(textSize);labelOutline.setTextSize(textSize);labelOutline.setStrokeWidth(Math.max(2f,textSize/5f));
+            float baseline=y+radius+dp((Activity)getContext(),3)+textSize; // sits beneath the white marker halo, within the tap reach
+            canvas.drawText(text,x,baseline,labelOutline);
+            canvas.drawText(text,x,baseline,labelFill);
         }
 
         private void drawIconOrFallback(Canvas canvas,Bitmap icon,float x,float y,float radius,String letter,int fallbackColor){
@@ -612,7 +635,9 @@ public final class WorldMapDialog {
             long now=System.currentTimeMillis();float reach=dp((Activity)getContext(),18);
             for(int i=0;i<pois.length();i++){JSONObject point=pois.optJSONObject(i);if(point==null||!poiVisible(point,now))continue;
                 double lat=point.optDouble("lat",Double.NaN),lon=point.optDouble("lon",Double.NaN);if(!Double.isFinite(lat)||!Double.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue;
-                double distance=Math.hypot(px-projectX(lon),py-projectY(lat));if(distance<=reach){hits.add(point);distances.add(distance);}
+                double dx=px-projectX(lon),dy=py-projectY(lat),distance=Math.hypot(dx,dy);
+                boolean labelHit=!"stop".equals(point.optString("kind"))&&Math.abs(dx)<=dp((Activity)getContext(),16)&&dy>=0&&dy<=dp((Activity)getContext(),27);
+                if(distance<=reach||labelHit){hits.add(point);distances.add(distance);}
             }
             List<Integer> order=new ArrayList<>();for(int i=0;i<hits.size();i++)order.add(i);
             Collections.sort(order,(a,b)->Double.compare(distances.get(a),distances.get(b)));
@@ -688,7 +713,8 @@ public final class WorldMapDialog {
                     sb.append('\n');
                 } else {
                     int boss=p.optInt("boss",0);
-                    sb.append("Boss: ").append(boss>0?("#"+boss):"unknown").append('\n');
+                    String name=boss>0?bossName(boss):null; // base species only; forms (e.g. Mega X/Y) not inferred
+                    sb.append("Boss: ").append(boss>0?(name!=null?name:("#"+boss)):"unknown").append('\n');
                 }
                 long end=p.optLong("raidEnd",0);if(end>now)sb.append("Ends in ").append(countdown(end-now)).append('\n');
             }
@@ -697,6 +723,26 @@ public final class WorldMapDialog {
             return sb.toString().trim();
         }
         private static String countdown(long millis){long total=Math.max(0,millis)/1000;return String.format(Locale.US,"%d:%02d",total/60,total%60);}
+
+        /** English name for a base-species id, or null to fall back to #id; the table is read once. */
+        private String bossName(int id){
+            if(!bossNamesLoaded){bossNamesLoaded=true;bossNames=loadBossNames();} // one asset read per map, not per refresh
+            return bossNames==null?null:bossNames.get(Integer.toString(id));
+        }
+        /** Parse the bundled id->name table once; any missing/oversize/malformed file leaves #id fallbacks. */
+        private Map<String,String> loadBossNames(){
+            try(InputStream in=getContext().getAssets().open("pgrazor/map-icons/pokemon-names.json")){
+                ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] buffer=new byte[8192];int count;
+                while((count=in.read(buffer))!=-1){if(out.size()+count>2*1024*1024)throw new IOException("Oversize name table");out.write(buffer,0,count);}
+                JSONObject json=new JSONObject(new String(out.toByteArray(),"UTF-8"));
+                Map<String,String> map=new HashMap<>();
+                for(java.util.Iterator<String> keys=json.keys();keys.hasNext();){
+                    String key=keys.next();String value=json.optString(key,"");
+                    if(!value.isEmpty())map.put(key,value);
+                }
+                return map;
+            }catch(IOException|org.json.JSONException|RuntimeException e){return null;}
+        }
 
         /** Each segment takes the shortest horizontal wrap, splitting at the dateline when needed. */
         private void drawRoute(Canvas canvas,boolean markers) {

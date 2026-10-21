@@ -1,3 +1,4 @@
 Map artwork copied unchanged from PokeMiners/pogo_assets at commit c2a686eb08ace6e890d8fe3d2134c76988db87b5.
 Upstream states that artwork belongs to The Pokemon Company and Niantic; PokeMiners did not create or modify it.
 These images are excluded from PGRazor MIT licensing. Exact paths and hashes: provenance.json.
+pokemon-names.json contains base-species names extracted from upstream Texts/Latest APK/English.txt at the same pinned commit. Text remains game content, not PGRazor MIT-licensed code.
