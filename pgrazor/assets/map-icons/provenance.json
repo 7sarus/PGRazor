@@ -4,12 +4,12 @@
   "license_note": "Pokemon GO artwork; not covered by PGRazor MIT license. See NOTICE.txt.",
   "icons": [
     {
-      "source": "Images/Pokestops and Gyms/img_pokestop.png",
+      "source": "Images/Pokestops and Gyms/pokestop_near.png",
       "name": "stop.png",
-      "purpose": "PokeStop map marker (blue stop). Drawn on a white halo for the 'stop' kind.",
-      "sha256": "1257371d66527286f4406a8da6422332e10e7c0b8a397f75b51341a91b40593e",
-      "upstream_blob_sha": "3b9e71ba9a2d61813e9b107a07d503458feba37e",
-      "bytes": 3401
+      "purpose": "Nearby Pokestop marker, transparent and aspect-fit.",
+      "sha256": "3387fda94d98754ba677f87ea536900ddce389efd88b56b1365e174aba5f3804",
+      "upstream_blob_sha": "add14afaf9b26ee2a4c35b4718eb0208d0f7370b",
+      "bytes": 10336
     },
     {
       "source": "Images/Pokestops and Gyms/TeamLess.png",
