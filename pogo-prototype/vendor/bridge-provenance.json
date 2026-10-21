@@ -1,0 +1,43 @@
+{
+  "purpose": "Pinned upstream Android 17 ARM64 bridge correction; see vendor/NOTICE.txt",
+  "source_distribution": "frida-tools",
+  "source_distribution_version": "14.10.4",
+  "source_path": "frida_tools/bridges/java.js",
+  "source_sha256": "02cb922b7fea29a566bd9ae4a190fad24c503076f2497af5706d117033de6a0e",
+  "upstream_commit": "302a588881b40cba300bcf3acfd35deeb3888ee5",
+  "upstream_commit_url": "https://github.com/frida/frida-java-bridge/commit/302a588881b40cba300bcf3acfd35deeb3888ee5",
+  "upstream_source_url": "https://raw.githubusercontent.com/frida/frida-java-bridge/302a588881b40cba300bcf3acfd35deeb3888ee5/lib/android.js",
+  "upstream_license_declaration": "LGPL-2.0 WITH WxWindows-exception-3.1",
+  "upstream_license_declaration_url": "https://raw.githubusercontent.com/frida/frida-java-bridge/302a588881b40cba300bcf3acfd35deeb3888ee5/package.json",
+  "copied_distribution_license_path": "frida_tools-14.10.4.dist-info/licenses/COPYING",
+  "copied_distribution_license_sha256": "5ea1544b51a28bc823b03159190d4108f9fb4f4ef912389f5137c6d295e175b2",
+  "output": "frida-java-bridge-302a588.js",
+  "output_sha256": "3e18ac06fe11fdf4cfcb9bf45e7a422fd59d1dc99eba46da59941087e54b09fe",
+  "changes": [
+    {
+      "description": "ArtMethod access flags: additionally mask kAccNterpEntryPointFastPathFlag (0x00100000)",
+      "before": "281==(2950692863&t.readU32())",
+      "after": "281==(2949644287&t.readU32())",
+      "verified_original_occurrences": 1
+    },
+    {
+      "description": "ARM64 callback first, flush its literal pool after ret, record relocated-body entry",
+      "before": "const h=new Arm64Writer(e,{pc:t});h.putBLabel(\"performTransition\");const p=t.add(h.offset);h.putPushAllXRegisters(),h.putCallAddressWithArguments(a,[\"x0\"]),h.putPopAllXRegisters(),h.putRet(),h.putLabel(\"performTransition\");let f=!1,_=null,m=null;",
+      "after": "const h=new Arm64Writer(e,{pc:t});const p=t.add(h.offset);h.putPushAllXRegisters(),h.putCallAddressWithArguments(a,[\"x0\"]),h.putPopAllXRegisters(),h.putRet(),h.flush();const fieldpadPerformEntry=t.add(h.offset);let f=!1,_=null,m=null;",
+      "verified_original_occurrences": 1
+    },
+    {
+      "description": "ARM64 transition NativeFunction enters relocated body rather than callback",
+      "before": "),h.dispose(),f||Gt();return new NativeFunction(t,\"void\",[\"pointer\"],Ee)}};function Jt",
+      "after": "),h.dispose(),f||Gt();return new NativeFunction(fieldpadPerformEntry,\"void\",[\"pointer\"],Ee)}};function Jt",
+      "verified_original_occurrences": 1
+    }
+  ],
+  "checks": [
+    "Exact original SHA-256",
+    "Every original fragment unique",
+    "Integer masks derived from upstream constants",
+    "Reverse transformations reproduce original bytes exactly"
+  ],
+  "limits": "Only commit 302a588 is applied; no newer bridge changes, CheckJNI changes, or deoptimization. Not an upstream-built release."
+}

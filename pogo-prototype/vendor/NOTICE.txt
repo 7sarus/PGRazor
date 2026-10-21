@@ -1,0 +1,31 @@
+Diagnostic frida-java-bridge derivative
+
+Project: https://github.com/frida/frida-java-bridge
+Original artifact: bridges/java.js bundled with installed frida-tools 14.10.4.
+The original bytes are retained in frida-java-bridge-original.js.
+
+Only the changes from upstream commit
+302a588881b40cba300bcf3acfd35deeb3888ee5 (android: Fix ART crash on Android 17 arm64)
+are reproduced in frida-java-bridge-302a588.js. Upstream author: Wes765;
+committer: oleavr. This is a locally modified diagnostic artifact, not an
+official upstream binary release. No other compatibility fixes are implied.
+
+Upstream commit:
+https://github.com/frida/frida-java-bridge/commit/302a588881b40cba300bcf3acfd35deeb3888ee5
+
+The upstream package.json at that commit declares:
+LGPL-2.0 WITH WxWindows-exception-3.1
+https://raw.githubusercontent.com/frida/frida-java-bridge/302a588881b40cba300bcf3acfd35deeb3888ee5/package.json
+
+COPYING.frida-tools is an unchanged copy of the license included with the
+installed distribution supplying this bundled artifact. No standalone bridge
+LICENSE file was located at the referenced upstream commit; the package.json
+license declaration is recorded rather than inventing a copyright notice.
+
+bridge-provenance.json records original/output/license SHA-256 hashes and all
+exact substitutions. patch_bridge.py verifies the original hash, checks every
+target fragment occurs once, and reverse-checks the changes before writing.
+Reproduction requires the exact original bundled artifact; unknown inputs fail.
+
+COPYING.LIB contains the GNU Library General Public License version 2, from
+https://www.gnu.org/licenses/old-licenses/lgpl-2.0.txt

@@ -1,0 +1,12 @@
+* text=auto
+*.java text eol=lf
+*.js text eol=lf
+*.cjs text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.svg text eol=lf
+*.cmd text eol=crlf
+# These vendored bytes are checksum-pinned; never normalize their line endings.
+pogo-prototype/vendor/frida-java-bridge*.js -text
+pogo-prototype/vendor/COPYING.frida-tools -text
