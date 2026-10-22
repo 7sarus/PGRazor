@@ -2,9 +2,11 @@
 import hashlib
 import json
 import lzma
+import os
 from pathlib import Path
 import shutil
 import urllib.request
+import urllib.parse
 
 ROOT=Path(__file__).resolve().parent
 VERSION='17.24.2'
@@ -15,8 +17,21 @@ BRIDGE_SHA256='da99e88a3876a269b91ed6e2a0b40fa66531279813652ffe864cfccb3c3c0b5d'
 def sha256(path):
     with open(path,'rb') as stream: return hashlib.file_digest(stream,'sha256').hexdigest()
 
+class RuntimeRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urllib.parse.urlsplit(newurl).scheme != 'https':
+            raise ValueError('Runtime downloads require HTTPS')
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None and urllib.parse.urlsplit(newurl).netloc != 'api.github.com':
+            redirected.remove_header('Authorization')
+        return redirected
+
 def get(url):
-    return urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'PGRazorLocalBuild/0.1','Accept':'application/vnd.github+json'}),timeout=45)
+    headers={'User-Agent':'PGRazorLocalBuild/0.1','Accept':'application/vnd.github+json'}
+    if urllib.parse.urlsplit(url).netloc == 'api.github.com':
+        token=os.environ.get('GITHUB_TOKEN')
+        if token: headers['Authorization']='Bearer '+token
+    return urllib.request.build_opener(RuntimeRedirect()).open(urllib.request.Request(url,headers=headers),timeout=45)
 
 def gadget(abi,download=False):
     if abi not in ARCHES: raise ValueError('Unsupported ABI: '+abi)
