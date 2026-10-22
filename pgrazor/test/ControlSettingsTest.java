@@ -20,6 +20,7 @@ public final class ControlSettingsTest {
             try{Control.saveItemRules(true,"1:-1;","");throw new AssertionError("Negative cap accepted");}catch(IllegalArgumentException expected){}
             Control.setQuickSpinEnabled(true); Control.setAutoTransferEnabled(true); Control.setTransferProtect(13);
             Control.setQuickBallEnabled(true); Control.setQuickSummaryEnabled(true);
+            Control.setIvCatchEnabled(false); Control.setIvOwnedEnabled(true);
             Control.setThrowGrade(3); Control.setThrowCurve(true); Control.setMapTapMode(2);
             Control.setCameraRelative(false);
             Control.setQuickBallReady(false,"Loading"); Control.setQuickSummaryReady(false,"Loading");
@@ -37,6 +38,7 @@ public final class ControlSettingsTest {
             throw new AssertionError("Saved settings lost across readiness/configuration/process restart");
         if(Control.quickSpinAllowed()||Control.autoTransferAllowed()||Control.quickBallAllowed()||Control.quickSummaryAllowed()||Control.mapTapAllowed()||Control.throwAllowed())
             throw new AssertionError("Saved preferences bypassed runtime readiness");
+        if(Control.ivCatchEnabled()||!Control.ivOwnedEnabled())throw new AssertionError("IV display preferences lost across process restart");
         System.out.println("PASS: settings "+args[0]);
     }
 }

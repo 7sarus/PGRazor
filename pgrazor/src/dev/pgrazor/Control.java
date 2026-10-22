@@ -60,6 +60,10 @@ public final class Control {
     private static volatile String quickBallStatus="";
     private static volatile boolean throwReady, throwCurve, throwAr, throwArReady;
     private static volatile int throwGrade;
+    // Optional IV/level overlays rendered by the ball-animation agent. Catch screen
+    // defaults ON (prior behavior); owned Pokemon details defaults OFF. ivOwnedReady
+    // is runtime only: whether the agent resolved the owned-details metadata.
+    private static volatile boolean ivCatchEnabled=true, ivOwnedEnabled, ivOwnedReady;
     private static volatile int mapTapMode, mapTapEpoch;
     private static volatile boolean mapTapReady;
     /** Guarded by quickBallLock; any change invalidates a queued outcome toast. */
@@ -355,9 +359,19 @@ public final class Control {
     public static void setAutoTransferReady(boolean ready,String status){autoTransferReady=ready&&quickSummaryReady();transferStatus=status==null?"":status;}
     public static void transferResult(String status){transferStatus=status==null?"":status;}
     public static boolean autoTransferAllowed(){return autoTransferEnabled&&autoTransferReady()&&foreground&&backendReady&&connected();}
+    // IV/level overlay preferences. The stored choice is surfaced to the UI and the
+    // agent; the agent itself fails closed when owned-details metadata is absent.
+    public static boolean ivCatchEnabled(){return ivCatchEnabled;}
+    public static boolean ivOwnedEnabled(){return ivOwnedEnabled;}
+    public static boolean ivOwnedReady(){return ivOwnedReady;}
+    public static boolean ivDisplayAllowed(){return quickBallReady&&foreground&&backendReady&&connected();}
+    public static void setIvCatchEnabled(boolean enabled){ivCatchEnabled=enabled;saveSettings();event("iv-catch-overlay",enabled?"ON":"OFF");}
+    public static void setIvOwnedEnabled(boolean enabled){ivOwnedEnabled=enabled;saveSettings();event("iv-owned-overlay",enabled?"ON":"OFF");}
+    public static void setIvOwnedReady(boolean ready){ivOwnedReady=ready;}
+    public static String ivDisplayStatus(){return (quickBallConfigured&&ivOwnedEnabled&&!ivOwnedReady)?"Details overlay unsupported on this app version":"";}
     public static void configureQuickBall(boolean configured) {
         synchronized(quickBallLock) {
-            quickBallConfigured=configured; quickBallReady=false; setThrowReady(false);setMapTapReady(false);
+            quickBallConfigured=configured; quickBallReady=false; ivOwnedReady=false; setThrowReady(false);setMapTapReady(false);
             quickBallStatus=configured ? "Checking successful ball animation support" : "";
             quickBallOutcomeToken++;
         }
@@ -805,6 +819,8 @@ public final class Control {
                 quickSpinEnabled=Boolean.parseBoolean(p.getProperty("quickSpin","false"));
                 autoTransferEnabled=Boolean.parseBoolean(p.getProperty("autoTransfer","false"));
                 try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","63")); if(transferProtect<0||transferProtect>63)transferProtect=63; } catch(NumberFormatException e){transferProtect=63;}
+                ivCatchEnabled=Boolean.parseBoolean(p.getProperty("ivCatch","true"));
+                ivOwnedEnabled=Boolean.parseBoolean(p.getProperty("ivOwned","false"));
                 // Migrate the former independent animation preference to Quick Catch.
                 quickBallEnabled=quickSummaryEnabled;
                 throwCurve=Boolean.parseBoolean(p.getProperty("curve","false"));
@@ -863,6 +879,7 @@ public final class Control {
                 p.setProperty("itemTransfer",String.valueOf(itemTransferEnabled));p.setProperty("itemRules",itemRules);p.setProperty("itemLimits",itemLimits);p.setProperty("itemCatalog",itemCatalog);
                 p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
                 p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
+                p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled));
                 p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
                 p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
                 p.setProperty("mapTap",String.valueOf(mapTapMode));

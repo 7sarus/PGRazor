@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add separate saved IV/level display toggles for encounters and owned Pokémon details, included in settings export/import.
+
 - Quick Catch can skip creating the post-catch details screen for confirmed manual catches, preserving auto-transfer and the game's dismissal callback. Unsupported paths retain normal dismissal.
 
 - Quick Catch also shortens the successful-catch presentation wait to 100 ms starting with the first catch. Summary dismissal and auto-transfer retain their existing completion checks.

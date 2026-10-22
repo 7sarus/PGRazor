@@ -406,7 +406,7 @@ function requestBallStop() {
 }
 function revokeQuickBall() {
     if (!quickBall || quickBallFailed) return;
-    try { quickBall.setAllowed(false); if(quickBall.setMapTapOptions)quickBall.setMapTapOptions(0,0,false); if(quickBall.setThrowOptions)quickBall.setThrowOptions(0,false,false); if(quickBall.setArThrowOptions)quickBall.setArThrowOptions(false,false); }
+    try { quickBall.setAllowed(false); if(quickBall.setMapTapOptions)quickBall.setMapTapOptions(0,0,false); if(quickBall.setThrowOptions)quickBall.setThrowOptions(0,false,false); if(quickBall.setArThrowOptions)quickBall.setArThrowOptions(false,false); if(quickBall.setIvDisplayOptions)quickBall.setIvDisplayOptions(false,false); }
     catch(error) {
         quickBallFailed=true;bootLog('quick-ball-revoke-error: '+error);
         try { requestBallStop(); } catch(_) {}
@@ -458,6 +458,7 @@ function scheduleQuickBall() {
                         control.setThrowReady(!!(event.throws && event.throws.available));
                         control.setThrowArReady(!!(event.arThrows && event.arThrows.available));
                         control.setMapTapReady(!!(event.mapTap && event.mapTap.available));
+                        if(control.setIvOwnedReady)control.setIvOwnedReady(!!(event.ivOwned && event.ivOwned.available));
                     }
                     if(event.kind==='throw-unavailable')control.setThrowReady(false);
                     if(event.kind==='ar-throw-unavailable')control.setThrowArReady(false);
@@ -516,7 +517,8 @@ function heartbeat() {
             try {quickBall.setAllowed(control.quickBallAllowed());
                 if(quickBall.setThrowOptions)quickBall.setThrowOptions(control.throwGrade(),control.throwCurve(),control.throwAllowed());
                 if(quickBall.setArThrowOptions)quickBall.setArThrowOptions(control.throwAr(),control.throwAllowed()&&control.throwArReady());
-                if(quickBall.setMapTapOptions)quickBall.setMapTapOptions(control.mapTapMode(),control.mapTapEpoch(),control.mapTapAllowed());}
+                if(quickBall.setMapTapOptions)quickBall.setMapTapOptions(control.mapTapMode(),control.mapTapEpoch(),control.mapTapAllowed());
+                if(quickBall.setIvDisplayOptions)quickBall.setIvDisplayOptions(control.ivCatchEnabled(),control.ivOwnedEnabled(),control.ivDisplayAllowed());}
             catch(error) {
                 quickBallFailed=true;ballUnavailable(error);
                 try {requestBallStop();} catch(_) {}

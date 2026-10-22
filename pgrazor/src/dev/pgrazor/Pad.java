@@ -35,13 +35,13 @@ public final class Pad {
     private QuickMenu quickMenu;
     // Boolean settings use proper switches.
     private Switch vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, arSwitch;
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, arSwitch, ivCatchSwitch, ivOwnedSwitch;
     private TextView quickSummaryLabel, vgpStatus;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
     // Status / caption lines (muted, readiness driven).
     private TextView state, steeringStatus, spawnStatus, quickSummaryStatus, transferStatus, quickSpinStatus,
-        buddyStatus, giftStatus, itemStatus, rocketStatus, battleStatus, quickBallStatus, cameraStatus, interactionStatus;
+        buddyStatus, giftStatus, itemStatus, rocketStatus, battleStatus, quickBallStatus, ivStatus, cameraStatus, interactionStatus;
     // Multi-option groups keep checkboxes / radios.
     private final CheckBox[] transferProtection=new CheckBox[6];
     private final CheckBox[] giftChoices=new CheckBox[3];
@@ -337,6 +337,11 @@ public final class Pad {
         arSwitch = switchRow(throwC, "AR+ throw bonus"); arSwitch.setChecked(Control.throwAr());
         arSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwAr())return; Control.setThrowAr(arSwitch.isChecked()); refresh(); });
         caption(throwC, "Wild encounters. Combines with throw rating and curveball; server bonus unverified.");
+        ivCatchSwitch = switchRow(throwC, "Catch IV/level"); ivCatchSwitch.setChecked(Control.ivCatchEnabled());
+        ivCatchSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.ivCatchEnabled())return; Control.setIvCatchEnabled(ivCatchSwitch.isChecked()); refresh(); });
+        ivOwnedSwitch = switchRow(throwC, "Inventory IV/level"); ivOwnedSwitch.setChecked(Control.ivOwnedEnabled());
+        ivOwnedSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.ivOwnedEnabled())return; Control.setIvOwnedEnabled(ivOwnedSwitch.isChecked()); refresh(); });
+        ivStatus = caption(throwC, "");
         quickBallStatus = caption(throwC, "");
 
         Button settingsBackup=button("Export / import settings");body.addView(settingsBackup);
@@ -497,6 +502,9 @@ public final class Pad {
         throwGrade.setEnabled(Control.quickBallConfigured());
         curveSwitch.setChecked(Control.throwCurve());curveSwitch.setEnabled(Control.quickBallConfigured());
         arSwitch.setChecked(Control.throwAr());arSwitch.setEnabled(Control.throwArReady());
+        ivCatchSwitch.setChecked(Control.ivCatchEnabled());ivCatchSwitch.setEnabled(Control.quickBallConfigured());
+        ivOwnedSwitch.setChecked(Control.ivOwnedEnabled());ivOwnedSwitch.setEnabled(Control.quickBallConfigured());
+        ivStatus.setText(Control.ivDisplayStatus());
     }
     private final Runnable tick = new Runnable() {
         public void run() {

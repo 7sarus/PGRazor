@@ -16,11 +16,13 @@ public class SettingsBackupRulesTest {
         JSONObject v=valid();v.getJSONObject("settings").put("vgpEnabled","true");rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-livefeed-session",new JSONObject().put("token","secret"));rejects(v);
         v=valid();v.getJSONObject("settings").put("itemRules","1:100001;");rejects(v);
+        v=valid();v.getJSONObject("settings").put("ivCatch","false").put("ivOwned","true");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("ivOwned","maybe");rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("vgp.fx",1.2));rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-livefeed",new JSONObject().put("radius","2"));rejects(v);
         String places="[{\"id\":\"a\",\"name\":\"Home\",\"latitude\":40,\"longitude\":-70}]";
         v=valid();v.getJSONObject("preferences").put("pgrazor-saved-places-v1",new JSONObject().put("places",places));SettingsBackupRules.validate(v);
         v.getJSONObject("preferences").getJSONObject("pgrazor-saved-places-v1").put("places",places.replace("40","400"));rejects(v);
-        System.out.println("PASS settings backup: valid settings/favorites, schema, credential and VGP exclusion, bounds and preference types");
+        System.out.println("PASS settings backup: valid settings/favorites, schema, credential and VGP exclusion, bounds, IV display booleans and preference types");
     }
 }

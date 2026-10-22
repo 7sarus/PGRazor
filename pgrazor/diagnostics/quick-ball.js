@@ -22,11 +22,18 @@ const OPTIONAL={object_new:['pointer',['pointer']],field_set_value:['void',['poi
 // unsigned. Sources: build/feature-research/BALL-PRESENTATION-CONTROLS.txt:76-90,
 // 119-125 and BALL-CONTROLLER-DECODED.txt:29-33,173-187.
 const NAMEPLATE='Niantic.Holoholo.Encounter.EncounterNameplate',PK='Holoholo.Rpc.PokemonProto',MAPPK='Niantic.Holoholo.Map.IMapPokemon',LEVELS='Niantic.Holoholo.GameMasterDataExt_PlayerLevelSettings',UITEXT='UnityEngine.UI.Text';
+// Owned-Pokemon details panel (inventory/collection view). Offsets from
+// supported-build metadata (type 13577), with a pinned DoUpdate RVA and
+// instruction prefix. Reads the displayed
+// PokemonProto and overlays IV/level on the existing CP label, snapshotting the
+// game's authentic label so disabling restores it exactly.
+const PANEL='Niantic.Holoholo.UI.Pokemon.PokemonInfoPanel';
+const OWNED_UPDATE=[0x9a3a8e0,'ff0302d1fd7b02a9fc6f03a9fa6704a9f85f05a9f65706a9'];
 const WILDMAP='Niantic.Holoholo.Map.WildMapPokemon',WILDPROTO='Holoholo.Rpc.WildPokemonProto',ENCOUNTEROUT='Holoholo.Rpc.EncounterOutProto',TAPPABLE='Holoholo.Rpc.TappableEncounterProto';
 const GROUND='Niantic.Holoholo.Map.GroundTapHandler',MAPVIEW='Niantic.Holoholo.Map.MapViewHandler',LATLNG='Niantic.LatLng',VEC3='UnityEngine.Vector3';
 const ARVALUES='Holoholo.Rpc.ARPlusEncounterValuesProto',MAPPOKEMON='Niantic.Holoholo.Map.MapPokemon';
 const THROW='Niantic.Holoholo.Encounter.PokeballThrow',ENCOUNTER='Niantic.Holoholo.Encounter.EncounterState';
-const INFO='UnityEngine.AnimatorStateInfo',RAC='UnityEngine.RuntimeAnimatorController',OVERRIDE='UnityEngine.AnimatorOverrideController',OPTIONAL_CLASSES=[ARVALUES,MAPPOKEMON,WILDMAP,WILDPROTO,ENCOUNTEROUT,TAPPABLE,NAMEPLATE,PK,MAPPK,LEVELS,UITEXT,'UnityEngine.TextAnchor','UnityEngine.HorizontalWrapMode',GROUND,MAPVIEW,LATLNG,VEC3,THROW,ENCOUNTER,INFO,'System.Int32','System.String',RAC,OVERRIDE];
+const INFO='UnityEngine.AnimatorStateInfo',RAC='UnityEngine.RuntimeAnimatorController',OVERRIDE='UnityEngine.AnimatorOverrideController',OPTIONAL_CLASSES=[ARVALUES,MAPPOKEMON,WILDMAP,WILDPROTO,ENCOUNTEROUT,TAPPABLE,NAMEPLATE,PK,MAPPK,LEVELS,UITEXT,PANEL,'UnityEngine.UI.Outline','UnityEngine.UI.Shadow','UnityEngine.Behaviour','UnityEngine.Component','UnityEngine.GameObject','UnityEngine.Color','UnityEngine.Vector2','UnityEngine.TextAnchor','UnityEngine.HorizontalWrapMode',GROUND,MAPVIEW,LATLNG,VEC3,THROW,ENCOUNTER,INFO,'System.Int32','System.String',RAC,OVERRIDE];
 const INFO_FIELDS=[['m_Name','System.Int32'],['m_Path','System.Int32'],['m_FullPath','System.Int32'],['m_NormalizedTime','System.Single'],['m_Length','System.Single'],['m_Speed','System.Single'],['m_SpeedMultiplier','System.Single'],['m_Tag','System.Int32'],['m_Loop','System.Int32']];
 const BALL_HASHES=[['dsmh','Close',3535843008],['dsmi','Closed',57362642],['dsmj','Spawn',1372578019],['dsmk','Open',71445658],['dsml','Drop',3492260380],['dsmm','Shake',3049724742],['dsmn','CodeDrivenDrop',1232599366],['dsmo','Fly',1808254291],['dsmp','End',951154001],['dsmq','Breakout',596303718],['dsmr','Wait',3722194139],['dsms','ShrinkFinished',382342365],['dsmt','Land',137525990]];
 const NUM_SHAKES=3410899964,WAIT=3722194139,END=951154001,CONTROLLER='PokeballAnimator';
@@ -264,7 +271,38 @@ function prepare(module,api,domain){
     alignment:method(textClass,'set_alignment','System.Void',['UnityEngine.TextAnchor'],false,null),
     overflowValue:literal('UnityEngine.HorizontalWrapMode','Overflow'),alignmentValue:literal('UnityEngine.TextAnchor','MiddleCenter')};
   });
-  return{module,api,classes,fields,fieldMeta,methods,success,outcomes,trace,throws,arThrows,mapTap,iv,caller:module.base.add(0xad691d0)};
+  // Snapshot getters are shared so either display can restore the native label.
+  const ivText=part(()=>{
+   if(!iv.available||!api.string_length||!api.string_chars)throw Error('iv-text-api');
+   const textClass=need(UITEXT),hwm=need('UnityEngine.HorizontalWrapMode'),ta=need('UnityEngine.TextAnchor');
+   return{hwm,ta,
+    getText:method(textClass,'get_text','System.String',[],false,null),
+    getRich:method(textClass,'get_supportRichText','System.Boolean',[],false,null),
+    getFit:method(textClass,'get_resizeTextForBestFit','System.Boolean',[],false,null),
+    getOverflow:method(textClass,'get_horizontalOverflow','UnityEngine.HorizontalWrapMode',[],false,null),
+    getAlignment:method(textClass,'get_alignment','UnityEngine.TextAnchor',[],false,null)};
+  });
+  const ivOwned=part(()=>{
+   if(!ivText.available)throw Error('iv-text-unavailable');
+   const panel=need(PANEL);
+   return{panel,cpText:check(panel,'cpValueText',UITEXT,0x3c8),
+    displayed:check(panel,'<PokemonProto>k__BackingField',PK,0xa60),gmField:check(panel,'egfu','IGameMasterData',0x80),
+    update:method(panel,'DoUpdate','System.Void',[PK],false,OWNED_UPDATE)};
+  });
+  const ivOutline=part(()=>{
+   const component=need('UnityEngine.Component'),gameObject=need('UnityEngine.GameObject'),outline=need('UnityEngine.UI.Outline'),shadow=need('UnityEngine.UI.Shadow'),behaviour=need('UnityEngine.Behaviour');
+   const color=need('UnityEngine.Color'),vector=need('UnityEngine.Vector2');
+   for(const [k,size]of [[color,16],[vector,8]])if(!api.class_is_valuetype(k)||api.class_value_size(k,align)!==size||align.readU32()!==4)throw Error('iv-outline-value-abi');
+   const address=module.findExportByName('il2cpp_type_get_object');if(!address)throw Error('iv-outline-type-api');
+   return{outline,color,vector,typeObject:new NativeFunction(address,'pointer',['pointer'],{scheduling:'exclusive'}),
+    gameObject:method(component,'get_gameObject','UnityEngine.GameObject',[],false,null),
+    get:method(gameObject,'GetComponent','UnityEngine.Component',['System.Type'],false,null),
+    add:method(gameObject,'AddComponent','UnityEngine.Component',['System.Type'],false,null),
+    enabled:method(behaviour,'get_enabled','System.Boolean',[],false,null),setEnabled:method(behaviour,'set_enabled','System.Void',['System.Boolean'],false,null),
+    colorGet:method(shadow,'get_effectColor','UnityEngine.Color',[],false,null),colorSet:method(shadow,'set_effectColor','System.Void',['UnityEngine.Color'],false,null),
+    distanceGet:method(shadow,'get_effectDistance','UnityEngine.Vector2',[],false,null),distanceSet:method(shadow,'set_effectDistance','System.Void',['UnityEngine.Vector2'],false,null)};
+  });
+  return{module,api,classes,fields,fieldMeta,methods,success,outcomes,trace,throws,arThrows,mapTap,iv,ivText,ivOwned,ivOutline,caller:module.base.add(0xad691d0)};
  }finally{if(owned&&!owned.isNull())api.thread_detach(owned);}
 }
 function event(s,kind,fields){if(s.queue.length>=LIMITS.queue){fault(s,Error('queue-limit'));return false;}let time=null;try{time=s.now();}catch(_){}s.queue.push(Object.assign({kind,boottimeMs:time},fields||{}));return true;}
@@ -305,6 +343,60 @@ function install(s,p){
  function write(h,value){const f=Memory.alloc(4),args=Memory.alloc(8);f.writeFloat(value);args.writePointer(f);invoke(methods.set.method,target(h),args);}
  function field(o,f,type){const out=Memory.alloc(8);out.writePointer(ptr(0));api.field_get_value(o,f,out);return type==='pointer'?out.readPointer():type==='bool'?out.readU8():type==='float'?out.readFloat():out.readS32();}
  function unity(tid){return s.thread!==null&&s.matches>=3&&tid===s.thread&&!api.thread_current().isNull();}
+ // One catch label and a bounded set of inventory page labels. Restore before native refresh so pooled panels
+ // cannot carry styling or stats from the previously displayed Pokemon.
+ function ivText(obj){const str=invoke(p.ivText.getText.method,obj);if(str.isNull())return '';
+  const h=hold(str);try{const o=target(h);if(!exact(o,p.iv.string))throw Error('iv-string');
+   const n=api.string_length(o);if(n<0||n>512)throw Error('iv-string-length');return n?api.string_chars(o).readUtf16String(n):'';
+  }finally{api.gchandle_free(h);}}
+ function ivSet(method,obj,n){const v=Memory.alloc(4),args=Memory.alloc(8);v.writeS32(n);args.writePointer(v);invoke(method.method,obj,args);}
+ function ivWrite(obj,text){const h=hold(api.string_new(Memory.allocUtf8String(text)));try{const args=Memory.alloc(8);args.writePointer(target(h));invoke(p.iv.setText.method,obj,args);}finally{api.gchandle_free(h);}}
+ function outlineVector(method,obj,klass,n){return boxed(method.method,obj,null,klass,v=>Array.from({length:n},(_,i)=>v.add(i*4).readFloat()));}
+ function writeOutline(method,obj,values){const v=Memory.alloc(values.length*4),args=Memory.alloc(8);values.forEach((n,i)=>v.add(i*4).writeFloat(n));args.writePointer(v);invoke(method.method,obj,args);}
+ function prepareOutline(r,obj){const o=p.ivOutline;if(!o.available||r.kind!=='owned')return;const roots=[];
+  const root=v=>{const h=hold(v);roots.push(h);return target(h);};
+  try{const go=root(invoke(o.gameObject.method,obj)),type=root(o.typeObject(api.class_get_type(o.outline))),args=Memory.alloc(8);args.writePointer(type);
+   let effect=invoke(o.get.method,go,args),created=false;if(effect.isNull()){effect=invoke(o.add.method,go,args);created=true;}
+   if(effect.isNull()||!exact(effect,o.outline))throw Error('iv-outline-component');
+   r.outline=hold(effect);r.outlineEnabled=created?false:bool(o.enabled.method,effect);
+   r.outlineColor=outlineVector(o.colorGet,effect,o.color,4);r.outlineDistance=outlineVector(o.distanceGet,effect,o.vector,2);
+   // Newly added components belong to this display and remain disabled when OFF.
+   if(created)ivSet(o.setEnabled,effect,0);
+  }catch(e){if(r.outline){api.gchandle_free(r.outline);r.outline=null;}event(s,'iv-outline-unavailable',{reason:String(e)});}
+  finally{for(const h of roots)api.gchandle_free(h);}}
+ function renderOutline(r,enabled){if(!r.outline)return;const o=p.ivOutline,obj=target(r.outline);
+  try{writeOutline(o.colorSet,obj,enabled?[0,0,0,0.95]:r.outlineColor);writeOutline(o.distanceSet,obj,enabled?[1.5,-1.5]:r.outlineDistance);ivSet(o.setEnabled,obj,enabled||r.outlineEnabled?1:0);}
+  catch(e){event(s,'iv-outline-error',{reason:String(e)});}}
+ function ivEnabled(kind){return !s.stopping&&s.now()<s.ivUntil&&(kind==='catch'?s.ivCatch&&!s.ivFault:s.ivOwned&&!s.ivOwnedFault);}
+ function renderIv(r,enabled){if(r.applied===enabled)return;const obj=target(r.text);
+  if(enabled){r.applied=true;renderOutline(r,true);ivSet(p.iv.rich,obj,1);ivSet(p.iv.fit,obj,0);ivSet(p.iv.setFont,obj,Math.max(12,Math.min(r.fontSize,24)));
+   ivSet(p.iv.overflow,obj,p.iv.overflowValue);ivSet(p.iv.alignment,obj,p.iv.alignmentValue);ivWrite(obj,r.label);
+  }else{const current=ivText(obj);renderOutline(r,false);ivSet(p.iv.rich,obj,r.rich);ivSet(p.iv.fit,obj,r.fit);ivSet(p.iv.setFont,obj,r.fontSize);
+   ivSet(p.iv.overflow,obj,r.overflow);ivSet(p.iv.alignment,obj,r.alignment);
+   // Do not overwrite a label the game has independently refreshed.
+   if(current===r.label)ivWrite(obj,r.original);r.applied=false;}
+ }
+ function sameIv(a,b){return a===b||(typeof a.equals==='function'&&a.equals(b));}
+ function ivList(kind){return kind==='owned'?s.ivOwnedRecords:(s.ivRecords.catch?[s.ivRecords.catch]:[]);}
+ function dropIv(kind,obj){for(const r of [...ivList(kind)]){if(obj&&!sameIv(target(r.text),obj))continue;
+  if(kind==='owned')s.ivOwnedRecords.splice(s.ivOwnedRecords.indexOf(r),1);else s.ivRecords.catch=null;
+  try{if(alive(r.text))renderIv(r,false);}catch(e){event(s,'iv-restore-error',{context:kind,reason:String(e)});}
+  finally{if(r.outline)api.gchandle_free(r.outline);api.gchandle_free(r.text);}}}
+ function captureIv(kind,obj,label){dropIv(kind,kind==='owned'?obj:null);
+  if(kind==='owned'&&s.ivOwnedRecords.length>=8)dropIv(kind,target(s.ivOwnedRecords[0].text));const r={kind,text:hold(obj),applied:false};
+  try{r.original=ivText(obj);r.label=r.original+label.slice(label.indexOf(' \u00b7 '));if(kind==='owned')r.label='<b>'+r.label+'</b>';
+   r.fontSize=boxed(p.iv.font.method,obj,null,p.iv.integer,x=>x.readS32());
+   r.rich=bool(p.ivText.getRich.method,obj)?1:0;r.fit=bool(p.ivText.getFit.method,obj)?1:0;
+   r.overflow=boxed(p.ivText.getOverflow.method,obj,null,p.ivText.hwm,x=>x.readS32());
+   r.alignment=boxed(p.ivText.getAlignment.method,obj,null,p.ivText.ta,x=>x.readS32());
+   prepareOutline(r,obj);
+   if(kind==='owned')s.ivOwnedRecords.push(r);else s.ivRecords.catch=r;renderIv(r,ivEnabled(kind));
+  }catch(e){if(ivList(kind).includes(r))dropIv(kind,obj);else api.gchandle_free(r.text);throw e;}}
+ function ivTick(){const now=s.now();if(!s.stopping&&now<s.ivNext)return;s.ivNext=now+250;
+  for(const kind of ['catch','owned'])for(const r of [...ivList(kind)]){
+   try{if(s.stopping||!alive(r.text)){dropIv(kind,target(r.text));continue;}renderIv(r,ivEnabled(kind));}
+   catch(e){if(kind==='catch')s.ivFault=true;else s.ivOwnedFault=true;dropIv(kind,target(r.text));event(s,'iv-display-error',{context:kind,reason:String(e)});}}
+ }
  function release(a){if(a.responseHandle){api.gchandle_free(a.responseHandle);a.responseHandle=null;}if(a.handle){api.gchandle_free(a.handle);a.handle=null;}s.attempt=null;}
  // Outcome identity uses strong, non-pinned GC handles: a reported response
  // stays alive, so a later target comparison cannot match a reused address.
@@ -432,7 +524,9 @@ function install(s,p){
    release(a);event(s,'speed-restored',{reason,originalSpeed:a.original,readback,tid:s.thread});
   }catch(e){a.retryAt=now===null?0:now+1000;a.retryTicks=60;s.allowedUntil=0;s.stopping=true;s.reason=s.reason||'restoration-failed';if(!a.reported){a.reported=true;event(s,'cleanup-failed',{reason:String(e).slice(0,140),pending:true,tid:s.thread});}}
  }
- function cleanupTick(tid){if(s.busy)return;s.busy=true;try{if(!unity(tid))return;pruneSeen();traceTick();const a=s.attempt;if(!a)return;if(s.stopping||s.allowedUntil===0){restore(s.stopping?'stop':'off',false);return;}
+ function cleanupTick(tid){if(s.busy)return;s.busy=true;try{if(!unity(tid))return;pruneSeen();traceTick();
+  ivTick();
+  const a=s.attempt;if(!a)return;if(s.stopping||s.allowedUntil===0){restore(s.stopping?'stop':'off',false);return;}
   let now;try{now=s.now();}catch(e){fault(s,e);restore('clock-failed',true);return;}
   if(now>=s.allowedUntil||now>=a.deadline)restore(now>=a.deadline?'timeout':'lease-expired',false);
  }catch(e){fault(s,e);}finally{s.busy=false;}}
@@ -486,7 +580,7 @@ function install(s,p){
   this.ivHandles=null;if(!s.active||s.stopping||s.busy||s.ivFault)return;
   const owned=[];s.busy=true;try{
    if(!unity(this.threadId)||args[0].isNull()||args[1].isNull()||!exact(args[0],p.iv.plate)||!api.class_is_assignable_from(p.iv.mapPokemon,api.object_get_class(args[1])))return;
-   event(s,'cooldown-encounter',{source:typeName(api,api.class_get_type(api.object_get_class(args[1])))});owned.push(hold(args[0]));owned.push(hold(args[1]));this.ivHandles=owned;s.inflight++;
+   dropIv('catch');event(s,'cooldown-encounter',{source:typeName(api,api.class_get_type(api.object_get_class(args[1])))});owned.push(hold(args[0]));owned.push(hold(args[1]));this.ivHandles=owned;s.inflight++;
   }catch(e){for(const h of owned)api.gchandle_free(h);event(s,'iv-unavailable',{reason:String(e).slice(0,140)});s.ivFault=true;}finally{s.busy=false;}
  },onLeave(){const owned=this.ivHandles;if(!owned)return;this.ivHandles=null;s.busy=true;
   try{
@@ -512,6 +606,7 @@ function install(s,p){
    const ph=hold(pokemon);owned.push(ph);if(!exact(target(ph),p.iv.pokemon))throw Error('iv-pokemon-class');
    const v={};for(const [name,f]of Object.entries(p.iv.values))v[name]=field(target(ph),f,name.includes('Multiplier')?'float':'int');
    if(!Number.isInteger(v.cp_)||v.cp_<=0||!Number.isFinite(v.cpMultiplier_)||v.cpMultiplier_<=0){event(s,'iv-pending',{reason:'encounter-stats-not-populated'});return;}
+   if(!p.ivText.available)return;
    const th=hold(field(target(owned[0]),p.iv.textField,'pointer'));owned.push(th);
    if(!api.class_is_assignable_from(p.iv.textClass,api.object_get_class(target(th))))throw Error('iv-text-class');
    let level=null;const multiplier=Math.fround(v.cpMultiplier_+v.additionalCpMultiplier_);
@@ -526,16 +621,52 @@ function install(s,p){
     }
    }
    const label=encounterLabel(level,v.individualAttack_,v.individualDefense_,v.individualStamina_,v.cp_);
-   const sh=hold(api.string_new(Memory.allocUtf8String(label)));owned.push(sh);
-   const args=Memory.alloc(8),value=Memory.alloc(4);
-   function setting(m,n){value.writeS32(n);args.writePointer(value);invoke(m.method,target(th),args);}
-   const size=boxed(p.iv.font.method,target(th),null,p.iv.integer,x=>x.readS32());
-   setting(p.iv.rich,1);setting(p.iv.fit,0);setting(p.iv.setFont,Math.max(12,Math.min(size,24)));setting(p.iv.overflow,p.iv.overflowValue);setting(p.iv.alignment,p.iv.alignmentValue);
-   args.writePointer(target(sh));invoke(p.iv.setText.method,target(th),args);
+   captureIv('catch',target(th),label);
    event(s,'iv-label',{text:label,level,attack:v.individualAttack_,defense:v.individualDefense_,stamina:v.individualStamina_,cp:v.cp_,tid:this.threadId});
   }catch(e){s.ivFault=true;event(s,'iv-unavailable',{reason:String(e).slice(0,140)});}
   finally{try{for(let i=owned.length-1;i>=0;i--)api.gchandle_free(owned[i]);}finally{s.inflight--;s.busy=false;}}
  }}));
+ // Owned details use the panel's current Pokemon; encounter data never enters here.
+ if(p.ivOwned.available){
+  const o=p.ivOwned;
+  s.listeners.push(Interceptor.attach(o.update.address,{onEnter(args){
+   this.ownedProto=null;this.ownedPanel=null;if(!s.active||s.stopping||s.busy||s.ivOwnedFault)return;
+   s.busy=true;try{
+    if(!unity(this.threadId)||args[0].isNull()||!exact(args[0],o.panel))return;
+    const proto=args[1];if(proto.isNull()||!exact(proto,p.iv.pokemon))return;
+    const label=field(args[0],o.cpText,'pointer');if(!label.isNull())dropIv('owned',label);this.ownedPanel=hold(args[0]);
+    try{this.ownedProto=hold(proto);}catch(e){api.gchandle_free(this.ownedPanel);this.ownedPanel=null;throw e;}s.inflight++;
+   }catch(e){s.ivOwnedFault=true;event(s,'iv-owned-unavailable',{reason:String(e).slice(0,140)});}finally{s.busy=false;}
+  },onLeave(){const ph=this.ownedProto;if(!ph)return;this.ownedProto=null;
+   const panelH=this.ownedPanel;const owned=[ph];if(panelH)owned.push(panelH);s.busy=true;
+   try{
+    if(s.stopping||s.ivOwnedFault||!unity(this.threadId))return;
+    const proto=target(ph);if(!exact(proto,p.iv.pokemon)||!field(target(panelH),o.displayed,'pointer').equals(proto))throw Error('owned-pokemon-identity');
+    const v={};for(const[name,f]of Object.entries(p.iv.values))v[name]=field(proto,f,name.includes('Multiplier')?'float':'int');
+    // Fail closed on unpopulated/invalid stats: leave the game's own label intact.
+    if(!Number.isInteger(v.cp_)||v.cp_<=0||!Number.isFinite(v.cpMultiplier_)||v.cpMultiplier_<=0){event(s,'iv-owned-pending',{reason:'stats-not-populated'});return;}
+    const th=hold(field(target(panelH),o.cpText,'pointer'));owned.push(th);const textObj=target(th);
+    if(!api.class_is_assignable_from(p.iv.textClass,api.object_get_class(textObj)))throw Error('owned-text-class');
+    let level=null;const multiplier=Math.fround(v.cpMultiplier_+v.additionalCpMultiplier_);
+    if(Number.isFinite(multiplier)&&multiplier>0){
+     const gh=hold(field(target(panelH),o.gmField,'pointer'));owned.push(gh);
+     if(!target(gh).isNull()){
+      const value=Memory.alloc(4),args=Memory.alloc(16);value.writeFloat(multiplier);args.writePointer(target(gh));args.add(8).writePointer(value);
+      const lower=boxed(p.iv.getLevel.method,ptr(0),args,p.iv.integer,x=>x.readS32());
+      if(lower>=1&&lower<=100){
+       value.writeS32(lower);args.writePointer(target(gh));const lo=boxed(p.iv.getMultiplier.method,ptr(0),args,classes['System.Single'],x=>x.readFloat());
+       if(Math.abs(lo-multiplier)<0.00002)level=lower;
+       else{value.writeS32(lower+1);args.writePointer(target(gh));const hi=boxed(p.iv.getMultiplier.method,ptr(0),args,classes['System.Single'],x=>x.readFloat());if(Math.abs(Math.sqrt((lo*lo+hi*hi)/2)-multiplier)<0.00002)level=lower+0.5;}
+      }
+     }
+    }
+    const label=encounterLabel(level,v.individualAttack_,v.individualDefense_,v.individualStamina_,v.cp_);
+    captureIv('owned',textObj,label);
+    event(s,'iv-owned-label',{text:label,level,attack:v.individualAttack_,defense:v.individualDefense_,stamina:v.individualStamina_,cp:v.cp_,tid:this.threadId});
+   }catch(e){s.ivOwnedFault=true;event(s,'iv-owned-unavailable',{reason:String(e).slice(0,140)});}
+   finally{try{for(let i=owned.length-1;i>=0;i--)api.gchandle_free(owned[i]);}finally{s.inflight--;s.busy=false;}}
+  }}));
+ }
  if(p.mapTap.available){
   const scopes=new Map();
   s.listeners.push(Interceptor.attach(p.mapTap.tap.address,{onEnter(args){
@@ -590,14 +721,14 @@ function install(s,p){
   }catch(e){s.throwFault=true;s.throwUntil=0;event(s,'throw-unavailable',{reason:String(e).slice(0,140)});}finally{s.busy=false;}
  }}));
  const part=x=>x.available?{available:true}:{available:false,reason:x.reason};
- s.ready=true;event(s,'metadata-ready',{fields:p.fieldMeta,iv:part(p.iv),mapTap:part(p.mapTap),throws:part(p.throws),arThrows:part(p.arThrows),successValue:p.success,multiplier:BALL_SPEED,leaseMs:LIMITS.leaseMs,timeoutMs:LIMITS.timeoutMs,
+ s.ready=true;event(s,'metadata-ready',{fields:p.fieldMeta,iv:part(p.iv),ivOwned:part(p.ivOwned),ivOutline:part(p.ivOutline),mapTap:part(p.mapTap),throws:part(p.throws),arThrows:part(p.arThrows),successValue:p.success,multiplier:BALL_SPEED,leaseMs:LIMITS.leaseMs,timeoutMs:LIMITS.timeoutMs,
   outcomes:p.outcomes.available?{available:true,values:p.outcomes.values}:{available:false,reason:p.outcomes.reason},
   trace:t.available?{available:true,stateInfo:{valueSize:36,align:4,offsets:INFO_FIELDS.map((_,i)=>0x10+i*4)},identity:part(t.identity),name:part(t.name),params:part(t.params),
    limits:{ms:LIMITS.traceMs,ticks:LIMITS.traceTicks,events:LIMITS.traceEvents}}:{available:false,reason:t.reason}});
 }
 function start(options){
  if(!options||options.enabled!==true)return Promise.resolve({status:'disabled'});if(running)return Promise.resolve({status:'already-running'});
- let resolve;const promise=new Promise(r=>resolve=r);const s={promise,resolve,onEvent:options.onEvent,active:true,ready:false,stopping:false,reason:null,listeners:[],queue:[],attempt:null,seen:[],trace:null,traceOff:false,traceDropped:0,outcomeOff:false,outcomeHits:0,outcomeWindow:-Infinity,outcomeDropped:0,ivFault:false,mapMode:0,mapEpoch:0,mapUntil:0,mapFault:false,throwAr:false,arUntil:0,arFault:false,throwGrade:0,throwCurve:false,throwUntil:0,throwFault:false,allowedUntil:0,thread:null,matches:0,busy:false,inflight:0,retries:0,timer:null,now:()=>0};running=s;
+ let resolve;const promise=new Promise(r=>resolve=r);const s={promise,resolve,onEvent:options.onEvent,active:true,ready:false,stopping:false,reason:null,listeners:[],queue:[],attempt:null,seen:[],trace:null,traceOff:false,traceDropped:0,outcomeOff:false,outcomeHits:0,outcomeWindow:-Infinity,outcomeDropped:0,ivFault:false,ivCatch:true,ivOwned:false,ivOwnedFault:false,ivRecords:{catch:null},ivOwnedRecords:[],ivUntil:0,ivNext:0,mapMode:0,mapEpoch:0,mapUntil:0,mapFault:false,throwAr:false,arUntil:0,arFault:false,throwGrade:0,throwCurve:false,throwUntil:0,throwFault:false,allowedUntil:0,thread:null,matches:0,busy:false,inflight:0,retries:0,timer:null,now:()=>0};running=s;
  function finish(){for(const h of s.listeners)try{h.detach();}catch(_){}s.listeners=[];s.active=false;const result={status:s.reason?'unavailable':'cancelled'};if(s.reason)result.reason=s.reason;event(s,'finished',result);flush(s);if(running===s)running=null;s.resolve(result);}
  function poll(){s.timer=null;if(!s.active)return;
   try{
@@ -608,7 +739,7 @@ function start(options){
    }
    if(s.stopping&&s.attempt&&!s.cleanupReported){s.cleanupReported=true;event(s,'cleanup-pending',{reason:s.reason||'stop',pending:true});}
    // Outcome identity and trace handles, like an attempt, wait for a Unity-thread release.
-   flush(s);if(s.stopping&&!s.attempt&&!s.trace&&!s.seen.length&&!s.busy&&s.inflight===0){finish();return;}
+   flush(s);if(s.stopping&&!s.attempt&&!s.trace&&!s.seen.length&&!s.ivRecords.catch&&!s.ivOwnedRecords.length&&!s.busy&&s.inflight===0){finish();return;}
   }catch(e){fault(s,e);}
   s.timer=setTimeout(poll,s.ready?LIMITS.pollMs:1000);
  }
@@ -623,6 +754,10 @@ function setArThrowOptions(enabled,allowed){const s=running;if(!s||!s.active||!s
 function setThrowOptions(grade,curve,allowed){const s=running;if(!s||!s.active||!s.ready||s.stopping||s.throwFault)return false;
  if(!Number.isInteger(grade)||grade<0||grade>3){s.throwUntil=0;return false;}
  try{s.throwGrade=grade;s.throwCurve=curve===true;s.throwUntil=allowed===true?s.now()+LIMITS.leaseMs:0;return allowed===true;}catch(e){s.throwUntil=0;return false;}}
+// Preferences are independent of Quick Catch; only a foreground lease permits writes.
+function setIvDisplayOptions(catchEnabled,ownedEnabled,allowed){const s=running;if(!s||!s.active||!s.ready||s.stopping)return false;
+ if(s.ivCatch!==(catchEnabled===true)||s.ivOwned!==(ownedEnabled===true)||allowed!==true)s.ivNext=0;
+ s.ivCatch=catchEnabled===true;s.ivOwned=ownedEnabled===true;s.ivUntil=allowed===true?s.now()+LIMITS.leaseMs:0;return true;}
 function stop(){const s=running;if(!s)return Promise.resolve({status:'idle'});s.allowedUntil=0;s.stopping=true;return s.promise;}
-const api=Object.freeze({start,setAllowed,setThrowOptions,setArThrowOptions,setMapTapOptions,stop});root.PGRazorQuickBall=api;return api;
+const api=Object.freeze({start,setAllowed,setThrowOptions,setArThrowOptions,setMapTapOptions,setIvDisplayOptions,stop});root.PGRazorQuickBall=api;return api;
 })(globalThis);
