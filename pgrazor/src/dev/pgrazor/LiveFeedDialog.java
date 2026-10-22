@@ -51,8 +51,6 @@ public final class LiveFeedDialog {
     private static final String[] CATEGORIES = {"All", "Pokémon", "Stops", "Gyms", "Raids", "Power Spots"};
     private static final double[] RADII = {1, 3, 5};
     private static final String[] RADIUS_LABELS = {"1 km", "3 km", "5 km"};
-    private static final int[] MIN_IV = {0, 80, 90, 100};
-    private static final String[] MIN_IV_LABELS = {"Any", "80+", "90+", "100"};
     private static final int DEFAULT_REFRESH_SECONDS = 15;
     /** A 429 always backs off at least this long regardless of a shorter server Retry-After. */
     private static final long MIN_BACKOFF_MS = 30_000L;
@@ -105,8 +103,10 @@ public final class LiveFeedDialog {
         private long backoffUntilElapsed;
         private int refreshSeconds = DEFAULT_REFRESH_SECONDS;
         private String note = "", lastError;
-        private int categoryIndex, radiusIndex = 1, minIvIndex;
-        private Button[] catButtons, radiusButtons, minIvButtons;
+        private int categoryIndex, radiusIndex = 1;
+        private boolean myShinies;            // false = Nearby viewport, true = My Shinies feed
+        private LiveFeedFilters filters;      // immutable; replaced wholesale on Apply
+        private Button[] catButtons, radiusButtons, tabButtons;
         private TextView feedStatus;
 
         Controller(Activity activity, Context ui, AlertDialog dialog, LinearLayout root) {
@@ -114,7 +114,8 @@ public final class LiveFeedDialog {
             prefs = activity.getSharedPreferences("pgrazor-livefeed", Context.MODE_PRIVATE);
             categoryIndex = clamp(prefs.getInt("category", 0), 0, CATEGORIES.length - 1);
             radiusIndex = clamp(prefs.getInt("radius", 1), 0, RADII.length - 1);
-            minIvIndex = clamp(prefs.getInt("minIv", 0), 0, MIN_IV.length - 1);
+            myShinies = prefs.getBoolean("myShinies", false);
+            filters = loadFilters();
             // The session constructor must not touch the keystore on the main thread; token use is
             // confined to login()/fetch() which run on the network worker.
             client = new LiveFeedClient(new LiveFeedSession(activity));
@@ -147,7 +148,7 @@ public final class LiveFeedDialog {
 
         private void render() {
             root.removeAllViews();
-            feedStatus = null; catButtons = radiusButtons = minIvButtons = null;
+            feedStatus = null; catButtons = radiusButtons = tabButtons = null;
             if (showingLogin) buildLogin(); else buildFeed();
             MapTheme.style(root);
             if (!showingLogin) highlightAll();
@@ -264,63 +265,68 @@ public final class LiveFeedDialog {
 
             LinearLayout toolbar = new LinearLayout(ui);
             toolbar.setOrientation(LinearLayout.HORIZONTAL);
-            Button logout = button("Log out"), refresh = button("Refresh");
+            Button logout = button("Log out"), refresh = button("Refresh"), filterBtn = button("Filters");
             toolbar.addView(logout, new LinearLayout.LayoutParams(0, dp(44), 1));
             toolbar.addView(refresh, new LinearLayout.LayoutParams(0, dp(44), 1));
+            toolbar.addView(filterBtn, new LinearLayout.LayoutParams(0, dp(44), 1));
             root.addView(toolbar);
             logout.setOnClickListener(v -> logout());
             refresh.setOnClickListener(v -> requestFetch());
+            filterBtn.setOnClickListener(v -> openFilters());
 
-            TextView around = label("Around current location", 13);
-            around.setPadding(0, dp(6), 0, dp(2));
-            root.addView(around);
-
-            // Categories: a compact horizontally scrollable segmented control.
-            HorizontalScrollView catScroll = new HorizontalScrollView(ui);
-            catScroll.setHorizontalScrollBarEnabled(false);
-            LinearLayout catRow = new LinearLayout(ui);
-            catRow.setOrientation(LinearLayout.HORIZONTAL);
-            catButtons = new Button[CATEGORIES.length];
-            for (int i = 0; i < CATEGORIES.length; i++) {
-                final int index = i;
-                Button b = segButton(CATEGORIES[i]);
-                b.setOnClickListener(v -> selectCategory(index));
-                catRow.addView(b, new LinearLayout.LayoutParams(-2, dp(40)));
-                catButtons[i] = b;
+            // Feed source tabs: Nearby viewport vs the account's My Shinies list.
+            LinearLayout tabRow = new LinearLayout(ui);
+            tabRow.setOrientation(LinearLayout.HORIZONTAL);
+            final String[] tabs = {"Nearby", "My Shinies"};
+            tabButtons = new Button[2];
+            for (int i = 0; i < 2; i++) {
+                final boolean shinies = i == 1;
+                Button b = segButton(tabs[i]);
+                b.setOnClickListener(v -> selectTab(shinies));
+                tabRow.addView(b, new LinearLayout.LayoutParams(0, dp(40), 1));
+                tabButtons[i] = b;
             }
-            catScroll.addView(catRow);
-            root.addView(catScroll);
+            root.addView(tabRow);
 
-            LinearLayout radiusRow = new LinearLayout(ui);
-            radiusRow.setOrientation(LinearLayout.HORIZONTAL);
-            radiusRow.setGravity(Gravity.CENTER_VERTICAL);
-            radiusRow.addView(label("Radius", 13), new LinearLayout.LayoutParams(dp(58), -2));
-            radiusButtons = new Button[RADII.length];
-            for (int i = 0; i < RADII.length; i++) {
-                final int index = i;
-                Button b = segButton(RADIUS_LABELS[i]);
-                b.setOnClickListener(v -> selectRadius(index));
-                radiusRow.addView(b, new LinearLayout.LayoutParams(0, dp(40), 1));
-                radiusButtons[i] = b;
-            }
-            root.addView(radiusRow);
+            if (myShinies) {
+                TextView caption = label("My Shinies uses the friend code set up on the LivePokeMap website.", 12);
+                caption.setPadding(0, dp(6), 0, dp(4));
+                root.addView(caption);
+            } else {
+                TextView around = label("Around current location", 13);
+                around.setPadding(0, dp(6), 0, dp(2));
+                root.addView(around);
 
-            LinearLayout ivRow = new LinearLayout(ui);
-            ivRow.setOrientation(LinearLayout.HORIZONTAL);
-            ivRow.setGravity(Gravity.CENTER_VERTICAL);
-            ivRow.addView(label("Min IV", 13), new LinearLayout.LayoutParams(dp(58), -2));
-            minIvButtons = new Button[MIN_IV.length];
-            for (int i = 0; i < MIN_IV.length; i++) {
-                final int index = i;
-                Button b = segButton(MIN_IV_LABELS[i]);
-                b.setOnClickListener(v -> selectMinIv(index));
-                ivRow.addView(b, new LinearLayout.LayoutParams(0, dp(40), 1));
-                minIvButtons[i] = b;
+                // Categories: a compact horizontally scrollable segmented control.
+                HorizontalScrollView catScroll = new HorizontalScrollView(ui);
+                catScroll.setHorizontalScrollBarEnabled(false);
+                LinearLayout catRow = new LinearLayout(ui);
+                catRow.setOrientation(LinearLayout.HORIZONTAL);
+                catButtons = new Button[CATEGORIES.length];
+                for (int i = 0; i < CATEGORIES.length; i++) {
+                    final int index = i;
+                    Button b = segButton(CATEGORIES[i]);
+                    b.setOnClickListener(v -> selectCategory(index));
+                    catRow.addView(b, new LinearLayout.LayoutParams(-2, dp(40)));
+                    catButtons[i] = b;
+                }
+                catScroll.addView(catRow);
+                root.addView(catScroll);
+
+                LinearLayout radiusRow = new LinearLayout(ui);
+                radiusRow.setOrientation(LinearLayout.HORIZONTAL);
+                radiusRow.setGravity(Gravity.CENTER_VERTICAL);
+                radiusRow.addView(label("Radius", 13), new LinearLayout.LayoutParams(dp(58), -2));
+                radiusButtons = new Button[RADII.length];
+                for (int i = 0; i < RADII.length; i++) {
+                    final int index = i;
+                    Button b = segButton(RADIUS_LABELS[i]);
+                    b.setOnClickListener(v -> selectRadius(index));
+                    radiusRow.addView(b, new LinearLayout.LayoutParams(0, dp(40), 1));
+                    radiusButtons[i] = b;
+                }
+                root.addView(radiusRow);
             }
-            root.addView(ivRow);
-            TextView ivHint = label("Min IV filters Pokémon only.", 11);
-            ivHint.setPadding(0, 0, 0, dp(2));
-            root.addView(ivHint);
 
             feedStatus = label("", 12);
             feedStatus.setPadding(0, dp(2), 0, dp(4));
@@ -332,7 +338,7 @@ public final class LiveFeedDialog {
             list.setOnItemClickListener((parent, view, pos, id) -> {
                 if (pos >= 0 && pos < visible.size()) openDetails(visible.get(pos));
             });
-            TextView empty = label("No live results in range.", 14);
+            TextView empty = label(myShinies ? "No shinies to show." : "No live results in range.", 14);
             empty.setGravity(Gravity.CENTER);
             empty.setPadding(0, dp(24), 0, 0);
             listHolder.addView(list, new FrameLayout.LayoutParams(-1, -1));
@@ -364,18 +370,66 @@ public final class LiveFeedDialog {
             requestFetch();
         }
 
-        private void selectMinIv(int index) {
-            if (index == minIvIndex) return;
-            minIvIndex = index; prefs.edit().putInt("minIv", index).apply();
-            generation++; highlightAll();
+        /** Switch feed source. Bumps the generation so any in-flight fetch is dropped and no two
+         *  polling scopes overlap, clears the old scope's rows, and re-renders for the new layout. */
+        private void selectTab(boolean shinies) {
+            if (shinies == myShinies) return;
+            myShinies = shinies; prefs.edit().putBoolean("myShinies", shinies).apply();
+            generation++;
+            entries.clear(); visible.clear(); distCache = new HashMap<>();
+            note = ""; lastError = null; lastUpdated = 0;
+            refreshSeconds = DEFAULT_REFRESH_SECONDS;
+            render(); // buildFeed() kicks off the first fetch for the new scope
+        }
+
+        private void openFilters() {
+            if (closed || showingLogin) return;
+            org.json.JSONObject working;
+            try {
+                working = filters.toViewportJson(); // a fresh, mutable copy the modal edits in place
+            } catch (org.json.JSONException e) { toast("Couldn't open the filters."); return; }
+            LiveFeedFilterDialog.show(activity, ui, myShinies, working, speciesNames, prefs,
+                this::trackOwn, this::applyFilters);
+        }
+
+        /** Called by the modal on Apply. Validates the edited JSON through the immutable model; a bad
+         *  value is rejected so the modal can stay open, otherwise the new set is saved and refetched. */
+        private boolean applyFilters(org.json.JSONObject edited) {
+            LiveFeedFilters next;
+            try {
+                next = LiveFeedFilters.fromJson(edited);
+            } catch (org.json.JSONException e) { return false; }
+            filters = next;
+            entries.clear(); visible.clear(); distCache = new HashMap<>();
+            saveFilters();
+            generation++;
             rebuildVisible(); adapter.notifyDataSetChanged();
             requestFetch();
+            return true;
+        }
+
+        private LiveFeedFilters loadFilters() {
+            try {
+                String stored = prefs.getString("filters_v1", null);
+                if (stored != null) return LiveFeedFilters.fromJson(new org.json.JSONObject(stored));
+                int legacy = clamp(prefs.getInt("minIv", 0), 0, 3);
+                org.json.JSONObject initial = new LiveFeedFilters().toViewportJson();
+                initial.put("min_iv", new int[]{0,80,90,100}[legacy]);
+                return LiveFeedFilters.fromJson(initial);
+            } catch (Exception ignored) { } // fall back to defaults on any corrupt/legacy value
+            return new LiveFeedFilters();
+        }
+
+        private void saveFilters() {
+            try {
+                prefs.edit().putString("filters_v1", filters.toViewportJson().toString()).apply();
+            } catch (org.json.JSONException ignored) { }
         }
 
         private void highlightAll() {
+            highlight(tabButtons, myShinies ? 1 : 0);
             highlight(catButtons, categoryIndex);
             highlight(radiusButtons, radiusIndex);
-            highlight(minIvButtons, minIvIndex);
         }
 
         private void highlight(Button[] buttons, int selected) {
@@ -409,13 +463,16 @@ public final class LiveFeedDialog {
             fetchInFlight = true;
             lastFetchStartedElapsed = nowE;
             final int g = generation;
+            final boolean shinies = myShinies;
             final double lat = Control.engine.latitude, lon = Control.engine.longitude;
             final double radiusKm = RADII[radiusIndex];
-            final int minIv = MIN_IV[minIvIndex];
+            final LiveFeedFilters f = filters; // immutable snapshot; safe to hand to the worker
             updateStatus();
             net.execute(() -> {
                 try {
-                    LiveFeedData.Snapshot snap = client.fetch(lat, lon, radiusKm, minIv);
+                    LiveFeedData.Snapshot snap = shinies
+                        ? client.fetchMyShinies(lat, lon, f)
+                        : client.fetch(lat, lon, radiusKm, f);
                     main.post(() -> onSnapshot(g, snap));
                 } catch (LiveFeedClient.FeedException fe) {
                     final int status = fe.status; final long retry = fe.retryAfterMs;
@@ -443,6 +500,7 @@ public final class LiveFeedDialog {
         private void onFetchError(int g, int status, long retryAfterMs, String message) {
             fetchInFlight = false;
             if (closed) return;
+            if (status == 429) backoffUntilElapsed = SystemClock.elapsedRealtime() + Math.max(retryAfterMs, MIN_BACKOFF_MS);
             if (g != generation) { requestFetch(); return; }
             if (status == 401 || !client.signedIn()) {
                 // The client clears the session on a 401; drop back to the login form.
@@ -451,7 +509,6 @@ public final class LiveFeedDialog {
                 toast("Your LivePokeMap session ended. Please sign in again.");
                 return;
             }
-            if (status == 429) backoffUntilElapsed = SystemClock.elapsedRealtime() + Math.max(retryAfterMs, MIN_BACKOFF_MS);
             lastError = message;
             updateStatus();
         }
@@ -505,11 +562,12 @@ public final class LiveFeedDialog {
             List<LiveFeedData.Entry> list = new ArrayList<>();
             for (LiveFeedData.Entry e : entries) {
                 if (e == null || e.expired(now)) continue;               // hide expired every pass
-                if (!categoryMatches(e)) continue;
-                if (e.kind == LiveFeedData.Kind.POKEMON && !ivMatches(e)) continue;
+                // My Shinies has no category or radius scope; the server's filters are authoritative
+                // for both paths, so no client-side IV gate (it would fight the always-show exceptions).
+                if (!myShinies && !categoryMatches(e)) continue;
                 if (!Double.isFinite(e.lat) || !Double.isFinite(e.lon)) continue;
                 double meters = distanceMeters(elat, elon, e.lat, e.lon);
-                if (meters > RADII[radiusIndex] * 1000) continue;
+                if (!myShinies && meters > RADII[radiusIndex] * 1000) continue;
                 dist.put(e, meters);
                 list.add(e);
             }
@@ -528,14 +586,6 @@ public final class LiveFeedDialog {
                 case 5: return e.kind == LiveFeedData.Kind.STATION;
                 default: return true;
             }
-        }
-
-        /** Only called for Pokémon. Unknown IV (iv &lt; 0) shows only when no minimum is set. */
-        private boolean ivMatches(LiveFeedData.Entry e) {
-            int minIv = MIN_IV[minIvIndex];
-            if (minIv <= 0) return true;
-            if (e.iv < 0) return false;
-            return e.iv >= minIv;
         }
 
         private final class FeedAdapter extends BaseAdapter {

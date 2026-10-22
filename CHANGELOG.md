@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.0-alpha.4
+
+[Full release notes](docs/releases/v0.1.0-alpha.4.md)
+
+My Shinies, expanded Feed display filters and local presets, plus portable settings export/import.
+
 ## v0.1.0-alpha.3
 
 [Full release notes](docs/releases/v0.1.0-alpha.3.md)

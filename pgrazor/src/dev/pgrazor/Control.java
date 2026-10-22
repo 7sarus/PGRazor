@@ -820,6 +820,25 @@ public final class Control {
         try { int n=Integer.parseInt(p.getProperty(key,"0")); return n>=0&&n<=max?n:0; }
         catch(NumberFormatException invalid) { return 0; }
     }
+    static Properties exportSettings() throws IOException {
+        synchronized(stateLock) {
+            saveSettings();
+            Properties p=new Properties();
+            if(settingsFile==null)throw new IOException("Settings are not ready");
+            try(FileInputStream in=settingsFile.openRead()){p.load(in);}
+            return p;
+        }
+    }
+    static void importSettings(Application app,Properties incoming,double speed) throws IOException {
+        synchronized(stateLock) {
+            Properties merged=exportSettings();merged.putAll(incoming);
+            FileOutputStream out=null;
+            try{out=settingsFile.startWrite();merged.store(out,"PGRazor settings");settingsFile.finishWrite(out);out=null;}
+            finally{if(out!=null)settingsFile.failWrite(out);}
+            loadSettings(app); // Restores preferences and explicitly leaves VGP off.
+            engine.stop();engine.speed(speed);saveState(); // Keep current coordinates; never resume a route.
+        }
+    }
     private static void saveSettings() {
         synchronized(stateLock) {
             if(settingsFile==null)return;

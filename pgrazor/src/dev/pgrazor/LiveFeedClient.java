@@ -16,11 +16,15 @@ import org.json.JSONObject;
 /**
  * Minimal HTTPS client for LivePokeMap built on {@link HttpURLConnection} (no third-party deps).
  *
- * <p>It talks to exactly two endpoints: {@code POST /api/auth/login} and {@code POST /api/map/viewport}.
- * It never activates a remote game session, never sends an {@code X-Credential-ID}, and never logs or
- * echoes credentials or raw server bodies. The viewport request uses a bounded box around the given
- * centre so it cannot ask for a world-sized area. All methods are synchronous and must be called off
- * the main thread; a single instance is owned by the UI and {@link #cancel()} aborts the in-flight call.
+ * <p>It talks to three endpoints only: {@code POST /api/auth/login}, {@code POST /api/map/viewport}
+ * and {@code POST /api/game/my_shinies}. It never activates a remote game session, never sends an
+ * {@code X-Credential-ID}, and never logs or echoes credentials or raw server bodies. The viewport
+ * request uses a bounded box around the given centre so it cannot ask for a world-sized area; the My
+ * Shinies request sends only the centre (its results legitimately extend past the viewport radius, so
+ * that radius is never used to clamp or box it). The native bearer is reused on the My Shinies path,
+ * which is untested against the service: a 401 clears the stored token, a 403 is reported as a lack of
+ * access and leaves the session intact. All methods are synchronous and must be called off the main
+ * thread; a single instance is owned by the UI and {@link #cancel()} aborts the in-flight call.
  */
 public final class LiveFeedClient {
     private static final String BASE = "https://play.livepokemap.com";
@@ -84,43 +88,93 @@ public final class LiveFeedClient {
     }
 
     /**
-     * Fetches map objects within {@code radiusKm} (clamped 1..5) of the given centre, applying an IV
-     * floor both server-side and client-side. Throws {@link FeedException} (status 401) and clears the
-     * stored token when the session is rejected. Call off the UI thread.
+     * Legacy overload: fetches map objects within {@code radiusKm} (clamped 1..5) of the given centre,
+     * applying an IV floor both server-side and client-side. Retained for existing callers; new code
+     * should use {@link #fetch(double, double, double, LiveFeedFilters)}, which trusts the server's
+     * filtering so it cannot strip the "always show" exceptions. Throws {@link FeedException}
+     * (status 401) and clears the stored token when the session is rejected. Call off the UI thread.
      */
     public LiveFeedData.Snapshot fetch(double lat, double lon, double radiusKm, int minIv) throws Exception {
         long requestEpoch; synchronized(requestLock) { requestEpoch = epoch; }
+        String token = requireToken();
+        requireLocation(lat, lon);
+        int iv = (int) clamp(minIv, 0, 100);
+        JSONObject body = viewportBody(lat, lon, radiusKm, displayFilters(iv));
+        JSONObject response = send("/api/map/viewport", body, token, requestEpoch);
+        LiveFeedData.Snapshot parsed = LiveFeedData.parse(response, System.currentTimeMillis());
+        return filterByIv(parsed, iv);
+    }
+
+    /**
+     * Fetches map objects within {@code radiusKm} (clamped 1..5) of the given centre using the full
+     * display-filter set. Unlike the legacy overload this re-applies no client-side IV floor: the
+     * server already honours the filters, and re-filtering here would discard the perfect/zero/rare
+     * "always show" exceptions the server deliberately included. Throws {@link FeedException}
+     * (status 401) and clears the stored token when the session is rejected. Call off the UI thread.
+     */
+    public LiveFeedData.Snapshot fetch(double lat, double lon, double radiusKm, LiveFeedFilters filters) throws Exception {
+        long requestEpoch; synchronized(requestLock) { requestEpoch = epoch; }
+        String token = requireToken();
+        requireLocation(lat, lon);
+        JSONObject body = viewportBody(lat, lon, radiusKm, (filters == null ? new LiveFeedFilters() : filters).toViewportJson());
+        JSONObject response = send("/api/map/viewport", body, token, requestEpoch);
+        return LiveFeedData.parse(response, System.currentTimeMillis());
+    }
+
+    /**
+     * Fetches the signed-in account's own shinies around the given centre. No radius is applied: the
+     * service returns results well beyond the viewport radius, so clamping or boxing here would silently
+     * truncate them. Sends only the 8-key My Shinies filter subset. A 401 clears the stored token; a 403
+     * is surfaced as a lack of access without clearing the session. Call off the UI thread.
+     */
+    public LiveFeedData.Snapshot fetchMyShinies(double lat, double lon, LiveFeedFilters filters) throws Exception {
+        long requestEpoch; synchronized(requestLock) { requestEpoch = epoch; }
+        String token = requireToken();
+        requireLocation(lat, lon);
+        JSONObject body = new JSONObject();
+        body.put("center_lat", lat);
+        body.put("center_lon", lon);
+        body.put("display_filters", (filters == null ? new LiveFeedFilters() : filters).toShiniesJson());
+        JSONObject response = send("/api/game/my_shinies", body, token, requestEpoch);
+        return LiveFeedData.parseShinies(response, System.currentTimeMillis());
+    }
+
+    private String requireToken() throws FeedException {
         String token = session.token();
         if (token == null) throw new FeedException("Please sign in to load the live map.", 401, 0);
+        return token;
+    }
+
+    private static void requireLocation(double lat, double lon) throws FeedException {
         if (!Double.isFinite(lat) || !Double.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180)
             throw new FeedException("That location is outside the valid range.");
+    }
 
+    // Issues the POST and, on an expired-session 401 for this still-current request, clears the token so
+    // the UI falls back to the login form. A 403 (no access) deliberately leaves the session intact.
+    private JSONObject send(String path, JSONObject body, String token, long requestEpoch) throws Exception {
+        try {
+            return request(path, body, token, requestEpoch);
+        } catch (FeedException fe) {
+            if (fe.status == 401) synchronized(requestLock) { if (epoch == requestEpoch) session.clear(); }
+            throw fe;
+        }
+    }
+
+    // A bounded box around the centre (radius clamped 1..5 km) plus the given display filters.
+    private static JSONObject viewportBody(double lat, double lon, double radiusKm, JSONObject displayFilters) throws JSONException {
         double radius = clamp(radiusKm, 1, 5);
-        int iv = (int) clamp(minIv, 0, 100);
-
         double dLat = radius / KM_PER_DEGREE_LAT;
         double cosLat = Math.max(Math.cos(Math.toRadians(lat)), 1e-6); // avoid divide-by-zero at the poles
         double dLon = Math.min(radius / (KM_PER_DEGREE_LAT * cosLat), MAX_LON_DELTA_DEGREES);
-        double minLat = clamp(lat - dLat, -90, 90), maxLat = clamp(lat + dLat, -90, 90);
-        double minLon = clamp(lon - dLon, -180, 180), maxLon = clamp(lon + dLon, -180, 180);
-
         JSONObject body = new JSONObject();
-        body.put("min_lat", minLat);
-        body.put("max_lat", maxLat);
-        body.put("min_lon", minLon);
-        body.put("max_lon", maxLon);
+        body.put("min_lat", clamp(lat - dLat, -90, 90));
+        body.put("max_lat", clamp(lat + dLat, -90, 90));
+        body.put("min_lon", clamp(lon - dLon, -180, 180));
+        body.put("max_lon", clamp(lon + dLon, -180, 180));
         body.put("zoom", MAP_ZOOM);
-        body.put("display_filters", displayFilters(iv));
-
-        JSONObject response;
-        try {
-            response = request("/api/map/viewport", body, token, requestEpoch);
-        } catch (FeedException fe) {
-            if (fe.status == 401) synchronized(requestLock) { if(epoch == requestEpoch) session.clear(); } // expired token: force a fresh sign-in
-            throw fe;
-        }
-        LiveFeedData.Snapshot parsed = LiveFeedData.parse(response, System.currentTimeMillis());
-        return filterByIv(parsed, iv);
+        body.put("display_filters", displayFilters);
+        return body;
     }
 
     // show_all keeps the server from hiding anything; the explicit floors plus disabled "always show"
@@ -174,6 +228,8 @@ public final class LiveFeedClient {
                 throw new FeedException("The service redirected the request; refusing to continue.", code, 0);
             if (code == 401)
                 throw new FeedException("Your session has expired. Please sign in again.", 401, 0);
+            if (code == 403)
+                throw new FeedException("Your account doesn't have access to this feature.", 403, 0);
             if (code == 429)
                 throw new FeedException("Too many requests. Please wait before refreshing.", 429, retryAfterMs(http));
             if (code < 200 || code >= 300)

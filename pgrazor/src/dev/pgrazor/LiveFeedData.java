@@ -22,8 +22,45 @@ public final class LiveFeedData {
     public static final int MAX_ENTRIES = 10000;
     /** Default client refresh cadence; the UI may override from its own config. */
     public static final int DEFAULT_REFRESH_SECONDS = 15;
+    /** Bounds applied to a server-advertised refresh cadence so it can neither hammer nor stall polling. */
+    private static final int MIN_REFRESH_SECONDS = 5;
+    private static final int MAX_REFRESH_SECONDS = 600;
 
     public enum Kind { POKEMON, STOP, GYM, RAID, STATION }
+
+    /**
+     * Optional, observed detail attributes for a Pokémon/shiny row. Every field uses {@code -1} for
+     * "not present / unknown" so the UI never renders a fabricated 0. Only fields that actually appear
+     * in the viewport and My Shinies schemas are modelled; backgrounds are deliberately absent because
+     * no positive background schema was observed. Immutable.
+     */
+    public static final class Attrs {
+        /** Shared singleton for entries with no detail attributes (every field unknown). */
+        public static final Attrs UNKNOWN = new Attrs(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+        /** Raw PoGo ids; {@code -1} when the field was absent. {@code costume}/{@code gender} may be 0. */
+        public final int form, costume, gender, size;
+        /** Individual IV components 0..15; {@code -1} when absent or out of range. */
+        public final int atkIv, defIv, staIv;
+        /** Great/Ultra/Little league ranks when present and positive, else {@code -1}. */
+        public final int pvpGreatRank, pvpUltraRank, pvpLittleRank;
+
+        public Attrs(int form, int costume, int gender, int size, int atkIv, int defIv, int staIv,
+                     int pvpGreatRank, int pvpUltraRank, int pvpLittleRank) {
+            this.form = form;
+            this.costume = costume;
+            this.gender = gender;
+            this.size = size;
+            this.atkIv = atkIv;
+            this.defIv = defIv;
+            this.staIv = staIv;
+            this.pvpGreatRank = pvpGreatRank;
+            this.pvpUltraRank = pvpUltraRank;
+            this.pvpLittleRank = pvpLittleRank;
+        }
+
+        /** True only when all three individual IVs are known, so a "a/d/s" readout is never partial. */
+        public boolean hasIvComponents() { return atkIv >= 0 && defIv >= 0 && staIv >= 0; }
+    }
 
     /** One map object. Numeric fields use -1 and {@code iv}/{@code hasStats} to flag "unknown". */
     public static final class Entry {
@@ -42,6 +79,12 @@ public final class LiveFeedData {
         /** True only when a hatched boss was confirmed at fetch time; eggs never set this. Gates the live
          *  boss sprite so a stale egg row cannot flip to a predicted boss once its hatch time passes. */
         public final boolean raidBossLive;
+        /** True only for rows that came from the My Shinies endpoint (the signed-in account's own
+         *  shinies). Lets the UI exempt them from the viewport IV/level filter; it is not a claim about
+         *  any unlinked Pokémon GO account. */
+        public final boolean personalShiny;
+        /** Optional observed detail attributes; never {@code null} ({@link Attrs#UNKNOWN} when absent). */
+        public final Attrs attrs;
 
         /** Backwards-compatible overload (no team/raid metadata) kept for existing call sites and tests. */
         public Entry(String id, Kind kind, String name, String details, double lat, double lon,
@@ -49,9 +92,17 @@ public final class LiveFeedData {
             this(id, kind, name, details, lat, lon, dexId, cp, level, iv, expiresAt, hasStats, 0, 0L, false);
         }
 
+        /** Backwards-compatible overload with team/raid metadata but no shiny/attrs extension. */
         public Entry(String id, Kind kind, String name, String details, double lat, double lon,
                      int dexId, int cp, double level, double iv, long expiresAt, boolean hasStats,
                      int team, long raidHatchAt, boolean raidBossLive) {
+            this(id, kind, name, details, lat, lon, dexId, cp, level, iv, expiresAt, hasStats,
+                    team, raidHatchAt, raidBossLive, false, Attrs.UNKNOWN);
+        }
+
+        public Entry(String id, Kind kind, String name, String details, double lat, double lon,
+                     int dexId, int cp, double level, double iv, long expiresAt, boolean hasStats,
+                     int team, long raidHatchAt, boolean raidBossLive, boolean personalShiny, Attrs attrs) {
             this.id = id;
             this.kind = kind;
             this.name = name;
@@ -67,6 +118,8 @@ public final class LiveFeedData {
             this.team = team;
             this.raidHatchAt = raidHatchAt;
             this.raidBossLive = raidBossLive;
+            this.personalShiny = personalShiny;
+            this.attrs = attrs == null ? Attrs.UNKNOWN : attrs;
         }
 
         /** True only when a real future expiry was known and has now passed. */
@@ -121,7 +174,43 @@ public final class LiveFeedData {
         String note = "";
         if (truncated) note = "Showing the first " + MAX_ENTRIES + " results.";
         else if (root.optBoolean("limit_reached", false)) note = "The service limited how many objects it returned.";
+        // Surface the viewport's own shiny-access signal so the My Shinies tab can show a truthful
+        // "not enabled / still loading" state; only act on it when the field is explicitly present.
+        String shiny = shinyAccessNote(root);
+        if (!shiny.isEmpty()) note = note.isEmpty() ? shiny : note + "\n" + shiny;
         return new Snapshot(entries, now, refresh, note);
+    }
+
+    /**
+     * Parses a My Shinies response ({@code POST /api/game/my_shinies}). The {@code shinies} array uses
+     * a different schema from the viewport: {@code despawn_ts} is epoch <em>seconds</em> (not millis),
+     * {@code iv} is already the percentage, and each row carries individual IVs/size/form. Entries keep
+     * {@link Kind#POKEMON} so the species sprite resolves, flag {@link Entry#personalShiny}, and preserve
+     * the 64-bit encounter id as a string. {@code cooldown_sec} is a service estimate and is ignored on
+     * purpose so it can never masquerade as the local action cooldown. Exposed for unit tests.
+     */
+    public static Snapshot parseShinies(JSONObject response, long now) throws JSONException {
+        JSONObject root = response;
+        JSONObject data = response.optJSONObject("data");
+        if (data != null) root = data;
+
+        List<Entry> entries = new ArrayList<>();
+        Set<String> ids = new HashSet<>();
+        boolean truncated = parseShinyArray(root.optJSONArray("shinies"), now, entries, ids);
+
+        int refresh = boundRefresh(root.optInt("refresh_sec", 30));
+        String note = truncated ? "Showing the first " + MAX_ENTRIES + " results." : "";
+        String access = shinyAccessNote(root);
+        if (!access.isEmpty()) note = note.isEmpty() ? access : note + "\n" + access;
+        return new Snapshot(entries, now, refresh, note);
+    }
+
+    private static String shinyAccessNote(JSONObject root) {
+        if (root.has("shiny_access") && !root.isNull("shiny_access") && !root.optBoolean("shiny_access", true))
+            return "Shiny access is not enabled for this account.";
+        if (root.has("shiny_ready") && !root.isNull("shiny_ready") && !root.optBoolean("shiny_ready", true))
+            return "Shinies are still loading — try again shortly.";
+        return "";
     }
 
     // --- pokemon ---------------------------------------------------------------------------------
@@ -139,7 +228,7 @@ public final class LiveFeedData {
             String encounter = o.optString("encounter_id", o.optString("encounterId", ""));
             if (encounter.isEmpty()) continue; // cannot de-duplicate an anonymous spawn
             long despawn = o.optLong("despawn_ms", o.optLong("despawnMs", 0));
-            if (despawn > 0 && despawn <= now) continue; // already despawned
+            if (despawn < 0 || (despawn > 0 && despawn <= now)) continue; // invalid or already despawned
 
             String id = "pokemon:" + encounter;
             if (!ids.add(id)) continue;
@@ -167,7 +256,66 @@ public final class LiveFeedData {
             } else {
                 details = "Wild · stats hidden";
             }
-            out.add(new Entry(id, Kind.POKEMON, name, details, lat, lon, dex, cp, level, iv, despawn, hasStats && iv >= 0));
+            // Observed optional attributes; individual IVs only trusted when full stats were reported.
+            Attrs attrs = new Attrs(optRawId(o, "form"), optRawId(o, "costume"), optRawId(o, "gender"),
+                    optRawId(o, "size"),
+                    hasStats ? optIvComponent(o, "iv_attack") : -1,
+                    hasStats ? optIvComponent(o, "iv_defense") : -1,
+                    hasStats ? optIvComponent(o, "iv_stamina") : -1,
+                    optRank(o, "pvp_great_rank"), optRank(o, "pvp_ultra_rank"), optRank(o, "pvp_little_rank"));
+            out.add(new Entry(id, Kind.POKEMON, name, details, lat, lon, dex, cp, level, iv, despawn,
+                    hasStats && iv >= 0, 0, 0L, false, false, attrs));
+        }
+        return false;
+    }
+
+    // --- my shinies ------------------------------------------------------------------------------
+
+    private static boolean parseShinyArray(JSONArray array, long now, List<Entry> out, Set<String> ids) {
+        if (array == null) return false;
+        int limit = Math.min(array.length(), MAX_ENTRIES);
+        for (int i = 0; i < limit; i++) {
+            if (out.size() >= MAX_ENTRIES) return true;
+            JSONObject o = array.optJSONObject(i);
+            if (o == null) continue;
+            double lat = o.optDouble("lat", Double.NaN), lon = o.optDouble("lon", Double.NaN);
+            if (!validCoords(lat, lon)) continue;
+            // Preserve the 64-bit encounter id as a string; never narrow it through a numeric type.
+            String encounter = o.optString("encounter_id", "");
+            if (encounter.isEmpty()) continue;
+            // despawn_ts is epoch SECONDS here; convert to millis with an overflow guard.
+            long despawn = toMillisFromEpochSeconds(o.optLong("despawn_ts", 0));
+            if (despawn < 0 || (despawn > 0 && despawn <= now)) continue; // invalid or already despawned
+
+            String id = "shiny:" + encounter;
+            if (!ids.add(id)) continue;
+
+            int dex = o.optInt("dex_id", 0);
+            double iv = o.isNull("iv") ? -1 : o.optDouble("iv", -1); // already a percentage in this schema
+            if (!Double.isFinite(iv) || iv < 0 || iv > 100) iv = -1;
+            int cp = o.has("cp") && !o.isNull("cp") ? o.optInt("cp", -1) : -1;
+            if (cp < 0) cp = -1;
+            double level = o.optDouble("level", -1);
+            if (!Double.isFinite(level) || level <= 0 || level > 55) level = -1;
+
+            int atk = optIvComponent(o, "atk_iv"), def = optIvComponent(o, "def_iv"), sta = optIvComponent(o, "sta_iv");
+            // pvp_rank1 is nullable and its league is ambiguous in the capture, so no rank is claimed.
+            Attrs attrs = new Attrs(optRawId(o, "form"), optRawId(o, "costume"), optRawId(o, "gender"),
+                    optRawId(o, "size"), atk, def, sta, -1, -1, -1);
+
+            String name = clean(o.optString("name", ""));
+            if (name.isEmpty()) name = dex > 0 ? "#" + dex : "Shiny";
+
+            StringBuilder d = new StringBuilder();
+            if (cp >= 0) d.append("CP ").append(cp);
+            if (level >= 0) { if (d.length() > 0) d.append(" · "); d.append("Lv ").append(fmtLevel(level)); }
+            if (iv >= 0) { if (d.length() > 0) d.append(" · "); d.append(String.format(java.util.Locale.US, "%.1f%% IV", iv)); }
+            if (attrs.hasIvComponents()) { if (d.length() > 0) d.append(" · "); d.append(atk).append('/').append(def).append('/').append(sta); }
+            String details = d.length() > 0 ? d.toString() : "Shiny";
+
+            boolean hasStats = iv >= 0;
+            out.add(new Entry(id, Kind.POKEMON, name, details, lat, lon, dex, cp, level, iv, despawn, hasStats,
+                    0, 0L, false, true, attrs));
         }
         return false;
     }
@@ -312,6 +460,50 @@ public final class LiveFeedData {
         return Double.isFinite(lat) && Double.isFinite(lon)
                 && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
                 && !(Math.abs(lat) < 1e-9 && Math.abs(lon) < 1e-9); // drop null-island placeholders
+    }
+
+    /** Clamps a server-advertised refresh cadence (seconds) into a sane client polling window. */
+    private static int boundRefresh(int seconds) {
+        if (seconds <= 0) return DEFAULT_REFRESH_SECONDS;
+        return seconds < MIN_REFRESH_SECONDS ? MIN_REFRESH_SECONDS
+                : (seconds > MAX_REFRESH_SECONDS ? MAX_REFRESH_SECONDS : seconds);
+    }
+
+    /**
+     * Converts an epoch-seconds timestamp to epoch-millis. Returns 0 (unknown) for non-positive input,
+     * guards against multiply overflow, and passes a value that is already in the millisecond range
+     * through unchanged so a mislabelled field is never double-scaled into the far future.
+     */
+    private static long toMillisFromEpochSeconds(long ts) {
+        if (ts <= 0) return 0;
+        if (ts > Long.MAX_VALUE / 1000L) return -1;
+        if (ts >= 100_000_000_000L) return ts; // tolerate a mislabeled millisecond timestamp
+        return ts * 1000L;
+    }
+
+    /** Raw id-like field (form/costume/gender/size): kept when present and non-negative, else -1. */
+    private static int optRawId(JSONObject o, String key) {
+        if (!o.has(key) || o.isNull(key)) return -1;
+        int v = o.optInt(key, -1);
+        return v >= 0 ? v : -1;
+    }
+
+    /** Individual IV component (0..15); -1 when absent or out of range. */
+    private static int optIvComponent(JSONObject o, String key) {
+        if (!o.has(key) || o.isNull(key)) return -1;
+        int v = o.optInt(key, -1);
+        return v >= 0 && v <= 15 ? v : -1;
+    }
+
+    /** Optional league rank (>=1); -1 when absent or non-positive. */
+    private static int optRank(JSONObject o, String key) {
+        if (!o.has(key) || o.isNull(key)) return -1;
+        int v = o.optInt(key, -1);
+        return v >= 1 ? v : -1;
+    }
+
+    private static String fmtLevel(double level) {
+        return level == Math.rint(level) ? Long.toString((long) level) : Double.toString(level);
     }
 
     private static String join(List<String> parts) {

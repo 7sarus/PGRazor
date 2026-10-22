@@ -10,8 +10,16 @@ import java.nio.charset.StandardCharsets;
 /** Private activity declared in the host APK for user-selected log export. */
 public final class LogActivity extends Activity {
     private TextView text;
+    private SettingsBackup settingsBackup;
+    @Override public void onBackPressed(){
+        if(settingsBackup!=null&&settingsBackup.isBusy())return;
+        super.onBackPressed();
+    }
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if(getIntent().getBooleanExtra("settingsBackup",false)){
+            settingsBackup=new SettingsBackup(this);settingsBackup.show();return;
+        }
         LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setPadding(20,48,20,20);
         TextView heading = new TextView(this); heading.setText("PGRazor · current run"); heading.setTextSize(22); layout.addView(heading);
         ScrollView scroll = new ScrollView(this); text = new TextView(this); text.setTextIsSelectable(true); scroll.addView(text); layout.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
@@ -36,6 +44,7 @@ public final class LogActivity extends Activity {
     }
     protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
+        if(settingsBackup!=null){settingsBackup.result(request,result,data);return;}
         if(request!=40 || result!=RESULT_OK || data==null || data.getData()==null || Control.currentLog()==null) return;
         try {
             LogExport.save(this,data.getData(),Control.currentLog());

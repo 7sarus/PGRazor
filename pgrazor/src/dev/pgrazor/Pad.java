@@ -339,6 +339,9 @@ public final class Pad {
         caption(throwC, "Wild encounters. Combines with throw rating and curveball; server bonus unverified.");
         quickBallStatus = caption(throwC, "");
 
+        Button settingsBackup=button("Export / import settings");body.addView(settingsBackup);
+        settingsBackup.setOnClickListener(v->activity.startActivity(new Intent(activity,LogActivity.class).putExtra("settingsBackup",true)));
+
         // ----- Diagnostics (status plumbing kept out of everyday settings) -----
         LinearLayout diag = section(body, "Diagnostics", false);
         state = caption(diag, Control.connection);

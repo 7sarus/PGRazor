@@ -33,11 +33,13 @@ class LiveFeedJavaTests(unittest.TestCase):
                 target = work / original.name
                 target.write_text(text, encoding='utf-8')
                 sources.append(target)
-            sources += [ROOT / 'src/dev/pgrazor/LiveFeedData.java', ROOT / 'test/LiveFeedDataTest.java']
+            sources += [ROOT / 'src/dev/pgrazor/LiveFeedData.java', ROOT / 'src/dev/pgrazor/LiveFeedFilters.java', ROOT / 'src/dev/pgrazor/SettingsBackupRules.java', ROOT / 'test/LiveFeedDataTest.java', ROOT / 'test/SettingsBackupRulesTest.java']
+            if (ROOT / 'test/LiveFeedFiltersTest.java').exists(): sources.append(ROOT / 'test/LiveFeedFiltersTest.java')
             result = subprocess.run([str(compiler), '-encoding', 'UTF-8', '-d', str(work), *map(str, sources)], capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            result = subprocess.run([str(runtime), '-cp', str(work), 'LiveFeedDataTest'], capture_output=True, text=True, timeout=30)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            for main in ['LiveFeedDataTest','SettingsBackupRulesTest'] + (['LiveFeedFiltersTest'] if (ROOT / 'test/LiveFeedFiltersTest.java').exists() else []):
+                result = subprocess.run([str(runtime), '-cp', str(work), main], capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == '__main__':
