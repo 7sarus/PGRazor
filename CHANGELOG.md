@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.1.0
+
+[Full release notes](docs/releases/v0.1.0.md)
+
+- Fix Google sign-in by opening Google authentication in the system browser.
+- Add optional Discord release role pings.
 
 - Pause automated gym, raid, and Dynamax attacks and dodges while the Pokémon switch picker is open; resume after it closes.
 

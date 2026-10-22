@@ -65,7 +65,7 @@ public final class BootstrapProvider extends ContentProvider {
             File library=copyAsset(context,"pgrazor/"+abi+"/libfrida-gadget.so",directory,"libfrida-gadget.so");
             File bridge=copyAsset(context,"pgrazor/java-bridge.js",directory,"java-bridge.js");
             File script=copyAsset(context,"pgrazor/embedded-agent.js",directory,"embedded-agent.js");
-            JSONObject parameters=new JSONObject().put("bridgePath",bridge.getAbsolutePath()).put("startupLog",new File(directory,"gadget-startup.txt").getAbsolutePath());
+            JSONObject parameters=new JSONObject().put("googleBrowserLogin",mode.optBoolean("googleBrowserLogin",false)).put("bridgePath",bridge.getAbsolutePath()).put("startupLog",new File(directory,"gadget-startup.txt").getAbsolutePath());
             if(survey) {
                 File diagnostic=copyAsset(context,"pgrazor/il2cpp-survey.js",directory,"il2cpp-survey.js");
                 parameters.put("surveyPath",diagnostic.getAbsolutePath());

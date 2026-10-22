@@ -634,8 +634,9 @@ public final class Control {
         loadSettings(app);
         Cooldown.init(app);
         app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
-            public void onActivityResumed(Activity activity) { attach(activity); }
+            public void onActivityResumed(Activity activity) { GoogleBrowserAuth.onHostResumed(activity); attach(activity); }
             public void onActivityPaused(Activity activity) {
+                GoogleBrowserAuth.onHostPaused(activity);
                 if (pad != null && pad.activity == activity) { pad.close(); pad = null; }
             }
             public void onActivityDestroyed(Activity activity) {
@@ -648,7 +649,7 @@ public final class Control {
         });
     }
     public static void attach(Activity activity) {
-        if (activity instanceof LogActivity) return;
+        if (activity instanceof LogActivity || activity instanceof GoogleAuthActivity) return;
         if (activity.isFinishing() || activity.isDestroyed()) return;
         if (pad != null && pad.activity == activity) return;
         if (pad != null) pad.close();

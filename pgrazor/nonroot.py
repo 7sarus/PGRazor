@@ -100,7 +100,7 @@ def signature_entry(name):
     upper=name.upper()
     return upper=='STAMP-CERT-SHA256' or (upper.startswith('META-INF/') and (upper.endswith(('.SF','.RSA','.DSA','.EC')) or upper=='META-INF/MANIFEST.MF'))
 
-def rewrite_apk(source,destination,*,base=False,dex=None,assets=None,preview=False):
+def rewrite_apk(source,destination,*,base=False,dex=None,assets=None,preview=False,google_browser_login=False):
     with zipfile.ZipFile(source) as original,zipfile.ZipFile(destination,'w') as output:
         names=original.namelist()
         # Bundled map-icon art may already ride along in our own preview input; any other pre-existing
@@ -118,7 +118,9 @@ def rewrite_apk(source,destination,*,base=False,dex=None,assets=None,preview=Fal
             if signature_entry(item.filename): continue
             if base and assets and item.filename in assets: continue  # re-added from the current asset set below; prevents duplicate entries
             if base and item.filename=='AndroidManifest.xml':
-                output.writestr(copy.copy(item),axml.patch_manifest(original.read(item))); continue
+                manifest=axml.patch_manifest(original.read(item))
+                if google_browser_login: manifest=axml.add_google_browser_callback(manifest)
+                output.writestr(copy.copy(item),manifest); continue
             with original.open(item) as reader,output.open(copy.copy(item),'w') as writer: shutil.copyfileobj(reader,writer)
         if base:
             if not preview: output.write(dex,nextdex,compress_type=zipfile.ZIP_DEFLATED)
@@ -131,7 +133,7 @@ def validate_survey_options(enabled, panel_only, abi, flag='--il2cpp-survey'):
         raise ValueError(flag+' requires embedded Gadget on the native arm64-v8a runtime; panel-only and non-ARM64 builds are unsupported')
 
 
-def package(source, *,panel_only=False,download=False,preview=False,probe_abi=None,game_runtime_abi='arm64-v8a',il2cpp_survey=False,camera_probe=False,camera_sample=False,camera_steering=False,scene_probe=False,scene_observe=False,interaction_probe=False,quick_summary=False,quick_ball=False,quick_close=False):
+def package(source, *,panel_only=False,download=False,preview=False,probe_abi=None,game_runtime_abi='arm64-v8a',il2cpp_survey=False,camera_probe=False,camera_sample=False,camera_steering=False,scene_probe=False,scene_observe=False,interaction_probe=False,quick_summary=False,quick_ball=False,quick_close=False,google_browser_login=False):
     if quick_close and quick_summary: raise ValueError('--quick-close and --quick-summary are mutually exclusive')
     quick_summary=bool(quick_summary or quick_close)
     summary_script='quick-close.js' if quick_close else 'quick-summary.js'
@@ -178,6 +180,7 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
     if quick_summary: mode['quickSummary']=True
     if quick_close: mode['quickClose']=True
     if quick_ball: mode['quickBall']=True
+    if google_browser_login: mode['googleBrowserLogin']=True
     assets={'assets/pgrazor/mode.json':json.dumps(mode).encode()}
     # POI marker art loaded by the Java map via AssetManager at pgrazor/map-icons/<name>.
     for icon_name,icon_path in build.map_icon_assets().items(): assets['assets/pgrazor/map-icons/'+icon_name]=icon_path
@@ -263,7 +266,7 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
     for index,(path,info) in enumerate(rows):
         stem='base' if path==base else f'split-{index}'
         unsigned=folder/(stem+'-unsigned.apk'); aligned=folder/(stem+'-aligned.apk'); signed=folder/(stem+'.apk')
-        rewrite_apk(path,unsigned,base=path==base,dex=dex,assets=assets,preview=preview)
+        rewrite_apk(path,unsigned,base=path==base,dex=dex,assets=assets,preview=preview,google_browser_login=google_browser_login)
         command(build.TOOLS/'zipalign.exe','-f','-P','16','4',unsigned,aligned)
         command(build.TOOLS/'apksigner.bat','sign',*build.signing_args(),'--out',signed,aligned)
         verified=command(build.TOOLS/'apksigner.bat','verify','--print-certs',signed,capture=True)
@@ -328,6 +331,7 @@ def main(argv=None):
     parser.add_argument('--quick-summary',action='store_true',help='Bundle experimental summary feature with startup metadata validation; acceleration remains off until enabled in UI; native ARM64 only')
     parser.add_argument('--quick-close',action='store_true',help='Bundle experimental summary and details auto-dismiss after confirmed success; defaults OFF; excludes new-species screens')
     parser.add_argument('--quick-ball',action='store_true',help='Bundle experimental 20x catch and break-free ball animation; summary screens remain; defaults OFF; native ARM64 only')
+    parser.add_argument('--google-browser-login',action='store_true',help='Opt-in experimental Google browser sign-in')
     parser.add_argument('--download-runtime',action='store_true',help='Fetch pinned official Gadget asset, verify GitHub SHA-256, and cache it')
     parser.add_argument('--skip-build',action='store_true',help='Use compiled module only if source/checksums still match')
     parser.add_argument('--seconds',type=float,default=0,help='Stop probe desktop logging after this many seconds; 0 waits for Ctrl+C')
@@ -384,6 +388,7 @@ def main(argv=None):
     if args.quick_close: options['quick_close']=True
     elif args.quick_summary: options['quick_summary']=True
     if args.quick_ball: options['quick_ball']=True
+    if args.google_browser_login: options['google_browser_login']=True
     report,folder=package(source,panel_only=args.panel_only,download=args.download_runtime,preview=preview,probe_abi=abi,**options)
     cleanup_generated_builds()
     if args.probe: probe(report,folder,android,args.seconds)

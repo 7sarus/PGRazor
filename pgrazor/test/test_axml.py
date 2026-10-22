@@ -69,6 +69,22 @@ def fixture_with_log_activity(exported=False, intent_filter=False):
 
 
 class AxmlTests(unittest.TestCase):
+    def test_google_callback_opt_in_preserves_components(self):
+        original = axml.patch_manifest(fixture())
+        before = axml.inspect_manifest(original)
+        patched = axml.add_google_browser_callback(original)
+        after = axml.inspect_manifest(patched)
+        self.assertEqual(after['providers'], before['providers'])
+        self.assertEqual(after['activities'][:-1], before['activities'])
+        self.assertEqual(after['activities'][-1]['name'], axml.GOOGLE_AUTH_ACTIVITY)
+        self.assertTrue(after['activities'][-1]['exported'])
+        _, chunks, pool, _, _ = axml._parse(patched)
+        rows = list(axml._walk(chunks, pool))
+        self.assertTrue(any(tag == 'data' and attrs.get((axml.ANDROID_NS, 'scheme')) == axml.GOOGLE_AUTH_SCHEME
+                            for _, event, tag, attrs, _ in rows if event == 'start'))
+        with self.assertRaisesRegex(ValueError, 'already exists'):
+            axml.add_google_browser_callback(patched)
+
     def test_version_and_min_sdk_inspection(self):
         data=fixture()
         self.assertIsNone(axml.inspect_manifest(data)['versionCode'])

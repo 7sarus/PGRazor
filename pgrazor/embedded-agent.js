@@ -11,6 +11,55 @@ let quickSummaryNativeReady=false, quickBallNativeReady=false;
 let quickBallTimer = null, quickBall = null, quickBallFailed = false, quickBallStop = null;
 const ballLifecycleHooks = [];
 const hooks = [];
+let googleSignInPending = null, googleSignInTimer = null;
+function finishGoogleSignIn(status, email, token) {
+    const pending = googleSignInPending;
+    if (!pending) return;
+    googleSignInPending = null;
+    if (googleSignInTimer !== null) { clearInterval(googleSignInTimer); googleSignInTimer = null; }
+    Java.scheduleOnMainThread(() => {
+        try {
+            const Response = Java.use('com.nianticlabs.platform.authgooglesignin.SignInResponse');
+            pending.consumer.invoke(Response.$new(status, email || null, token || null));
+            control.event('google-browser', 'Completed: ' + status);
+        } catch (_) { control.event('google-browser', 'Game sign-in callback failed'); }
+        finally { pending.consumer.$dispose(); }
+    });
+}
+function installGoogleBrowserLogin() {
+    if (bootParameters.googleBrowserLogin !== true) return;
+    const Browser = Java.use('dev.pgrazor.GoogleBrowserAuth');
+    const Manager = Java.use('com.nianticlabs.platform.authgooglesignin.SignInManager$Companion');
+    const signIn = Manager.signIn.overload('android.app.Activity', 'com.google.android.gms.auth.api.signin.GoogleSignInClient', 'kotlin.jvm.functions.Function1');
+    signIn.implementation = function (activity, client, consumer) {
+        if (googleSignInPending) {
+            Browser.cancel(googleSignInPending.id);
+            finishGoogleSignIn('Cancelled', null, null);
+        }
+        const held = Java.retain(consumer);
+        try {
+            const id = String(Browser.begin(activity));
+            googleSignInPending = {id, consumer: held};
+            // Browser authentication deliberately survives the game's background pause.
+            googleSignInTimer = setInterval(() => Java.performNow(() => {
+                const pending = googleSignInPending;
+                if (!pending) return;
+                try {
+                    const raw = Browser.takeResult(pending.id);
+                    if (raw === null) return;
+                    const result = JSON.parse(String(raw));
+                    const status = ['Success', 'Cancelled', 'Fail'].includes(result.status) ? result.status : 'Fail';
+                    finishGoogleSignIn(status, result.email, result.idToken);
+                } catch (_) { Browser.cancel(pending.id); finishGoogleSignIn('Fail', null, null); }
+            }), 250);
+        } catch (_) {
+            googleSignInPending = {id: '', consumer: held};
+            finishGoogleSignIn('Fail', null, null);
+        }
+    };
+    hooks.push(signIn);
+    control.event('google-browser', 'Browser sign-in hook ready');
+}
 function bootLog(text) {
     const line = new Date().toISOString() + ' ' + text;
     console.log(line);
@@ -465,6 +514,7 @@ function start() {
             if (disposed) return;
             try {
                 control = Java.use('dev.pgrazor.Control');
+                try { installGoogleBrowserLogin(); } catch (_) { control.event('google-browser', 'Browser sign-in unavailable'); }
                 const Location = Java.use('android.location.Location');
                 for (const [name, getter] of [['getLatitude','latitude'],['getLongitude','longitude'],['getSpeed','speed'],['getBearing','bearing']]) {
                     const method = Location[name].overload();
@@ -497,6 +547,11 @@ rpc.exports = {
     init(stage, parameters) { bootParameters = parameters || {}; setImmediate(start); },
     dispose() {
         disposed = true;
+        if (googleSignInTimer !== null) { clearInterval(googleSignInTimer); googleSignInTimer = null; }
+        if (googleSignInPending && typeof Java !== 'undefined') Java.performNow(() => {
+            try { Java.use('dev.pgrazor.GoogleBrowserAuth').cancel(googleSignInPending.id); }
+            finally { finishGoogleSignIn('Cancelled', null, null); }
+        });
         if (diagnosticTimer !== null) clearTimeout(diagnosticTimer);
         const diagnosticStopped = diagnostic !== null ? diagnostic.stop() : undefined;
         const interactionStopped=stopInteraction();

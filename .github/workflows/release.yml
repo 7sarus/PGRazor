@@ -7,7 +7,7 @@ on:
         required: true
         type: string
       publish:
-        description: Publish a GitHub prerelease
+        description: Publish a full GitHub release
         type: boolean
         default: false
 permissions:
@@ -60,7 +60,7 @@ jobs:
       - name: Build playable package
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python -B pgrazor/nonroot.py --apk pgrazor/input/game.apkm --download-runtime --camera-steering --interaction-probe --quick-ball --quick-close
+        run: python -B pgrazor/nonroot.py --apk pgrazor/input/game.apkm --download-runtime --camera-steering --interaction-probe --quick-ball --quick-close --google-browser-login
       - name: Produce single installable APK
         shell: pwsh
         run: |
@@ -97,13 +97,13 @@ jobs:
         with:
           name: PGRazor-apk
           path: release
-      - name: Publish prerelease
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ inputs.tag }}
           RELEASE_COMMIT: ${{ github.sha }}
-        run: gh release create "$RELEASE_TAG" release/PGRazor.apk release/SHA256SUMS.txt release/build-info.json --target "$RELEASE_COMMIT" --title "PGRazor $RELEASE_TAG" --prerelease --notes-file "docs/releases/$RELEASE_TAG.md"
+        run: gh release create "$RELEASE_TAG" release/PGRazor.apk release/SHA256SUMS.txt release/build-info.json --target "$RELEASE_COMMIT" --title "PGRazor $RELEASE_TAG" --latest --notes-file "docs/releases/$RELEASE_TAG.md"
   discord:
     needs: release
     uses: ./.github/workflows/discord-release.yml
