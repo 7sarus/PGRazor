@@ -60,6 +60,14 @@ After device testing, run with `publish` enabled to create a prerelease containi
 
 The published release contains the installable APK, checksum, build information, and the versioned changelog. The signing key remains an Actions secret; keep it unchanged across releases.
 
+## Discord release announcements
+
+Create an incoming webhook in Discord channel `1562582290536726598` under **Edit Channel → Integrations → Webhooks**. Save its URL as the repository Actions secret **DISCORD_RELEASE_WEBHOOK**. Do not commit the URL.
+
+The **Discord release announcement** workflow posts published releases (including labeled prereleases) with release notes, a GitHub link, and an APK link when present. It verifies the webhook's channel before sending and disables mentions. Drafts are not announced. The APK release workflow calls it directly because releases created with `GITHUB_TOKEN` do not trigger another release-event workflow.
+
+Without the secret, the announcement step logs a warning and sends nothing. To announce an existing release after setup, manually run **Discord release announcement** with its tag. Manual runs and reruns can post another announcement, so check the channel before retrying. This posts a channel message; it does not crosspost to channel followers.
+
 ## Installation and updates
 
 Install the single APK with Android's package installer, or use `adb install -r PGRazor.apk` from a computer. Never uninstall a working PGRazor build just to bypass a signing error; use a build signed with its existing key. An official-store game cannot be replaced in place by a differently signed build. Local application data may be lost if you choose to uninstall it.

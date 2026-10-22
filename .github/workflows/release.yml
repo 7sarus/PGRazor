@@ -104,3 +104,10 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           RELEASE_COMMIT: ${{ github.sha }}
         run: gh release create "$RELEASE_TAG" release/PGRazor.apk release/SHA256SUMS.txt release/build-info.json --target "$RELEASE_COMMIT" --title "PGRazor $RELEASE_TAG" --prerelease --notes-file "docs/releases/$RELEASE_TAG.md"
+  discord:
+    needs: release
+    uses: ./.github/workflows/discord-release.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets:
+      DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
