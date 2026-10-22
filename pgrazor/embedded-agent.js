@@ -551,11 +551,17 @@ function start() {
                 control = Java.use('dev.pgrazor.Control');
                 try { installGoogleBrowserLogin(); } catch (_) { control.event('google-browser', 'Browser sign-in unavailable'); }
                 const Location = Java.use('android.location.Location');
+                // Observe only the value already returned; never call another hooked getter.
                 for (const [name, getter] of [['getLatitude','latitude'],['getLongitude','longitude'],['getSpeed','speed'],['getBearing','bearing']]) {
                     const method = Location[name].overload();
                     method.implementation = function () {
                         if (control.active()) return control[getter]();
-                        return method.call(this);
+                        const value=method.call(this);
+                        try{if(!control.desiredEnabled()&&name==='getLatitude')
+                            control.observeRealCoordinate(true,value);
+                        else if(!control.desiredEnabled()&&name==='getLongitude')
+                            control.observeRealCoordinate(false,value);}catch(_){}
+                        return value;
                     };
                     hooks.push(method);
                 }

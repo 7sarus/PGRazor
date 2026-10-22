@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.1.1
+
+[Full release notes](docs/releases/v0.1.1.md)
+
+- Restore the saved Location spoofing toggle; disabling returns to device location and stops simulated movement.
 
 - Add separate saved IV/level display toggles for encounters and owned Pokémon details, included in settings export/import.
 

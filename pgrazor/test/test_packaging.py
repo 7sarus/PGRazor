@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import contextlib
 import io
@@ -397,6 +398,7 @@ class PackageTests(unittest.TestCase):
             scene=work/'diagnostics/scene-probe.js'; scene.write_bytes(b'// scene metadata fixture\n')
             interaction=work/'diagnostics/interaction-probe.js'; interaction.write_bytes(b'// interaction metadata fixture\n')
             summary=work/'diagnostics/quick-summary.js'; summary.write_bytes(b'// summary feature fixture\n')
+            presentation=work/'diagnostics/catch-presentation-bridge.js'; presentation.write_bytes(b'// presentation bridge fixture\n')
             close=work/'diagnostics/quick-close.js'; close.write_bytes(b'// summary close fixture\n')
             ball=work/'diagnostics/quick-ball.js'; ball.write_bytes(b'// ball feature fixture\n')
             agent=work/'embedded-agent.js'; agent.write_bytes(b'// embedded fixture\n')
@@ -447,7 +449,7 @@ class PackageTests(unittest.TestCase):
                         self.assertEqual('assets/pgrazor/camera-probe.js' in archive.namelist(),camera_enabled)
                         self.assertEqual('assets/pgrazor/scene-probe.js' in archive.namelist(),scene_enabled)
                         self.assertEqual('assets/pgrazor/interaction-probe.js' in archive.namelist(),options.get('interaction_probe',False))
-                        self.assertEqual('assets/pgrazor/quick-summary.js' in archive.namelist(),options.get('quick_summary',False))
+                        self.assertEqual('assets/pgrazor/quick-summary.js' in archive.namelist(),bool(options.get('quick_summary') or options.get('quick_close')))
                         self.assertEqual('assets/pgrazor/quick-close.js' in archive.namelist(),options.get('quick_close',False))
                         self.assertEqual('assets/pgrazor/quick-ball.js' in archive.namelist(),options.get('quick_ball',False))
                         self.assertEqual(archive.read('classes.dex'),b'original-game-dex')
@@ -473,9 +475,12 @@ class PackageTests(unittest.TestCase):
                                 if key in ('quick_summary','quick_ball'):
                                     self.assertEqual(diagnostic['startup_mode'],'metadata-validation')
                                     self.assertIs(diagnostic['acceleration_default'],False)
-                                self.assertEqual(diagnostic['sha256'],runtime_assets.sha256(expected))
+                                expected_bytes=expected.read_bytes()
+                                if key=='quick_summary' and options.get('quick_close'):
+                                    expected_bytes=presentation.read_bytes()+b'\n;\n'+expected_bytes
+                                self.assertEqual(diagnostic['sha256'],hashlib.sha256(expected_bytes).hexdigest())
                                 self.assertEqual(diagnostic['source'],str(expected))
-                                self.assertEqual(archive.read(diagnostic['asset']),expected.read_bytes())
+                                self.assertEqual(archive.read(diagnostic['asset']),expected_bytes)
                         else:
                             self.assertNotIn('diagnostics',report)
             self.assertEqual(runtime_assets.sha256(source),original_hash)

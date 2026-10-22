@@ -1,0 +1,17 @@
+﻿const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('pgrazor/embedded-agent.js','utf8');
+const body=source.slice(source.indexOf('                // Observe only the value'),source.indexOf('                control.connect();'));
+let enabled=false,ready=true;const fixes=[],methods={},hooks=[];
+let current=null;
+for(const key of ['getLatitude','getLongitude','getSpeed','getBearing'])methods[key]={call:o=>{assert.equal(current,key,'must not call a different hooked getter');return o[key]}};
+const Location=Object.fromEntries(Object.entries(methods).map(([k,m])=>[k,{overload:()=>m}]));
+const control={desiredEnabled:()=>enabled,active:()=>enabled&&ready,observeRealCoordinate:(...p)=>fixes.push(p),latitude:()=>1,longitude:()=>2,speed:()=>3,bearing:()=>4};
+vm.runInNewContext(body,{Location,control,hooks});
+for(const [key,m]of Object.entries(methods)){const hook=m.implementation;m.implementation=function(){const prev=current;current=key;try{return hook.call(this)}finally{current=prev}};}
+const device={getLatitude:45.1,getLongitude:-73.2,getSpeed:7,getBearing:8};
+for(const [key,m]of Object.entries(methods))assert.equal(m.implementation.call(device),device[key]);
+assert.deepEqual(fixes,[[true,45.1],[false,-73.2]]);
+enabled=true;assert.equal(methods.getLatitude.implementation.call(device),1);assert.equal(methods.getLongitude.implementation.call(device),2);
+ready=false;assert.equal(methods.getLatitude.implementation.call(device),45.1);
+enabled=false;control.observeRealCoordinate=()=>{throw Error('observation failed')};assert.equal(methods.getLatitude.implementation.call(device),45.1);
+console.log('PASS: OFF uses original location, ON requires readiness, coordinates observed without cross-hook recursion, observation failures preserve native result');

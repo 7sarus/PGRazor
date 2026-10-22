@@ -39,7 +39,9 @@ public final class Control {
     private static volatile boolean instrumented;
     private static volatile boolean leaseExpired;
     private static volatile boolean preview = true, backendReady;
-    private static final boolean desiredEnabled = true;
+    private static volatile boolean desiredEnabled = true;
+    private static volatile double[] realLocation;
+    private static double realLatitude=Double.NaN,realLongitude=Double.NaN;
     private static volatile boolean foreground;
     private static volatile boolean cameraDiagnosticsConfigured;
     private static volatile boolean cameraDiagnosticRunning;
@@ -173,7 +175,7 @@ public final class Control {
     public static float vgpTargetY(){return vgpTargetY;}
     public static boolean vgpTargetSpin(){return vgpTargetSpin;}
 
-    public static boolean vgpAllowed(){guardVgpCooldown();long age=SystemClock.elapsedRealtime()-buddyMapSample;return vgpEnabled&&vgpReady&&itemAccessAllowed()&&buddyMapSample>0&&age>=0&&age<1500;}
+    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();long age=SystemClock.elapsedRealtime()-buddyMapSample;return vgpEnabled&&vgpReady&&itemAccessAllowed()&&buddyMapSample>0&&age>=0&&age<1500;}
     public static void vgpResult(String action,boolean success){
         if(success&&action.equals("spin"))cooldownAction("Pokestop spin");
         Application app=vgpApplication;if(!vgpEnabled||(vgpOptions&4)==0||app==null)return;
@@ -411,7 +413,7 @@ public final class Control {
     public static int mapTapMode() { return mapTapMode; }
     public static int mapTapEpoch() { return mapTapEpoch; }
     public static void setMapTapMode(int mode) { mapTapEpoch++; mapTapMode=mode>=0 && mode<=2 ? mode : 0; saveSettings(); event("map-tap-mode",""+mapTapMode); }
-    public static boolean mapTapAllowed() { return mapTapMode!=0 && mapTapReady() && foreground && backendReady && connected(); }
+    public static boolean mapTapAllowed() { return desiredEnabled && mapTapMode!=0 && mapTapReady() && foreground && backendReady && connected(); }
     public static void applyMapTap(double latitude,double longitude,int mode,int epoch,double sampledAt) {
         double age=SystemClock.elapsedRealtime()-sampledAt;
         if(!Double.isFinite(age)||age<0||age>750)return;
@@ -515,6 +517,21 @@ public final class Control {
     public static void requestInteractionStop() { interactionTraceRequest.set(false); interactionStopRequest.set(true); }
     public static boolean takeInteractionStopRequest() { return interactionStopRequest.getAndSet(false) || (interactionDiagnosticRunning && !interactionDiagnosticsReady()); }
     public static boolean desiredEnabled() { return desiredEnabled; }
+    public static synchronized void setLocationSpoofing(boolean enabled) {
+        desiredEnabled=enabled; if(!enabled){realLocation=null;realLatitude=Double.NaN;realLongitude=Double.NaN;} mapTapEpoch++; autoWalkPlanning=false;
+        engine.pause(); invalidateCameraHeading("Location mode changed");
+        restoreRuntime("location-setting"); saveSettings(); saveState();
+        event("location-spoofing",enabled?"ON":"OFF; using device location");
+    }
+    public static synchronized void observeRealCoordinate(boolean latitude,double value) {
+        if(desiredEnabled||!Double.isFinite(value)||Math.abs(value)>(latitude?90:180))return;
+        if(latitude)realLatitude=value;else realLongitude=value;
+        if(Double.isFinite(realLatitude)&&Double.isFinite(realLongitude))
+            realLocation=new double[]{realLatitude,realLongitude};
+    }
+    public static boolean locationKnown(){return desiredEnabled||realLocation!=null;}
+    public static double currentLatitude(){double[] fix=realLocation;return desiredEnabled?engine.latitude:fix==null?Double.NaN:fix[0];}
+    public static double currentLongitude(){double[] fix=realLocation;return desiredEnabled?engine.longitude:fix==null?Double.NaN:fix[1];}
     public static void configureCameraSteering(boolean configured) {
         synchronized (cameraHeading) {
             cameraSteeringConfigured=configured;
@@ -610,7 +627,7 @@ public final class Control {
         if (text == null || text.length() == 0) text = "Camera diagnostic ready";
         cameraDiagnosticStatus = text.length() > 320 ? text.substring(0, 320) : text;
     }
-    public static boolean canEnable() { return connected() && (preview || backendReady); }
+    public static boolean canEnable() { return desiredEnabled && connected() && (preview || backendReady); }
     public static void connect() {
         engine.pause();
         invalidateCameraHeading("Adapter reconnecting");
@@ -772,7 +789,7 @@ public final class Control {
             } catch (IOException | RuntimeException error) {
                 event("state-load-error", "Using defaults: " + error);
             } finally { StrictMode.setThreadPolicy(policy); }
-            // Location override is always requested; old paused snapshots cannot disable it.
+            // The spoofing preference is loaded from settings; coordinates restore stationary.
             state.restoreStationary(engine, false, false);
             event("state-restored", String.format(Locale.US,"source=%s lat=%.7f lon=%.7f speedKmh=%.2f bearing=%.2f desiredEnabled=%s; awaiting ready foreground; movement stopped",source,state.latitude,state.longitude,state.speedKmh,state.bearing,desiredEnabled));
         }
@@ -789,6 +806,7 @@ public final class Control {
             StrictMode.ThreadPolicy policy=StrictMode.allowThreadDiskReads();
             try(FileInputStream in=settingsFile.openRead()) {
                 Properties p=new Properties(); p.load(in);
+                desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
                 darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
                 cooldownOverlay=Boolean.parseBoolean(p.getProperty("cooldownOverlay","false"));
@@ -853,7 +871,7 @@ public final class Control {
             try{out=settingsFile.startWrite();merged.store(out,"PGRazor settings");settingsFile.finishWrite(out);out=null;}
             finally{if(out!=null)settingsFile.failWrite(out);}
             loadSettings(app); // Restores preferences and explicitly leaves VGP off.
-            engine.stop();engine.speed(speed);saveState(); // Keep current coordinates; never resume a route.
+            engine.stop();engine.speed(speed);mapTapEpoch++;restoreRuntime("settings-import");saveState(); // Keep current coordinates; never resume a route.
         }
     }
     private static void saveSettings() {
@@ -862,6 +880,7 @@ public final class Control {
             StrictMode.ThreadPolicy policy=StrictMode.allowThreadDiskWrites(); FileOutputStream out=null;
             try {
                 Properties p=new Properties();
+                p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
                 p.setProperty("darkTheme",String.valueOf(darkTheme));
                 p.setProperty("joystickVisible",String.valueOf(joystickVisible));
                 p.setProperty("spawnBooster",String.valueOf(spawnBooster));
@@ -916,9 +935,9 @@ public final class Control {
         }catch(IOException|RuntimeException error){event("log-recovery-error",error.toString());}
     }
     public static File currentLog() { return logFile; }
-    public static boolean active() { return foreground && backendReady && connected() && engine.enabled; }
-    public static double latitude() { latitudeReads++; return engine.latitude; }
-    public static double longitude() { longitudeReads++; return engine.longitude; }
+    public static boolean active() { return desiredEnabled && foreground && backendReady && connected() && engine.enabled; }
+    public static double latitude() { latitudeReads++; return currentLatitude(); }
+    public static double longitude() { longitudeReads++; return currentLongitude(); }
     public static float speed() { return (float)engine.metersPerSecond(); }
     public static float bearing() { return (float)engine.bearing; }
 }

@@ -34,7 +34,7 @@ public final class Pad {
     private Button mapTap, throwGrade, itemSettings, cameraSample, interactionCapture;
     private QuickMenu quickMenu;
     // Boolean settings use proper switches.
-    private Switch vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
+    private Switch locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
         quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, arSwitch, ivCatchSwitch, ivOwnedSwitch;
     private TextView quickSummaryLabel, vgpStatus;
     private final CheckBox[] vgpChoices=new CheckBox[3];
@@ -230,6 +230,8 @@ public final class Pad {
         coords = text("", 16, ink()); coords.setPadding(dp(4), dp(6), dp(4), dp(10)); body.addView(coords);
         // ----- Location & overlays -----
         LinearLayout loc = section(body, "Location & overlays", true);
+        locationSwitch=switchRow(loc,"Location spoofing");locationSwitch.setChecked(Control.desiredEnabled());
+        locationSwitch.setOnCheckedChangeListener((v,checked)->{if(checked==Control.desiredEnabled())return;stick.release(true);Control.setLocationSpoofing(checked);refresh();});
         steeringStatus = caption(loc, "Joystick follows the camera");
         Button position = button("Coordinates & speed"); loc.addView(position); position.setOnClickListener(v -> edit());
         Button map = button("World map"); loc.addView(map);
@@ -451,11 +453,12 @@ public final class Pad {
 
         if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);cooldownTimer.setText("☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}
         if (lastEnabled != Control.engine.enabled) { lastEnabled = Control.engine.enabled; stick.invalidate(); }
-        coords.setText(String.format(Locale.US, "%.6f, %.6f\n%.1f km/h", Control.engine.latitude, Control.engine.longitude, Control.engine.speedKmh));
+        coords.setText((Control.desiredEnabled()?"":"Saved spoof location\n")+String.format(Locale.US, "%.6f, %.6f\n%.1f km/h", Control.engine.latitude, Control.engine.longitude, Control.engine.speedKmh));
         if(encounterBerry!=null){boolean visible=Control.encounterBerryVisible();encounterBerry.setVisibility(visible?View.VISIBLE:View.GONE);int sel=Control.autoBerrySelected();int choice=0;for(int i=0;i<BERRY_IDS.length;i++)if(BERRY_IDS[i]==sel)choice=i;int count=Control.berryCount(sel);encounterBerry.setText(Control.encounterBerryBusy()?"Applying berry…":BERRY_NAMES[choice]+(choice==0?"\nTap to choose":" ("+count+")\nOn hit"));encounterBerry.setEnabled(!Control.encounterBerryBusy());}
         boolean preview = Control.preview();
         MotionEngine.RouteProgress route=Control.engine.routeProgress();
-        String movement=Control.engine.enabled ? (Control.engine.walking ? "WALKING" : "ON") : "WAITING FOR ADAPTER";
+        locationSwitch.setChecked(Control.desiredEnabled());
+        String movement=!Control.desiredEnabled()?"DEVICE LOCATION":Control.engine.enabled ? (Control.engine.walking ? "WALKING" : "ON") : "WAITING FOR ADAPTER";
         if (route.total>1 && route.active) movement=String.format(Locale.US,"ROUTE %d/%d  ·  %.0f m left",route.visited+1,route.total,route.remainingMeters);
         else if (route.total>1 && route.visited==route.total) movement="ON  ·  route complete";
         state.setText(Control.connection + "\n" + movement + "  ·  coordinate reads " + Control.latitudeReads + "/" + Control.longitudeReads);

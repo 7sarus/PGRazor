@@ -256,7 +256,7 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
             'acceleration_default':False,
             'source':str(ROOT/'diagnostics'/summary_script),
             'asset':'assets/pgrazor/'+summary_script,
-            'sha256':runtime_assets.sha256(ROOT/'diagnostics'/summary_script)}
+            'sha256':hashlib.sha256(assets['assets/pgrazor/'+summary_script]).hexdigest() if quick_close else runtime_assets.sha256(ROOT/'diagnostics'/summary_script)}
         if quick_close: report['diagnostics']['quick_summary']['behavior']='normal-summary-and-details-dismiss'
     if quick_ball:
         report.setdefault('diagnostics',{})['quick_ball']={
