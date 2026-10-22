@@ -26,7 +26,10 @@ def request(url, *, token=None, payload=None):
         return json.load(response)
 
 
-def message(release):
+def message(release, role_id=''):
+    role_id = role_id.strip()
+    if role_id and not re.fullmatch(r'[0-9]{17,20}', role_id):
+        raise ValueError('DISCORD_RELEASE_ROLE_ID must be a numeric Discord role ID')
     kind = 'Prerelease' if release.get('prerelease') else 'Release'
     notes = (release.get('body') or 'See GitHub for release details.').strip()
     if len(notes) > 3000:
@@ -34,11 +37,15 @@ def message(release):
     assets = release.get('assets', [])
     apk = next((a['browser_download_url'] for a in assets if a.get('name') == 'PGRazor.apk'), None)
     fields = [{'name': 'Download', 'value': '[Install PGRazor.apk](' + apk + ')'}] if apk else []
-    return {'username': 'PGRazor Releases', 'allowed_mentions': {'parse': []},
+    payload = {'username': 'PGRazor Releases', 'allowed_mentions': {'parse': []},
             'embeds': [{'title': (release.get('name') or release['tag_name'])[:256],
                         'url': release['html_url'], 'description': notes,
                         'color': 0x35DAB4, 'fields': fields,
                         'footer': {'text': 'PGRazor | ' + kind}}]}
+    if role_id:
+        payload['content'] = '<@&' + role_id + '> A new PGRazor release is available!'
+        payload['allowed_mentions']['roles'] = [role_id]
+    return payload
 
 
 def main():
@@ -54,11 +61,12 @@ def main():
                       token=os.environ['GITHUB_TOKEN'])
     if release.get('draft') or not release.get('published_at'):
         raise ValueError('Only published releases can be announced')
+    payload = message(release, os.environ.get('DISCORD_RELEASE_ROLE_ID', ''))
     hook = request(webhook)
     if str(hook.get('channel_id')) != os.environ['DISCORD_CHANNEL_ID']:
         raise ValueError('Webhook belongs to a different channel; nothing sent')
     # No automatic POST retry: a lost response must not blindly duplicate announcements.
-    result = request(webhook + '?wait=true', payload=message(release))
+    result = request(webhook + '?wait=true', payload=payload)
     if not result.get('id'):
         raise ValueError('Discord did not confirm the announcement')
     print('Release announcement sent.')

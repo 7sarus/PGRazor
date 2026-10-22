@@ -64,7 +64,9 @@ The published release contains the installable APK, checksum, build information,
 
 Create an incoming webhook in Discord channel `1562582290536726598` under **Edit Channel → Integrations → Webhooks**. Save its URL as the repository Actions secret **DISCORD_RELEASE_WEBHOOK**. Do not commit the URL.
 
-The **Discord release announcement** workflow posts published releases (including labeled prereleases) with release notes, a GitHub link, and an APK link when present. It verifies the webhook's channel before sending and disables mentions. Drafts are not announced. The APK release workflow calls it directly because releases created with `GITHUB_TOKEN` do not trigger another release-event workflow.
+The **Discord release announcement** workflow posts published releases (including labeled prereleases) with release notes, a GitHub link, and an APK link when present. It verifies the webhook's channel before sending. Drafts are not announced. The APK release workflow calls it directly because releases created with `GITHUB_TOKEN` do not trigger another release-event workflow.
+
+To ping a release subscriber role, set the repository Actions **variable** `DISCORD_RELEASE_ROLE_ID` to its numeric role ID (Discord Developer Mode → right-click the role → Copy Role ID). Ensure Discord allows the webhook to mention that role. Only this role is allowed to ping; other roles, users, and everyone mentions remain disabled. Leave the variable unset to send without a ping. This also applies to prereleases and manual announcements.
 
 Without the secret, the announcement step logs a warning and sends nothing. To announce an existing release after setup, manually run **Discord release announcement** with its tag. Manual runs and reruns can post another announcement, so check the channel before retrying. This posts a channel message; it does not crosspost to channel followers.
 
