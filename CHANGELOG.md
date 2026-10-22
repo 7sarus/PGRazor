@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Pause automated gym, raid, and Dynamax attacks and dodges while the Pokémon switch picker is open; resume after it closes.
+
 ## v0.1.0-alpha.4
 
 [Full release notes](docs/releases/v0.1.0-alpha.4.md)
