@@ -94,6 +94,10 @@ public final class BootstrapProvider extends ContentProvider {
                 File feature=copyAsset(context,"pgrazor/"+summaryScript,directory,summaryScript);
                 parameters.put("quickSummaryPath",feature.getAbsolutePath()).put("quickSummary",true);
                 parameters.put("quickClose",quickClose);
+                if(quickClose) {
+                    File waitFeature=copyAsset(context,"pgrazor/quick-summary.js",directory,"quick-summary.js");
+                    parameters.put("quickCatchWaitPath",waitFeature.getAbsolutePath());
+                }
                 Control.configureQuickSummaryAutoDismiss(quickClose);
                 Control.event("quick-summary-bundled",quickClose ? "Experimental summary and details auto-dismiss; defaults OFF; new-species screens remain" : "Experimental summary feature bundled; acceleration defaults off and requires UI enablement");
             }

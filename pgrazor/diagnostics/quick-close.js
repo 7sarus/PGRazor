@@ -12,9 +12,10 @@
 
 // touches the capture result, never sets currentState, never completes any
 
-// promise, and never calls btqz/btra/HandleDismiss/OnDismissed or any other
-
-// screen callbacks directly. Details use OnDismissOrContinueClicked after buji
+// promise, and never calls lifecycle cleanup handlers directly. A confirmed
+// manual catch can bypass details presentation and use the supplied dismissal
+// delegate after normal summary dismissal and the existing transfer checks.
+// The fallback details path uses OnDismissOrContinueClicked after buji
 
 // and Initialize return and opening completes. New-species/new-form cutscenes
 
@@ -251,7 +252,7 @@ function prepare(module,api,domain){
 
   if(total.compare(0)===0)return null;if(total.compare(LIMITS.assemblies)>0||list.isNull())throw Error('assembly-limit');
 
-  const required=[GUI,SGUI,SSTATE,RESP,OBJ,SYNC,BOOL],names=required.concat(Object.values(VGP),['System.Collections.IEnumerable','Niantic.Holoholo.Items.IncubatorService','Niantic.Holoholo.Items.IIncubatorService','Holoholo.Rpc.EggIncubatorProto','Niantic.Holoholo.Gym.MapGym','Holoholo.Rpc.RaidInfoProto','Holoholo.Rpc.GymDisplayProto','Holoholo.Rpc.PokemonProto','Holoholo.Rpc.CharacterSize','System.Collections.IEnumerator','System.IDisposable','Holoholo.Rpc.GiftBoxProto',GIFT_OPEN_SEQUENCE,'Holoholo.Rpc.OpenGiftOutProto','Holoholo.Rpc.SendGiftOutProto'],Object.values(BUDDY_TYPES),['Niantic.Holoholo.Buddy.IBuddyStatsService','Holoholo.Rpc.BuddyObservedData','Holoholo.Rpc.BuddyFeedingOutProto','Holoholo.Rpc.BuddyPokemonProto'],Object.values(GIFT_TYPES),['Niantic.Platform.Internal.Protos.FriendDetailsProto','Niantic.Platform.Internal.Protos.PlayerSummaryProto','Holoholo.Rpc.GiftBoxDetailsProto','Holoholo.Rpc.StickerProto'],['Niantic.Holoholo.Encounter.Pokeball','Niantic.Holoholo.Encounter.PokeballThrow',SPAWN,BERRY,BERRYGUI,FEEDGUI],Object.values(BATTLE_TYPES),['UnityEngine.Behaviour','UnityEngine.UI.Button',RMINI,RMINIBASE,'UnityEngine.Component','UnityEngine.Transform','UnityEngine.GameObject','UnityEngine.Vector3',RVUI,RVGEST,RVBASE,RVCHARGE,ROCKET,RUI,RDIR,RCHARGE,RSHIELD,'UnityEngine.UI.Selectable','Niantic.Holoholo.UI.Items.ItemInventoryGuiService','Niantic.Holoholo.UI.Items.IItemInventoryGuiService','Niantic.Holoholo.MapSceneContext','Zenject.SceneContext','Zenject.DiContainer','Niantic.Holoholo.UI.Items.IItemInventoryService',IBAG,ISERVICE,IRESPONSE,ITEM,APPROACH,RESOLVE,SPLINE,SPINSTATE,SPINGUI,GESTURE,SPINNER,SPINBASE,SPINRESULT,RELEASE,BAG,DISPLAY,DGUI,DATA,VIEW,PK,INT,DELEGATE,ACTION]),classes={};
+  const required=[GUI,SGUI,SSTATE,RESP,OBJ,SYNC,BOOL],names=required.concat(['Niantic.Holoholo.NUI.GuiLayerService','Niantic.Holoholo.UI.Pokemon.PokemonInfoGuiService','Niantic.Zeppelin.GameStates.GameState'],Object.values(VGP),['System.Collections.IEnumerable','Niantic.Holoholo.Items.IncubatorService','Niantic.Holoholo.Items.IIncubatorService','Holoholo.Rpc.EggIncubatorProto','Niantic.Holoholo.Gym.MapGym','Holoholo.Rpc.RaidInfoProto','Holoholo.Rpc.GymDisplayProto','Holoholo.Rpc.PokemonProto','Holoholo.Rpc.CharacterSize','System.Collections.IEnumerator','System.IDisposable','Holoholo.Rpc.GiftBoxProto',GIFT_OPEN_SEQUENCE,'Holoholo.Rpc.OpenGiftOutProto','Holoholo.Rpc.SendGiftOutProto'],Object.values(BUDDY_TYPES),['Niantic.Holoholo.Buddy.IBuddyStatsService','Holoholo.Rpc.BuddyObservedData','Holoholo.Rpc.BuddyFeedingOutProto','Holoholo.Rpc.BuddyPokemonProto'],Object.values(GIFT_TYPES),['Niantic.Platform.Internal.Protos.FriendDetailsProto','Niantic.Platform.Internal.Protos.PlayerSummaryProto','Holoholo.Rpc.GiftBoxDetailsProto','Holoholo.Rpc.StickerProto'],['Niantic.Holoholo.Encounter.Pokeball','Niantic.Holoholo.Encounter.PokeballThrow',SPAWN,BERRY,BERRYGUI,FEEDGUI],Object.values(BATTLE_TYPES),['UnityEngine.Behaviour','UnityEngine.UI.Button',RMINI,RMINIBASE,'UnityEngine.Component','UnityEngine.Transform','UnityEngine.GameObject','UnityEngine.Vector3',RVUI,RVGEST,RVBASE,RVCHARGE,ROCKET,RUI,RDIR,RCHARGE,RSHIELD,'UnityEngine.UI.Selectable','Niantic.Holoholo.UI.Items.ItemInventoryGuiService','Niantic.Holoholo.UI.Items.IItemInventoryGuiService','Niantic.Holoholo.MapSceneContext','Zenject.SceneContext','Zenject.DiContainer','Niantic.Holoholo.UI.Items.IItemInventoryService',IBAG,ISERVICE,IRESPONSE,ITEM,APPROACH,RESOLVE,SPLINE,SPINSTATE,SPINGUI,GESTURE,SPINNER,SPINBASE,SPINRESULT,RELEASE,BAG,DISPLAY,DGUI,DATA,VIEW,PK,INT,DELEGATE,ACTION]),classes={};
 
   const inputs=names.map(n=>{const i=n.lastIndexOf('.');return[n,Memory.allocUtf8String(n.slice(0,i)),Memory.allocUtf8String(n.slice(i+1))];});
 
@@ -345,6 +346,30 @@ function prepare(module,api,domain){
 
    execute:method(classes[SYNC],'ExecuteTasks','System.Void',[],true,null)};
 
+  // Fallback details ordering: ordinary Dismiss, then hide its canvas.
+  // Keep the original transition arrays, cleanup callbacks and native call policy.
+  let catchCanvas=null,catchCanvasError=null;
+  try{catchCanvas=method(classes[GUI],'set_CanvasGroupVisible','System.Void',[BOOL],false,
+   [0xa372cb8,'fe0f1cf8f85f01a9f65702a9f44f03a9d56a02d0f303012af40300aaa8ce5139']);}
+  catch(e){catchCanvasError=String(e);}
+
+  let catchDiscovery=null,catchDiscoveryError=null;
+  try{const klass=classes['Niantic.Holoholo.NUI.GuiLayerService'];if(!klass)throw Error('gui-layer-class');
+   catchDiscovery={klass,layer:refField(classes[GUI],'guiLayerService',0xa0),
+    top:method(klass,'TopGui','Niantic.Holoholo.NUI.IGuiController',[],false,
+     [0xa3797c0,'ff8302d1fd7b04a9fc6f05a9fa6706a9f85f07a9f65708a9f44f09a9936a02f0'])};
+  }catch(e){catchDiscoveryError=String(e);}
+
+  let catchScene=null,catchSceneError=null;
+  try{const iter=Memory.alloc(8);iter.writePointer(ptr(0));let find=null;
+   for(let i=0;i<256;i++){const q=api.class_get_methods(classes[OBJ],iter);if(q.isNull())break;
+    if(text(api.method_get_name(q))==='FindObjectsOfType'&&!api.method_is_generic(q)&&api.method_get_param_count(q)===1&&typeName(api,api.method_get_param(q,0))==='System.Type'&&typeName(api,api.method_get_return_type(q))==='UnityEngine.Object[]'){find=q;break;}}
+   if(!find)throw Error('catch-find-objects');
+   const typeAddress=module.findExportByName('il2cpp_type_get_object'),lengthAddress=module.findExportByName('il2cpp_array_length');
+   if(!typeAddress||!lengthAddress)throw Error('catch-scene-exports');
+   catchScene={find,typeObject:new NativeFunction(typeAddress,'pointer',['pointer'],{scheduling:'exclusive'}),length:new NativeFunction(lengthAddress,'size_t',['pointer'],{scheduling:'exclusive'})};
+  }catch(e){catchSceneError=String(e);}
+
   let details=null,detailsError=null;
 
   try{
@@ -380,6 +405,17 @@ function prepare(module,api,domain){
    details={fields:df,methods:dm,listClass};
 
   }catch(e){detailsError=String(e);}
+
+  let directPresentation=null,directPresentationError=null;
+  try{if(!details)throw Error('direct-details-unavailable');
+   const service='Niantic.Holoholo.UI.Pokemon.PokemonInfoGuiService';
+   const active=raw(classes['Niantic.Zeppelin.GameStates.GameState'],'<IsActiveState>k__BackingField',0x50);
+   if(typeName(api,api.field_get_type(active))!==BOOL)throw Error('direct-active-type');
+   directPresentation={active,service:classes[service],
+    show:method(classes[service],'ShowPokemonInfo','System.Void',[PK,BOOL,BOOL,'Niantic.Holoholo.UI.Pokemon.OpenHyperTrainingState',ACTION,ACTION,n=>n.startsWith('System.Action')&&n.includes('DismissParameters'),BOOL,BOOL,BOOL],false,
+     [0x9a7ba18,'ff8302d1fd7b04a9fc6f05a9fa6706a9f85f07a9f65708a9f44f09a973b202d0']),
+    callback:method(classes[ACTION],'Invoke','System.Void',[],false,null)};
+  }catch(e){directPresentation=null;directPresentationError=String(e);}
 
   let transfer=null,transferError=null;
 
@@ -927,7 +963,7 @@ function prepare(module,api,domain){
   if(vgp)try{vgp.marker={camera:method(classes[VGP.camera],'get_main',VGP.camera,[],true,null),transform:method(classes['UnityEngine.Component'],'get_transform','UnityEngine.Transform',[],false,null),position:method(classes['UnityEngine.Transform'],'get_position','UnityEngine.Vector3',[],false,null),project:method(classes[VGP.camera],'WorldToScreenPoint','UnityEngine.Vector3',['UnityEngine.Vector3'],false,null),width:method(classes[VGP.screen],'get_width',INT,[],true,null),height:method(classes[VGP.screen],'get_height',INT,[],true,null)};}catch(e){vgp.markerError=String(e);}
 
 
-  return{incubator,incubatorError,mapPoi,mapPoiError,vgp,vgpError,buddy,buddyError,gifts,giftsError,spawn,spawnError,module,api,classes,fields,fieldMeta,methods,success,caughtIdSize:caughtId.size,details,detailsError,transfer,transferError,spin,spinError,spinCamera,spinCameraError,items,itemsError,rocket,rocketError,battles,battlesError,berries,berriesError};
+  return{directPresentation,directPresentationError,catchScene,catchSceneError,catchDiscovery,catchDiscoveryError,catchCanvas,catchCanvasError,incubator,incubatorError,mapPoi,mapPoiError,vgp,vgpError,buddy,buddyError,gifts,giftsError,spawn,spawnError,module,api,classes,fields,fieldMeta,methods,success,caughtIdSize:caughtId.size,details,detailsError,transfer,transferError,spin,spinError,spinCamera,spinCameraError,items,itemsError,rocket,rocketError,battles,battlesError,berries,berriesError};
 
  }finally{if(owned&&!owned.isNull())api.thread_detach(owned);}
 
@@ -962,6 +998,17 @@ function transferDecision(v,protect=63){
 function install(s,p){
 
  const {api,classes,fields,methods}=p;
+ let presentationBridge=null;
+ if(p.directPresentation&&p.details&&globalThis.PGRazorCatchPresentationBridge)try{
+  const exp=n=>p.module.findExportByName('il2cpp_'+n);
+  presentationBridge=globalThis.PGRazorCatchPresentationBridge.create({
+   address:p.directPresentation.show.address,gchandle_new:exp('gchandle_new'),gchandle_free:exp('gchandle_free'),
+   get_target:exp('gchandle_get_target'),object_get_class:exp('object_get_class'),
+   gettid:Process.getModuleByName('libc.so').findExportByName('gettid'),view:classes[VIEW],action:classes[ACTION],pokemon:classes[PK]});
+  s.listeners.push({detach(){presentationBridge.dispose();}});
+  event(s,'direct-catch-bridge-ready',{});
+ }catch(e){event(s,'direct-catch-bridge-unavailable',{reason:String(e)});}
+
 
  function exact(o,k){return !o.isNull()&&api.object_get_class(o).equals(k);}
 
@@ -987,7 +1034,76 @@ function install(s,p){
 
  function unity(tid){return s.thread!==null&&s.matches>=3&&tid===s.thread&&!api.thread_current().isNull();}
 
- function releaseRecord(r){for(const k of['gui','state','response','proto','dismissed','data','pokemon','transferBag','transferPromise','vgpBag','vgpGm']){if(r[k]){try{freeHandle(r[k]);}catch(e){fault(s,e);}r[k]=null;}}}
+ function releaseRecord(r){restoreCatchCanvas(r);for(const k of['gui','state','response','proto','dismissed','data','pokemon','service','transferBag','transferPromise','vgpBag','vgpGm']){if(r[k]){try{freeHandle(r[k]);}catch(e){fault(s,e);}r[k]=null;}}}
+
+ // A confirmed post-catch details panel may stay invisible while normal opening,
+ // transfer and dismissal run. Only the canvas changes; transitions/state stay native.
+ function catchCanvasAllowed(r){return !!p.catchCanvas&&s.dismissEnabled&&!s.stopping&&r.epoch===s.epoch&&!r.cancelled&&!r.invoked&&s.allowedUntil!==0&&s.now()<s.allowedUntil;}
+ function setCatchCanvas(gui,visible){const value=Memory.alloc(1),args=Memory.alloc(8);value.writeU8(visible?1:0);args.writePointer(value);invoke(p.catchCanvas.method,gui,args);}
+ function restoreCatchCanvas(r){if(!r.canvasHidden)return;r.canvasHidden=false;
+  try{const gui=target(r.gui);if(alive(gui)&&readS32(gui,fields.currentState)===STATE_OPEN)setCatchCanvas(gui,true);}
+  catch(e){event(s,'catch-canvas-restore-error',{reason:String(e)});}
+ }
+ function directCatchValid(r){try{const d=p.directPresentation,f=p.details.fields;
+  if(!d||!r.direct||!r.state||!r.response||!r.pokemon||!r.dismissed)return false;
+  const st=target(r.state),response=target(r.response),pk=target(r.pokemon),callback=target(r.dismissed);
+  if(!exact(st,classes[VIEW])||!exact(response,classes[RESP])||!exact(pk,classes[PK])||!exact(callback,classes[ACTION]))return false;
+  const active=Memory.alloc(1);api.field_get_value(st,d.active,active);
+  return active.readU8()===1&&readPtr(callback,f.delegateTarget).equals(st)&&readPtr(st,f.viewResponse).equals(response)&&readS32(response,fields.status)===p.success&&capturedKey(response)===r.capturedKey&&capturedKey(pk,f.id)===r.capturedKey;
+ }catch(_){return false;}}
+ function replayDirectPresentation(r,flags){const t=p.directPresentation,args=Memory.alloc(10*8);
+  const values=[target(r.pokemon),flags[0],flags[1],flags[2],target(r.dismissed),ptr(0),ptr(0),flags[3],flags[4],flags[5]];
+  // Ten declared parameters; reference args contain the object pointer itself.
+  for(let i=0;i<values.length;i++){if([0,4,5,6].includes(i))args.add(i*8).writePointer(values[i]);else{const v=Memory.alloc(4);v.writeS32(values[i]);args.add(i*8).writePointer(v);}}
+  invoke(t.show.method,target(r.service),args);
+  event(s,'direct-catch-fallback',{});
+ }
+ function completeDirectPresentation(capture,normalDismissed){if(!capture)return false;
+  let r=null,completed=false;
+  try{const [service,pokemon,dismissed]=capture.handles;for(const h of capture.handles)s.ownedHandles.add(h);
+   r={direct:true,kind:'direct',epoch:s.epoch,service,pokemon,dismissed};
+   const pending=s.pendingDetails;if(!pending){replayDirectPresentation(r,capture.flags);return false;}
+   const state=readPtr(target(dismissed),p.details.fields.delegateTarget);
+   r.state=hold(state);r.response=hold(target(pending.response));r.capturedKey=pending.capturedKey;
+   if(!normalDismissed||!s.dismissEnabled||s.stopping||s.allowedUntil===0||s.now()>=s.allowedUntil||!directCatchValid(r)){
+    replayDirectPresentation(r,capture.flags);return false;
+   }
+   // Same inventory identity checks, IV/rarity protections, RPC and confirmation
+   // tracking as normal details. VGP does not enter this bridge or branch.
+   transferCatch(r,s.thread);
+   if(!directCatchValid(r))throw Error('direct-state-changed');
+   invoke(p.directPresentation.callback.method,target(r.dismissed));
+   completed=true;releasePendingDetails();event(s,'direct-catch-returned',{});return true;
+  }catch(e){event(s,'direct-catch-error',{reason:String(e)});
+   // A partially completed callback must never be invoked twice. Replay the
+   // ordinary screen only when the same confirmed view state is still active.
+   if(r&&directCatchValid(r))try{replayDirectPresentation(r,capture.flags);}catch(f){event(s,'direct-catch-fallback-error',{reason:String(f)});}
+   return completed;
+  }finally{if(r)releaseRecord(r);else for(const h of capture.handles)freeHandle(h);}
+ }
+
+ function hideOpeningDetails(r){if(!catchCanvasAllowed(r)||r.kind!=='details'||!r.initDone||!detailsValid(r))return;
+  try{const gui=target(r.gui);if(!alive(gui))return;r.canvasHidden=true;setCatchCanvas(gui,false);}
+  catch(e){restoreCatchCanvas(r);event(s,'catch-canvas-hide-error',{reason:String(e)});}
+ }
+ if(p.catchCanvas)s.listeners.push(Interceptor.attach(p.catchCanvas.address,{onEnter(args){
+  try{if(!unity(this.threadId)||s.stopping||!s.dismissEnabled)return;
+   // Ownership/identity was established outside this hook. Do not invoke any
+   // managed recovery or list methods from the visibility callback.
+   const r=findByGui(args[0]);
+   if(!r||!r.canvasHidden||!catchCanvasAllowed(r)||r.kind!=='details'||!r.initDone)return;
+   args[1]=ptr(0);
+  }catch(e){event(s,'catch-canvas-hook-error',{reason:String(e)});}
+ }}));
+
+ // Only hide after normal dismissal has demonstrably advanced the GUI. A
+ // rejected/failed dismissal stays visible, and no native callback is invoked twice.
+ function hideDismissedCatch(gui,r,after,gone,error){
+  if(!p.catchCanvas||!s.dismissEnabled||s.stopping||r.epoch!==s.epoch||s.allowedUntil===0||s.now()>=s.allowedUntil||error||gone||after===null||after===STATE_OPEN)return;
+  try{if(!alive(gui))return;const value=Memory.alloc(1),args=Memory.alloc(8);value.writeU8(0);args.writePointer(value);
+   invoke(p.catchCanvas.method,gui,args);event(s,'catch-dismissed-hidden',{screen:r.kind==='details'?'details':'summary'});
+  }catch(e){event(s,'catch-dismissed-hide-error',{reason:String(e)});}
+ }
 
  function findByGui(o){for(const r of s.records){if(!r.gui)continue;try{if(target(r.gui).equals(o))return r;}catch(_){}}return null;}
 
@@ -1001,7 +1117,7 @@ function install(s,p){
 
  function cancel(r,reason){if(r.cancelled)return;r.cancelled=reason;event(s,'candidate-cancelled',{reason,tid:s.thread});}
 
- function releasePendingDetails(){if(s.pendingDetails){freeHandle(s.pendingDetails.response);s.pendingDetails=null;}}
+ function releasePendingDetails(){if(s.pendingDetails){freeHandle(s.pendingDetails.layer);freeHandle(s.pendingDetails.response);s.pendingDetails=null;}}
 
  function prune(now){if(s.pendingDetails&&(s.stopping||s.pendingDetails.epoch!==s.epoch||s.allowedUntil===0||now>=s.allowedUntil||now>=s.pendingDetails.deadline))releasePendingDetails();for(let i=0;i<s.records.length;){const r=s.records[i];let drop=r.cancelled||r.invoked;let reason=r.cancelled;
 
@@ -1038,7 +1154,9 @@ function install(s,p){
 
    pruneSpinCameras(now);
 
+   for(const r of s.records)if(r.canvasHidden&&!catchCanvasAllowed(r))restoreCatchCanvas(r);
    prune(now);
+   discoverCatchDetails();
 
    if(s.stopping&&s.openerDepth===0){for(const h of s.ownedHandles){try{freeHandle(h);}catch(e){fault(s,e);}}}
 
@@ -1082,11 +1200,17 @@ function install(s,p){
 
    // r.invoked is set first so a suppressed/throwing invoke can never run twice.
 
-   if(p.details){releasePendingDetails();s.pendingDetails={response:hold(target(r.proto)),capturedKey:r.capturedKey,epoch:s.epoch,deadline:s.now()+LIMITS.timeoutMs,returned:false};}
+   if(p.details){releasePendingDetails();s.pendingDetails={response:hold(target(r.proto)),capturedKey:r.capturedKey,epoch:s.epoch,deadline:s.now()+LIMITS.timeoutMs,returned:false};if(p.catchDiscovery)try{const layer=readPtr(gui,p.catchDiscovery.layer);if(exact(layer,p.catchDiscovery.klass))s.pendingDetails.layer=hold(layer);}catch(e){event(s,'details-discovery-unavailable',{reason:String(e)});}}
 
-   r.invoked=true;s.invoking=true;s.invokingGui=gui;let threw=null;
-
-   try{invoke(methods.dismiss.method,gui,ptr(0));}catch(e){threw=String(e).slice(0,140);}finally{s.invoking=false;s.invokingGui=null;}
+   r.invoked=true;s.invoking=true;s.invokingGui=gui;let threw=null,capture=null,bridgeOpen=false;
+   if(presentationBridge&&s.dismissEnabled&&s.pendingDetails&&unity(tid))try{
+    presentationBridge.begin(target(s.pendingDetails.response),tid);bridgeOpen=true;
+   }catch(e){event(s,'direct-catch-window-error',{reason:String(e)});}
+   try{invoke(methods.dismiss.method,gui,ptr(0));}catch(e){threw=String(e).slice(0,140);}finally{
+    if(bridgeOpen)try{const c=presentationBridge.end();if(c)capture={handles:[c.service,c.pokemon,c.callback],flags:[+c.confirm,+c.persist,c.openHyperTraining,+c.hideAr,+c.post,+c.suppress]};}
+    catch(e){event(s,'direct-catch-window-error',{reason:String(e)});}
+    s.invoking=false;s.invokingGui=null;
+   }
 
    // Verify the postcondition directly (the hook may be suppressed under nesting):
 
@@ -1096,7 +1220,11 @@ function install(s,p){
 
    try{if(exact(gui,classes[SGUI])&&alive(gui))after=readS32(gui,fields.currentState);else gone=true;}catch(_){after=null;}
 
-   if(s.pendingDetails){if(!threw&&(gone||(after!==null&&after!==STATE_OPEN)))s.pendingDetails.returned=true;else releasePendingDetails();}
+   completeDirectPresentation(capture,!threw&&(gone||(after!==null&&after!==STATE_OPEN)));
+
+   if(s.pendingDetails){if(!threw&&(gone||(after!==null&&after!==STATE_OPEN))){s.pendingDetails.returned=true;discoverCatchDetails();}else releasePendingDetails();}
+
+   hideDismissedCatch(gui,r,after,gone,threw);
 
    event(s,'summary-dismiss-invoked',{tid,stateBefore:before,stateAfter:after,guiGone:gone,error:threw,advanced:gone||(after!==null&&after!==STATE_OPEN)});
 
@@ -1261,6 +1389,27 @@ function install(s,p){
  // recover ONLY the screen carrying the retained successful response, exact view
 
  // delegate and captured Pokemon. No inventory or unrelated GUI is eligible.
+
+ // Recover synchronously from the game's registry, before the newly created
+ // details GUI has rendered. Its response/delegate/Pokemon still must all match.
+ function discoverCatchDetails(){const pending=s.pendingDetails,d=p.catchDiscovery;
+  if(!pending||!pending.returned||s.invoking||!s.dismissEnabled||s.stopping||pending.epoch!==s.epoch||s.allowedUntil===0||s.now()>=s.allowedUntil||s.now()>=pending.deadline)return;
+  const roots=[];const root=o=>{const h=hold(o);roots.push(h);return target(h);};
+  const consider=gui=>{if(!exact(gui,classes[DGUI]))return false;const r=findByGui(gui)||recoverDetails(gui);if(!r)return false;
+   hideOpeningDetails(r);event(s,'details-discovered-before-open-complete',{hidden:!!r.canvasHidden,state:readS32(gui,fields.currentState)});return true;};
+  try{
+   if(d&&pending.layer){const value=invoke(d.top.method,target(pending.layer));if(!value.isNull()&&consider(root(value)))return;}
+   // TopGui excludes some opening screens. Find the actual component, then use
+   // the same response/delegate/caught-ID checks. Bound scans to the catch window.
+   const now=s.now(),t=p.catchScene;if(!t||(pending.sceneNext&&now<pending.sceneNext)||(pending.sceneScans||0)>=20)return;
+   pending.sceneNext=now+50;pending.sceneScans=(pending.sceneScans||0)+1;
+   const type=root(t.typeObject(api.class_get_type(classes[DGUI]))),args=Memory.alloc(8);args.writePointer(type);
+   const array=root(invoke(t.find,ptr(0),args));const count=Number(t.length(array));
+   if(!Number.isSafeInteger(count)||count<0||count>16)throw Error('catch-scene-count');
+   if(pending.sceneScans===1)event(s,'details-scene-scan',{count});
+   for(let i=0;i<count;i++){const gui=array.add(32+i*8).readPointer();if(!gui.isNull()&&consider(root(gui)))return;}
+  }catch(e){event(s,'details-discovery-error',{reason:String(e)});}finally{for(const h of roots)freeHandle(h);}
+ }
 
  function recoverDetails(gui){const pending=s.pendingDetails,d=p.details;
 
@@ -2549,7 +2698,7 @@ function install(s,p){
 
    if(s.transferSeen.has(r.capturedKey)||s.transferSeen.size>=4096){event(s,'transfer-kept',{reason:'duplicate-or-session-limit',tid});return false;}
 
-   if(!s.transferEnabled||s.stopping||s.now()>=s.allowedUntil||r.epoch!==s.epoch||(r.vgp?!(s.now()<s.vgpLease&&exact(target(r.response),classes[RESP])&&readS32(target(r.response),fields.status)===p.success&&capturedKey(target(r.response))===r.capturedKey):!detailsValid(r)))return false;
+   if(!s.transferEnabled||s.stopping||s.now()>=s.allowedUntil||r.epoch!==s.epoch||(r.vgp?!(s.now()<s.vgpLease&&exact(target(r.response),classes[RESP])&&readS32(target(r.response),fields.status)===p.success&&capturedKey(target(r.response))===r.capturedKey):!(r.direct?directCatchValid(r):detailsValid(r))))return false;
 
    s.transferSeen.add(r.capturedKey);r.transferRequested=true;r.transferDeadline=s.now()+10000;r.deadline=r.transferDeadline+1000;
 
@@ -2584,6 +2733,9 @@ function install(s,p){
   try{invoke(p.details.methods.click.method,gui);}catch(e){error=String(e);}finally{s.invoking=false;s.invokingGui=null;}
 
   let after=null,gone=false;try{if(alive(gui))after=readS32(gui,fields.currentState);else gone=true;}catch(_){}
+
+  if(gone||(after!==null&&after!==STATE_OPEN))r.canvasHidden=false;
+  hideDismissedCatch(gui,r,after,gone,error);
 
   event(s,'details-dismiss-invoked',{tid,stateBefore:before,stateAfter:after,guiGone:gone,error,advanced:gone||(after!==null&&after!==STATE_OPEN)});
 
@@ -2627,9 +2779,9 @@ function install(s,p){
 
     if(callback.isNull()||!readPtr(target(r.gui),f.callback).equals(callback)||!readPtr(target(r.gui),f.data).equals(target(r.data))){cancel(r,'details-not-initialized');return;}
 
-    r.dismissed=hold(callback);r.initDone=true;event(s,'details-initialized',{tid:s.thread});}});
+    r.dismissed=hold(callback);r.initDone=true;hideOpeningDetails(r);event(s,'details-initialized',{tid:s.thread});}});
 
-  openHook(d.methods.open.address,{onEnter(args){const r=findByGui(args[0])||recoverDetails(args[0]);return r&&r.kind==='details'?{r}:null;},onLeave(payload){payload.r.openCompleteDone=true;payload.r.readyMatch=null;event(s,'details-open-complete',{tid:s.thread});}});
+  openHook(d.methods.open.address,{onEnter(args){const r=findByGui(args[0])||recoverDetails(args[0]);if(r&&r.kind==='details')hideOpeningDetails(r);return r&&r.kind==='details'?{r}:null;},onLeave(payload){hideOpeningDetails(payload.r);payload.r.openCompleteDone=true;payload.r.readyMatch=null;event(s,'details-open-complete',{tid:s.thread});}});
 
   s.listeners.push(Interceptor.attach(d.methods.exit.address,{onEnter(args){try{if(!unity(this.threadId))return;for(const r of s.records)if(r.kind==='details'&&r.state&&target(r.state).equals(args[0]))cancel(r,'details-state-exit');}catch(e){fault(s,e);}}}));
 
@@ -2661,7 +2813,7 @@ function install(s,p){
 
  s.ready=true;event(s,'metadata-ready',{fields:p.fieldMeta,successValue:p.success,caughtIdSize:p.caughtIdSize,stateOpen:STATE_OPEN,leaseMs:LIMITS.leaseMs,timeoutMs:LIMITS.timeoutMs,
 
-  covers:p.details?['summary-auto-dismiss','post-catch-stats-details']:['summary-auto-dismiss'],detailsAvailable:!!p.details,detailsError:p.detailsError,transferAvailable:!!p.transfer,transferError:p.transferError,spinAvailable:!!p.spin,spinError:p.spinError,spinCameraAvailable:!!p.spinCamera,spinCameraError:p.spinCameraError,itemLookupAvailable:!!(p.items&&p.items.lookup),itemsAvailable:!!p.items,itemsError:p.itemsError,rocketAvailable:!!p.rocket,rocketError:p.rocketError,berriesAvailable:!!p.berries,berriesError:p.berriesError,battlesAvailable:!!p.battles,battlesError:p.battlesError,notCovered:['new-species-cutscene','new-form-cutscene','xp-toast-presentation']});
+  directPresentationAvailable:!!p.directPresentation,directPresentationError:p.directPresentationError,catchSceneAvailable:!!p.catchScene,catchSceneError:p.catchSceneError,catchDiscoveryAvailable:!!p.catchDiscovery,catchDiscoveryError:p.catchDiscoveryError,catchCanvasAvailable:!!p.catchCanvas,catchCanvasError:p.catchCanvasError,covers:p.details?['summary-auto-dismiss','post-catch-stats-details']:['summary-auto-dismiss'],detailsAvailable:!!p.details,detailsError:p.detailsError,transferAvailable:!!p.transfer,transferError:p.transferError,spinAvailable:!!p.spin,spinError:p.spinError,spinCameraAvailable:!!p.spinCamera,spinCameraError:p.spinCameraError,itemLookupAvailable:!!(p.items&&p.items.lookup),itemsAvailable:!!p.items,itemsError:p.itemsError,rocketAvailable:!!p.rocket,rocketError:p.rocketError,berriesAvailable:!!p.berries,berriesError:p.berriesError,battlesAvailable:!!p.battles,battlesError:p.battlesError,notCovered:['new-species-cutscene','new-form-cutscene','xp-toast-presentation']});
 
 }
 

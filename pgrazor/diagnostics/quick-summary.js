@@ -1,5 +1,5 @@
 // Shipped ARM64 build only. Loading defines an API and performs no native work.
-// A natural, unchanged successful yield must establish the baseline first.
+// Each successful yield is validated before its presentation wait is shortened.
 // setAllowed(true) grants only a 2500ms lease; there is no persistent enable bit.
 (function(root) {
     'use strict';
@@ -206,14 +206,9 @@
                     const original=duration(wait);if(!Number.isFinite(original)||original<0||original>LIMITS.maxDuration)throw Error('invalid-wait-duration');
                     api.field_get_value(receiver,fields.branch,boolOut);const branch=boolOut.readU8();if(branch>1)throw Error('invalid-branch');
                     const now=state.now(),receipt={tid:this.quickTid,state:7,resultStatus,originalSeconds:original,branch:branch===1,boottimeMs:now};
-                    const baseline=state.baseline;
                     // Reserve every event before any mutation, including the write receipt.
-                    if(state.queue.length+3>LIMITS.queue)throw Error('event-queue-limit');
+                    if(state.queue.length+2>LIMITS.queue)throw Error('event-queue-limit');
                     enqueue(state,Object.assign({kind:'wait-observed'},receipt));
-                    if(!baseline) {
-                        state.baseline=true;state.allowedUntil=0;
-                        enqueue(state,Object.assign({kind:'baseline-ready',unchanged:true},receipt));return;
-                    }
                     if(now>=state.allowedUntil||original<=0.1)return;
                     // Revalidate immediately before the sole scalar write. No game methods.
                     if(!pointer(receiver,fields.current).equals(wait)||duration(wait)!==original)throw Error('yield-changed-before-write');
@@ -228,7 +223,7 @@
         if(!options||options.enabled!==true)return Promise.resolve({status:'disabled'});
         if(running)return Promise.resolve({status:'already-running'});
         return new Promise(resolve=>{
-            const state={active:true,onEvent:options.onEvent,queue:[],reason:null,baseline:false,allowedUntil:0,
+            const state={active:true,onEvent:options.onEvent,queue:[],reason:null,ready:false,allowedUntil:0,
                 timer:null,listener:null,now:null,attempts:0,finish:null};running=state;
             state.finish=result=>{
                 if(!state.active)return;state.active=false;state.allowedUntil=0;
@@ -261,7 +256,8 @@
                         else state.timer=setTimeout(attempt,1000);return;
                     }
                     observe(state,prepared);
-                    enqueue(state,{kind:'metadata-ready',baseline:false,allowed:false,leaseMs:LIMITS.leaseMs,
+                    state.ready=true;
+                    enqueue(state,{kind:'metadata-ready',allowed:false,leaseMs:LIMITS.leaseMs,
                         target:CAPTURE+'.ebk.MoveNext',state:7,successValue:prepared.successValue,fields:prepared.fieldMetadata});
                     state.timer=setTimeout(poll,0);
                 }catch(e){state.finish({status:'unavailable',reason:String(e).slice(0,180),details:e.details||null});}
@@ -272,7 +268,7 @@
     function setAllowed(value) {
         const state=running;if(!state||!state.active)return false;
         state.allowedUntil=0;
-        if(value!==true||!state.baseline||state.reason||!state.now)return false;
+        if(value!==true||!state.ready||state.reason||!state.now)return false;
         try{state.allowedUntil=state.now()+LIMITS.leaseMs;return true;}
         catch(e){fail(state,e);return false;}
     }

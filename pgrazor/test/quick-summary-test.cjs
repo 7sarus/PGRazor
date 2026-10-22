@@ -115,12 +115,10 @@ async function main() {
         assert.equal(f.stats.attach,f.stats.detach);assert.equal(f.stats.names,f.stats.free);assert.equal(f.stats.writes,0);
     }
     const f=fixture(),seen=[],p=f.probe.start({enabled:true,onEvent:e=>seen.push(e)});f.tick();assert.equal(f.events.length,0);
-    f.tick();assert(f.events.some(e=>e.kind==='metadata-ready'));assert.equal(f.probe.setAllowed(true),false);
+    f.tick();assert(f.events.some(e=>e.kind==='metadata-ready'));assert.equal(f.probe.setAllowed(true),true);
     const statusMetadata=f.events.find(e=>e.kind==='metadata-ready').fields.find(f=>f.field==='Status');
     assert.equal(statusMetadata.actualOffset,16);assert.equal(statusMetadata.expectedOffset,null);assert.equal(statusMetadata.actualType,EN);
     f.invoke({state:6});f.invoke({status:7});f.invoke({},0);assert.equal(f.stats.writes,0);assert(!f.events.some(e=>e.kind==='baseline-ready'));
-    f.invoke({seconds:2});assert.equal(f.stats.writes,0);assert(!f.events.some(e=>e.kind==='baseline-ready'));f.tick();
-    assert.equal(f.events.filter(e=>e.kind==='baseline-ready').length,1);assert.equal(f.probe.setAllowed(true),true);
     const changed=f.invoke({seconds:1.5});assert.equal(f.stats.writes,1);assert(Math.abs(changed.wait.v.fields['<SleepFor>k__BackingField']-0.1)<1e-6);
     f.tick();assert.equal(f.events.filter(e=>e.kind==='wait-shortened').length,1);assert.equal(seen.length,f.events.length);
     f.invoke({seconds:0.05});assert.equal(f.stats.writes,1,'Never lengthen an existing shorter wait');
@@ -128,7 +126,7 @@ async function main() {
     f.probe.setAllowed(true);f.probe.setAllowed(false);f.invoke({seconds:2});assert.equal(f.stats.writes,1,'Explicit revocation');
     f.probe.setAllowed(true);const outer=f.enter();f.invoke({seconds:2});outer();assert.equal(f.stats.writes,2,'Nested calls do not cause extra writes');
     const inflight=f.enter();f.probe.stop();assert(f.hooks[0].detached);inflight();f.drainEnd();assert.equal((await p).status,'cancelled');assert.equal(f.stats.writes,2);
-    assert.equal(f.stats.attach,f.stats.detach);assert.equal(f.stats.names,f.stats.free);assert.equal(f.events.filter(e=>e.kind==='baseline-ready').length,1);
+    assert.equal(f.stats.attach,f.stats.detach);assert.equal(f.stats.names,f.stats.free);assert.equal(f.events.filter(e=>e.kind==='baseline-ready').length,0);
     for(const settings of [{waitClass:'Other'},{nullWait:true},{nullResponse:true},{seconds:NaN},{seconds:Infinity},{seconds:-1},{seconds:31},{branch:5},{receiverClass:'Other'}]) {
         const f=fixture(),p=f.probe.start({enabled:true});f.tick();f.tick();f.invoke({});f.tick();f.probe.setAllowed(true);f.invoke(settings);
         assert.equal(f.stats.writes,0);assert.equal(f.probe.setAllowed(true),false);f.drainEnd();assert.equal((await p).status,'unavailable');assert(f.hooks[0].detached);
@@ -145,6 +143,6 @@ async function main() {
     const detail=fixture({badFieldType:'Status'}),dp=detail.probe.start({enabled:true});detail.drainEnd();const failure=await dp;
     assert.equal(failure.reason,'Error: field-mismatch:Status');assert.equal(failure.details.actualType,'System.Object');
     assert.equal(failure.details.actualOffset,16);assert.equal(failure.details.actualFlags,1);assert.equal(failure.details.ownerMatches,true);
-    console.log('PASS: exact metadata/code guards, unchanged natural baseline, opt-in lease expiry, scalar-only shortening, reentry, queue/error/cancellation cleanup');
+    console.log('PASS: exact metadata/code guards, first-catch shortening, opt-in lease expiry, scalar-only shortening, reentry, queue/error/cancellation cleanup');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

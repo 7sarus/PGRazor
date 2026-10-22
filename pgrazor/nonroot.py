@@ -211,6 +211,9 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
             assets['assets/pgrazor/interaction-probe.js']=ROOT/'diagnostics/interaction-probe.js'
         if quick_summary:
             assets['assets/pgrazor/'+summary_script]=ROOT/'diagnostics'/summary_script
+        if quick_close:
+            assets['assets/pgrazor/quick-summary.js']=ROOT/'diagnostics/quick-summary.js'
+            assets['assets/pgrazor/quick-close.js']=(ROOT/'diagnostics/catch-presentation-bridge.js').read_bytes()+b'\n;\n'+(ROOT/'diagnostics/quick-close.js').read_bytes()
         if quick_ball:
             assets['assets/pgrazor/quick-ball.js']=ROOT/'diagnostics/quick-ball.js'
         for notice in ['NOTICE.txt','COPYING.frida-tools','bridge-provenance.json']:

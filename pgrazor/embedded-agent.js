@@ -6,6 +6,7 @@ let diagnosticRunning = false, cameraReading = '', lastHeadingLog = 0;
 let interactionTimer = null, interaction = null, interactionRunning = false;
 let quickSummaryTimer = null, quickSummary = null;
 let quickSummaryFailed = false, quickSummaryStop = null;
+let quickCatchWait = null, quickCatchWaitStop = null, quickCatchWaitFailed = false;
 const summaryLifecycleHooks = [];
 let quickSummaryNativeReady=false, quickBallNativeReady=false;
 let quickBallTimer = null, quickBall = null, quickBallFailed = false, quickBallStop = null;
@@ -225,7 +226,37 @@ function restoreSummaryLifecycleHooks() {
     }
     summaryLifecycleHooks.length = 0;
 }
+// Optional presentation-delay reduction. Validate every successful catch
+// before shortening its presentation wait, including the first catch.
+function stopQuickCatchWait() {
+    if (!quickCatchWait || quickCatchWaitStop) return quickCatchWaitStop;
+    quickCatchWaitFailed=true;
+    try { quickCatchWaitStop=Promise.resolve(quickCatchWait.stop()); }
+    catch(error) { quickCatchWaitStop=Promise.reject(error); }
+    quickCatchWaitStop.catch(error=>bootLog('quick-catch-wait-stop-error: '+error));
+    return quickCatchWaitStop;
+}
+function allowQuickCatchWait(allowed) {
+    if (!quickCatchWait || quickCatchWaitFailed) return;
+    try { quickCatchWait.setAllowed(allowed===true); }
+    catch(error) { bootLog('quick-catch-wait-error: '+error);stopQuickCatchWait(); }
+}
+function startQuickCatchWait() {
+    if (bootParameters.quickClose!==true || !bootParameters.quickCatchWaitPath || disposed) return;
+    try {
+        quickCatchWait=Script.evaluate('/pgrazor-quick-summary.js',File.readAllText(bootParameters.quickCatchWaitPath));
+        const result=quickCatchWait.start({enabled:true,onEvent(event) {
+            if(disposed || quickCatchWaitFailed)return;
+            try { Java.performNow(()=>control.event('quick-catch-wait',JSON.stringify(event))); }
+            catch(error) { bootLog('quick-catch-wait-event-error: '+error); }
+        }});
+        Promise.resolve(result).then(()=>{quickCatchWaitFailed=true;},error=>{
+            bootLog('quick-catch-wait-error: '+error);stopQuickCatchWait();
+        });
+    } catch(error) { bootLog('quick-catch-wait-start-error: '+error);stopQuickCatchWait(); }
+}
 function requestSummaryStop() {
+    stopQuickCatchWait();
     if (!quickSummary || quickSummaryStop) return quickSummaryStop;
     // Revocation failure, terminal failure and disposal share one cleanup.
     // Disposal still receives a rejection; background callers leave none unobserved.
@@ -246,6 +277,7 @@ function failQuickSummary(reason) {
     summaryUnavailable(reason);
 }
 function revokeQuickSummary() {
+    allowQuickCatchWait(false);
     if (!quickSummary || quickSummaryFailed) return;
     try { quickSummary.setAllowed(false);if(quickSummary.setSpinAllowed)quickSummary.setSpinAllowed(false);if(quickSummary.setItemOptions)quickSummary.setItemOptions(false,"",false);if(quickSummary.setRocketOptions)quickSummary.setRocketOptions(0,false);if(quickSummary.setBattleOptions)quickSummary.setBattleOptions(0,false);if(quickSummary.setVgpOptions)quickSummary.setVgpOptions(0,false,0,0);if(quickSummary.setBuddyOptions)quickSummary.setBuddyOptions(0,false);if(quickSummary.setIncubatorOptions)quickSummary.setIncubatorOptions(false,false,false);if(quickSummary.setGiftOptions)quickSummary.setGiftOptions(0,false);if(quickSummary.setBerryImpactReady&&(quickBallNativeReady||bootParameters.quickBall!==true))quickSummary.setBerryImpactReady();
                 if(quickSummary.setBerryOptions)quickSummary.setBerryOptions(0,false);if(quickSummary.setSpawnOptions)quickSummary.setSpawnOptions(false,false); }
@@ -293,6 +325,7 @@ function scheduleQuickSummary() {
         if (disposed || quickSummaryFailed) return;
         try {
             quickSummary=Script.evaluate(bootParameters.quickClose===true?'/pgrazor-quick-close.js':'/pgrazor-quick-summary.js',File.readAllText(bootParameters.quickSummaryPath));
+            startQuickCatchWait();
             const result=quickSummary.start({enabled:true,onEvent(event) {
                 if (disposed || quickSummaryFailed) return;
                 try { Java.performNow(()=>{
@@ -300,8 +333,8 @@ function scheduleQuickSummary() {
                     if(event.kind==='cooldown-action')control.cooldownAction(event.action);
                     if(event.kind==='cooldown-encounter')control.setCooldownEncounter(event.source);
                     if (event.kind==='metadata-ready') quickSummaryNativeReady=true;
-                    if (event.kind==='metadata-ready') control.setQuickSummaryReady(bootParameters.quickClose===true,
-                        bootParameters.quickClose===true?'Ready: summary auto-dismiss; other screens remain':'Catch normally once to validate the summary wait');
+                    if (event.kind==='metadata-ready') control.setQuickSummaryReady(true,
+                        bootParameters.quickClose===true?'Ready: Quick Catch':'Ready: shorten the post-catch wait');
                     if (event.kind==='metadata-ready' && control.setAutoTransferReady)control.setAutoTransferReady(!!event.transferAvailable,event.transferAvailable?'Ready: new catches only; IV below 90%':'Unavailable: '+(event.transferError||'transfer support not bundled'));
                     if(control.transferResult && event.kind==='transfer-requested')control.transferResult('Transfer requested; waiting for bag update');
                     if(event.kind==='transfer-confirmed'){if(control.transferResult)control.transferResult('Transferred newly caught Pokemon');try{control.quickBallOutcome('transferred');}catch(error){bootLog('transfer-toast-error: '+error);}}
@@ -337,7 +370,6 @@ function scheduleQuickSummary() {
                     if(event.kind==='metadata-ready'&&control.setQuickSpinReady)control.setQuickSpinReady(!!event.spinAvailable,event.spinAvailable?'Ready: open a PokeStop':'Unavailable: '+event.spinError);
                     if(control.transferResult && event.kind==='transfer-kept')control.transferResult('Kept: '+event.reason);
                     if(control.transferResult && event.kind==='transfer-unconfirmed')control.transferResult('Transfer result unconfirmed; no automatic retry');
-                    if (event.kind==='baseline-ready' && bootParameters.quickClose!==true) control.setQuickSummaryReady(true,'Validated. Enable to shorten the next post-catch wait');
                 }); } catch (error) { bootLog('quick-summary-event-error: '+error);failQuickSummary(error); }
             }});
             // A settled module is terminal; a late event or heartbeat must not grant it again.
@@ -476,7 +508,8 @@ function heartbeat() {
                 if(quickSummary.setBerryImpactReady&&(quickBallNativeReady||bootParameters.quickBall!==true))quickSummary.setBerryImpactReady();
                 if(quickSummary.setBerryOptions)quickSummary.setBerryOptions(control.autoBerry(),control.berriesAllowed());
                 if(quickSummary.setSpawnOptions)quickSummary.setSpawnOptions(control.spawnBooster(),control.spawnAllowed());
-                quickSummary.setAllowed(dismiss||transfer);}
+                quickSummary.setAllowed(dismiss||transfer);
+                allowQuickCatchWait(dismiss);}
             catch (error) {bootLog('quick-summary-heartbeat-error: '+error);failQuickSummary(error);}
         }
         if (quickBall && !quickBallFailed && bootParameters.quickBall===true) {
@@ -577,6 +610,6 @@ rpc.exports = {
                 Java.scheduleOnMainThread(() => control.disconnect());
             }
         });
-        return Promise.all([diagnosticStopped,interactionStopped,summaryStopped,ballStopped]);
+        return Promise.all([diagnosticStopped,interactionStopped,summaryStopped,ballStopped,stopQuickCatchWait()]);
     }
 };

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Quick Catch can skip creating the post-catch details screen for confirmed manual catches, preserving auto-transfer and the game's dismissal callback. Unsupported paths retain normal dismissal.
+
+- Quick Catch also shortens the successful-catch presentation wait to 100 ms starting with the first catch. Summary dismissal and auto-transfer retain their existing completion checks.
+
 ## v0.1.0
 
 [Full release notes](docs/releases/v0.1.0.md)
