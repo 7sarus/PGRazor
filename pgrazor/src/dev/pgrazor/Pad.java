@@ -261,7 +261,7 @@ public final class Pad {
         quickSummaryStatus = caption(catchC, "");
         LinearLayout txC = section(catchC, "Transfer on catch", false);
         autoTransferSwitch = switchRow(txC, "Transfer below 90% IV"); autoTransferSwitch.setChecked(Control.autoTransferEnabled());
-        autoTransferSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoTransferEnabled())return; Control.setAutoTransferEnabled(autoTransferSwitch.isChecked()); });
+        autoTransferSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoTransferEnabled())return; Control.setAutoTransferEnabled(autoTransferSwitch.isChecked()); refresh(); });
         String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event / costume Pokemon","Keep background Pokemon","Keep XXS","Keep XXL"};
         for(int i=0;i<6;i++){final int bit=1<<i;CheckBox box=new CheckBox(host);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;txC.addView(box);
             box.setOnClickListener(v->Control.setTransferProtect(box.isChecked()?Control.transferProtect()|bit:Control.transferProtect()&~bit));}
@@ -521,7 +521,7 @@ public final class Pad {
         autoTransferSwitch.setChecked(Control.autoTransferEnabled());
         for(int i=0;i<6;i++)transferProtection[i].setChecked((Control.transferProtect()&(1<<i))!=0);
         if(transferKeepList!=null){String kept=Control.transferKeepSpecies();int n=kept.isEmpty()?0:kept.split(",").length;transferKeepList.setText(n>0?"Custom keep list ("+n+")":"Custom keep list");}
-        if(transferOverlaySwitch!=null)transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());
+        if(transferOverlaySwitch!=null){transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());transferOverlaySwitch.setEnabled(Control.autoTransferEnabled());transferOverlaySwitch.setAlpha(Control.autoTransferEnabled()?1f:0.45f);}
         transferStatus.setText(Control.transferStatus());
         vgpSwitch.setChecked(Control.vgpOverlay());vgpStatus.setText(Control.vgpStatus());
         incubatorSwitch.setChecked(Control.autoIncubate());

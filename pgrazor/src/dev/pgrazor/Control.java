@@ -218,7 +218,8 @@ public final class Control {
     private static volatile boolean encounterBerryActive,encounterBerryBusy;
     private static volatile long encounterBerrySeen;
     public static void setEncounterBerry(boolean active,boolean busy){encounterBerryActive=active;encounterBerryBusy=busy;encounterBerrySeen=SystemClock.elapsedRealtime();}
-    public static boolean encounterBerryVisible(){long age=SystemClock.elapsedRealtime()-encounterBerrySeen;return encounterBerryEnabled&&encounterBerryActive&&age>=0&&age<2000&&foreground&&quickSummaryReady();}
+    public static boolean catchScreenVisible(){long age=SystemClock.elapsedRealtime()-encounterBerrySeen;return encounterBerryActive&&age>=0&&age<2000&&foreground&&quickSummaryReady();}
+    public static boolean encounterBerryVisible(){return encounterBerryEnabled&&catchScreenVisible();}
     public static boolean encounterBerryBusy(){return encounterBerryBusy;}
     private static volatile boolean cooldownOverlay;
     private static volatile String cooldownEncounter="";
@@ -390,7 +391,7 @@ public final class Control {
         if(value==transferOverlayEnabled)return;
         transferOverlayEnabled=value;saveSettings();event("transfer-overlay",value?"ON":"OFF");
     }
-    public static boolean transferOverlayVisible(){return transferOverlayEnabled&&foreground&&backendReady&&connected();}
+    public static boolean transferOverlayVisible(){return transferOverlayEnabled&&autoTransferEnabled&&catchScreenVisible()&&backendReady&&connected();}
     /**
      * Canonical keep-species string from arbitrary input: positive dex IDs 1..2000, de-duplicated and
      * sorted, bounded to 2000 entries and 10000 characters. Invalid or out-of-range tokens are dropped;
