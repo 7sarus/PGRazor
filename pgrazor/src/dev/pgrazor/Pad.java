@@ -25,7 +25,8 @@ public final class Pad {
     private Button incubatorPriority;
     private TextView incubatorStatus;
     private LinearLayout joystickOverlay;
-    private Button encounterBerry, cooldownTimer;
+    private BerryOverlay encounterBerry;
+    private Button cooldownTimer;
     private TextView vgpActivity;
     private VgpMarker vgpMarker;
     // Draggable, position-persisting handles for the cooldown and VGP overlays.
@@ -89,7 +90,7 @@ public final class Pad {
         if(closeIcon!=null)closeIcon.invalidate();
         if(themeIcon!=null){themeIcon.setContentDescription(Control.darkTheme()?"Switch to light theme":"Switch to dark theme");themeIcon.invalidate();}
         if(joystickOverlay!=null){joystickOverlay.setBackground(rounded(Control.darkTheme()?0xd9141b25:0xd9f9fbfd,22));styleTree(joystickOverlay);stick.invalidate();}
-        if(encounterBerry!=null){GradientDrawable berryBg=rounded(surface(),16);berryBg.setStroke(dp(1),accent());encounterBerry.setBackground(berryBg);encounterBerry.setTextColor(ink());}
+        if(encounterBerry!=null)encounterBerry.invalidate();
         if(cooldownTimer!=null)cooldownTimer.setBackground(rounded(Control.darkTheme()?0xcc141b25:0xccf1f5f8,12));
         if(transferToggle!=null)transferToggle.invalidate();
         if(quickMenu!=null)quickMenu.applyTheme();
@@ -388,9 +389,8 @@ public final class Pad {
         FrameLayout.LayoutParams joyLayout=new FrameLayout.LayoutParams(dp(136),-2,Gravity.LEFT|Gravity.BOTTOM);joyLayout.leftMargin=dp(16);joyLayout.bottomMargin=dp(96);parent.addView(joystickOverlay,joyLayout);
 
         // Compact catching-berry overlay; the popup chooses owned berries and Off.
-        encounterBerry=button("Berry: Off");encounterBerry.setTextSize(12);encounterBerry.setAllCaps(false);encounterBerry.setGravity(Gravity.CENTER);encounterBerry.setPadding(dp(10),dp(6),dp(10),dp(6));
-        FrameLayout.LayoutParams berryLayout=new FrameLayout.LayoutParams(dp(126),dp(58),Gravity.RIGHT|Gravity.CENTER_VERTICAL);berryLayout.rightMargin=dp(10);parent.addView(encounterBerry,berryLayout);encounterBerry.setVisibility(View.GONE);
-        encounterBerry.setOnClickListener(v->{PopupMenu choices=new PopupMenu(activity,encounterBerry);for(int i=0;i<BERRY_IDS.length;i++){int id=BERRY_IDS[i],count=Control.berryCount(id);MenuItem item=choices.getMenu().add(0,id,i,BERRY_NAMES[i]+(id==0?"":" ("+count+")"));item.setCheckable(true);item.setChecked(Control.autoBerrySelected()==id);item.setEnabled(id==0||(count>0&&Control.berriesAllowed()));}choices.setOnMenuItemClickListener(item->{Control.setAutoBerry(item.getItemId());refresh();return true;});choices.show();});
+        encounterBerry=new BerryOverlay(activity,this::refresh);
+        FrameLayout.LayoutParams berryLayout=new FrameLayout.LayoutParams(dp(90),dp(50),Gravity.RIGHT|Gravity.CENTER_VERTICAL);berryLayout.rightMargin=dp(10);parent.addView(encounterBerry,berryLayout);encounterBerry.setVisibility(View.GONE);
 
         cooldownTimer=button("History  --:--");cooldownTimer.setTextSize(14);cooldownTimer.setAllCaps(false);cooldownTimer.setTextColor(accent());FrameLayout.LayoutParams timerLayout=new FrameLayout.LayoutParams(dp(165),dp(44),Gravity.TOP|Gravity.RIGHT);timerLayout.topMargin=dp(44);timerLayout.rightMargin=dp(12);parent.addView(cooldownTimer,timerLayout);cooldownTimer.setOnClickListener(v->Cooldown.show(activity));cooldownDrag=OverlayDrag.attach(parent,cooldownTimer,"cooldown");
 
@@ -496,7 +496,7 @@ public final class Pad {
         if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);cooldownTimer.setText("☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}
         if (lastEnabled != Control.engine.enabled) { lastEnabled = Control.engine.enabled; stick.invalidate(); }
         coords.setText((Control.desiredEnabled()?"":"Saved spoof location\n")+String.format(Locale.US, "%.6f, %.6f\n%.1f km/h", Control.engine.latitude, Control.engine.longitude, Control.engine.speedKmh));
-        if(encounterBerry!=null){boolean visible=Control.encounterBerryVisible();encounterBerry.setVisibility(visible?View.VISIBLE:View.GONE);int sel=Control.autoBerrySelected();int choice=0;for(int i=0;i<BERRY_IDS.length;i++)if(BERRY_IDS[i]==sel)choice=i;int count=Control.berryCount(sel);encounterBerry.setText(Control.encounterBerryBusy()?"Applying berry…":BERRY_NAMES[choice]+(choice==0?"\nTap to choose":" ("+count+")\nOn hit"));encounterBerry.setEnabled(!Control.encounterBerryBusy());}
+        if(encounterBerry!=null)encounterBerry.refresh();
         boolean preview = Control.preview();
         MotionEngine.RouteProgress route=Control.engine.routeProgress();
         locationSwitch.setChecked(Control.desiredEnabled());
@@ -653,7 +653,7 @@ public final class Pad {
         closed = true; stick.release(true); Control.suspendForBackground(); handler.removeCallbacks(tick);
         if(quickMenu!=null){quickMenu.destroy();quickMenu=null;}
         if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}if(transferDrag!=null){transferDrag.detach();transferDrag=null;}
-        parent.removeView(panel);parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null)parent.removeView(encounterBerry);if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);if(transferToggle!=null)parent.removeView(transferToggle);
+        parent.removeView(panel);parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null){encounterBerry.close();parent.removeView(encounterBerry);}if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);if(transferToggle!=null)parent.removeView(transferToggle);
         panel.setOnApplyWindowInsetsListener(null);
         Control.event("panel-closed", "Runtime suspended on activity change; desiredEnabled=" + Control.desiredEnabled() + "; movement stopped");
     }

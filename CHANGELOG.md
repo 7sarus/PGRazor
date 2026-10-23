@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify the catching berry overlay to an icon/count and add three saved berry priorities with inventory fallback, including out-of-stock selections.
+
 - Add a searchable custom species keep list and optional persistent Keep All transfer overlay, shared by manual and VGP catches and included in settings backup.
 
 - Allow VGP to run while other in-game screens are open; exclude the current manual encounter target and keep world markers map-only.

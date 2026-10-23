@@ -40,6 +40,8 @@ The Android package identity stays compatible with the game. An official-store i
 
 **Transfer protection:** Open **Transfer on catch > Custom Keep List** to keep selected species (including all forms) from manual and VGP catches. Enable the transfer overlay for a quick **Keep All** toggle. Turning Keep All off restores your existing rules; it does not enable auto-transfer if its main setting is off. The list and toggle state are saved across restarts.
 
+**Catching berries:** Tap the berry icon/count overlay to choose up to three berries in priority order. Empty-stock berries can be selected; each throw uses the first stocked choice. After three selections, the next berry tap starts a new list. Off clears the list. Priorities are saved across restarts and included in settings backups.
+
 **Auto incubation:** Uses only the unlimited incubator, with shortest- or longest-distance egg priority. Checks while on the game map and starts another egg after the incubator becomes free. Limited-use, Super, and timed incubators are not used.
 
 **Overlay positions:** Drag the cooldown timer, VGP icon, or Keep All icon to reposition it. Positions are saved; the VGP status label follows its icon. A tap opens cooldown history or toggles the corresponding feature.

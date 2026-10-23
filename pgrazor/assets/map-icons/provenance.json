@@ -135,6 +135,46 @@
       "purpose": "Live feed gym team emblem",
       "sha256": "8e0738ce9be08efe2393e4b2a7ddf919454cbefc97eb494effafe632a36705cf",
       "bytes": 45119
+    },
+    {
+      "source": "Images/Items/Item_0701.png",
+      "name": "berry-701.png",
+      "purpose": "Catch berry priority selector and overlay. Original transparent artwork, aspect-fit at runtime.",
+      "sha256": "3a62b348564b45772c58d01d51368a0cb75e4ae63f5c9d1799a2b635eee7e813",
+      "upstream_blob_sha": "c95f55df85294d7e40d00535a820c90e8346347f",
+      "bytes": 54614
+    },
+    {
+      "source": "Images/Items/Item_0703.png",
+      "name": "berry-703.png",
+      "purpose": "Catch berry priority selector and overlay. Original transparent artwork, aspect-fit at runtime.",
+      "sha256": "4123c2456b00bd0ddcc54b64d1a1c804e90082f74ca3389e0504dd4242a06dd1",
+      "upstream_blob_sha": "e072f425fd7a80e7d3a6cbe99083df62f073bf6c",
+      "bytes": 42308
+    },
+    {
+      "source": "Images/Items/Item_0705.png",
+      "name": "berry-705.png",
+      "purpose": "Catch berry priority selector and overlay. Original transparent artwork, aspect-fit at runtime.",
+      "sha256": "f4389b97a7c8382f5ceb07226b4d1b53f12d914eaf40b745863234681ce87c1b",
+      "upstream_blob_sha": "951bc5a23cce36ab85491d26fb3b546a86ef4bdd",
+      "bytes": 49222
+    },
+    {
+      "source": "Images/Items/Item_0706.png",
+      "name": "berry-706.png",
+      "purpose": "Catch berry priority selector and overlay. Original transparent artwork, aspect-fit at runtime.",
+      "sha256": "42a2126078f1e7f1c586d0c62cfaf20bdf26e941840deaae815ef22f906eddf9",
+      "upstream_blob_sha": "66a562714413c31654d5b376007e50b1c3372ddb",
+      "bytes": 43710
+    },
+    {
+      "source": "Images/Items/Item_0707.png",
+      "name": "berry-707.png",
+      "purpose": "Catch berry priority selector and overlay. Original transparent artwork, aspect-fit at runtime.",
+      "sha256": "61d2aa71303427470b3da83cec836e2d805c9d7dc9adb78a313b44be7b301ae5",
+      "upstream_blob_sha": "70ad98e60cbb284b1c41d6b7af7020b204661551",
+      "bytes": 51721
     }
   ],
   "species_names": {

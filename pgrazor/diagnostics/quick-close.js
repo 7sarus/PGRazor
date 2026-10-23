@@ -2139,7 +2139,9 @@ function install(s,p){
 
    q.stage='ball type';const typeRoot=hold(invoke(t.methods.ballType.method,ball));let ballType;try{ballType=api.object_unbox(target(typeRoot)).readS32();}finally{freeHandle(typeRoot);}if(ballType===4){berryResume();return;}
 
-   q.stage='inventory';const bag=readPtr(scope,t.fields.bag);if(!exact(bag,classes[IBAG])||itemInt(p.items.methods.quantity,bag,itemArgs([itemNumber(q.id)]))<=0){berryResume();return;}
+   q.stage='inventory';const bag=readPtr(scope,t.fields.bag);if(!exact(bag,classes[IBAG])){berryResume();return;}
+   q.id=0;for(const id of q.priorities){if(itemInt(p.items.methods.quantity,bag,itemArgs([itemNumber(id)]))>0){q.id=id;break;}}
+   if(!q.id){berryResume();return;}
 
    q.stage='create callback';const callback=api.object_new(t.callback);q.callback=hold(callback);api.field_set_value_object(callback,t.fields.callbackScope,scope);api.field_set_value(callback,t.fields.callbackBerry,itemNumber(q.id));if(!readPtr(callback,t.fields.callbackScope).equals(scope)||readS32(callback,t.fields.callbackBerry)!==q.id)throw Error('berry-callback-field-readback');
 
@@ -2214,7 +2216,7 @@ function install(s,p){
 
    try{if(!exact(ball,classes['Niantic.Holoholo.Encounter.Pokeball'])||((second.toUInt32()>>>16)&255)!==0||first.toUInt32()===4)return submit(ball,first,second,info);
 
-    r.pending={ball:hold(ball),callback:null,first,second,info,id:s.berryId,started:false,done:false,deadline:s.now()+8000};berryOverlay(true,true);event(s,'berry-impact-queued',{id:s.berryId});
+    r.pending={ball:hold(ball),callback:null,first,second,info,id:s.berryId,priorities:(s.berryIds||[s.berryId]).slice(),started:false,done:false,deadline:s.now()+8000};berryOverlay(true,true);event(s,'berry-impact-queued',{id:s.berryId});
 
    }catch(e){event(s,'berry-error',{reason:String(e),stage:'impact'});return submit(ball,first,second,info);}
 
@@ -2899,7 +2901,13 @@ function setGiftOptions(mask,allowed){const s=running;if(!s||!s.ready||s.stoppin
 
 function setBerryImpactReady(){const s=running;if(s&&!s.stopping)s.berryImpactReady=true;}
 
-function setBerryOptions(id,allowed){const s=running;if(!s||!s.ready||s.stopping)return false;s.berryId=[701,703,705,706,707].includes(id)?id:0;s.berryLease=allowed===true?s.now()+LIMITS.leaseMs:0;return s.berryId>0;}
+function setBerryOptions(value,allowed){const s=running;if(!s||!s.ready||s.stopping)return false;
+ const raw=typeof value==='number'?(value===0?'':String(value)):value;
+ let ids=[];
+ if(typeof raw==='string'&&raw.length<=11&&raw!==''){
+  const parts=raw.split(',');if(parts.length<=3&&parts.every(x=>/^(701|703|705|706|707)$/.test(x))&&new Set(parts).size===parts.length)ids=parts.map(Number);
+ }
+ s.berryIds=ids;s.berryId=ids[0]||0;s.berryLease=allowed===true&&ids.length?s.now()+LIMITS.leaseMs:0;return s.berryId>0;}
 
 function setBattleOptions(mask,allowed){const s=running;if(!s||!s.ready||s.stopping)return false;s.battleMask=Number.isInteger(mask)&&mask>=0&&mask<=1023?mask:0;s.battleLease=allowed===true?s.now()+LIMITS.leaseMs:0;return s.battleMask>0;}
 

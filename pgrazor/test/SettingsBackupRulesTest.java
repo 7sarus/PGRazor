@@ -1,4 +1,5 @@
 import dev.pgrazor.SettingsBackupRules;
+import dev.pgrazor.BerryPriority;
 import org.json.*;
 
 public class SettingsBackupRulesTest {
@@ -12,6 +13,15 @@ public class SettingsBackupRulesTest {
     }
     public static void main(String[] args)throws Exception{
         SettingsBackupRules.validate(valid());
+        String choices="";
+        choices=BerryPriority.select(choices,707);choices=BerryPriority.select(choices,705);choices=BerryPriority.select(choices,701);
+        if(!choices.equals("707,705,701"))throw new AssertionError("Selection order lost");
+        if(!BerryPriority.select(choices,706).equals("706"))throw new AssertionError("Fourth choice must reset");
+        if(!BerryPriority.select(choices,0).isEmpty())throw new AssertionError("Off must clear all");
+        if(!BerryPriority.select("707,705",707).equals("707,705"))throw new AssertionError("Duplicate priority");
+        JSONObject berries=valid();berries.getJSONObject("settings").put("berryPriority",choices);SettingsBackupRules.validate(berries);
+        berries.getJSONObject("settings").put("berryPriority","");SettingsBackupRules.validate(berries);
+        for(String bad:new String[]{"701,701","701,703,705,706","702","701,","701, 703","0"}){berries.getJSONObject("settings").put("berryPriority",bad);rejects(berries);}
         rejects(valid().put("version",1.5));rejects(valid().put("speedKmh",99));
         JSONObject v=valid();v.getJSONObject("settings").put("vgpEnabled","true");rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-livefeed-session",new JSONObject().put("token","secret"));rejects(v);

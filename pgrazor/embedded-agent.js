@@ -316,6 +316,7 @@ function scheduleQuickSummary() {
         control.configureQuickSummary(true);
         installSummaryLifecycleHooks();
         installTransferPolicyHooks();
+        installBerryPolicyHooks();
     } catch (error) {
         quickSummaryFailed = true;
         restoreSummaryLifecycleHooks();
@@ -507,6 +508,16 @@ function installTransferPolicyHooks(){
   method.implementation=function(value){const result=method.call(this,value);try{syncTransferPolicy();}catch(error){failQuickSummary(error);}return result;};
  }
 }
+function syncBerryPolicy(){
+ if(!control||!quickSummary||quickSummaryFailed||!quickSummary.setBerryOptions)return;
+ quickSummary.setBerryOptions(String(control.effectiveBerryPriority()),control.berriesAllowed());
+}
+function installBerryPolicyHooks(){
+ for(const [name,type] of [['selectBerryPriority','int'],['setAutoBerry','int'],['setEncounterBerryEnabled','boolean']]){
+  const method=control[name].overload(type);summaryLifecycleHooks.push(method);
+  method.implementation=function(value){const result=method.call(this,value);try{syncBerryPolicy();}catch(error){failQuickSummary(error);}return result;};
+ }
+}
 function heartbeat() {
     Java.performNow(() => {
         control.renewLease();
@@ -524,7 +535,7 @@ function heartbeat() {
                 if(quickSummary.setIncubatorOptions)quickSummary.setIncubatorOptions(control.autoIncubate(),control.incubateLongest(),control.incubatorAllowed());
                 if(quickSummary.setGiftOptions)quickSummary.setGiftOptions(control.giftOptions(),control.giftsAllowed());
                 if(quickSummary.setBerryImpactReady&&(quickBallNativeReady||bootParameters.quickBall!==true))quickSummary.setBerryImpactReady();
-                if(quickSummary.setBerryOptions)quickSummary.setBerryOptions(control.autoBerry(),control.berriesAllowed());
+                syncBerryPolicy();
                 if(quickSummary.setSpawnOptions)quickSummary.setSpawnOptions(control.spawnBooster(),control.spawnAllowed());
                 quickSummary.setAllowed(dismiss||transfer);
                 allowQuickCatchWait(dismiss);}

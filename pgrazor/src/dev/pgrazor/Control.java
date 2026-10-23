@@ -234,16 +234,19 @@ public final class Control {
         }
         Cooldown.record(action);
     }
-    private static volatile int autoBerry;
+    private static volatile String berryPriority="";
     private static volatile boolean encounterBerryEnabled;
     private static volatile boolean berryReady;
     /** Effective choice the native feeder reads: 0 (no feeding) whenever the overlay master is off. */
-    public static int autoBerry(){return encounterBerryEnabled?autoBerry:0;}
+    public static int autoBerry(){return encounterBerryEnabled?autoBerrySelected():0;}
     /** Raw user selection shown in the overlay; retained while the master is off so it can be re-enabled. */
-    public static int autoBerrySelected(){return autoBerry;}
+    public static int autoBerrySelected(){int[] ids=BerryPriority.parse(berryPriority);for(int id:ids)if(berryCount(id)>0)return id;return ids.length==0?0:ids[0];}
+    public static String berryPriority(){return berryPriority;}
+    public static String effectiveBerryPriority(){return encounterBerryEnabled?berryPriority:"";}
     public static boolean encounterBerryEnabled(){return encounterBerryEnabled;}
     public static void setEncounterBerryEnabled(boolean enabled){encounterBerryEnabled=enabled;saveSettings();event("encounter-berry-overlay",enabled?"ON":"OFF; feeding stopped, choice retained");}
-    public static void setAutoBerry(int id){if(id!=0&&id!=701&&id!=703&&id!=705&&id!=706&&id!=707)return;autoBerry=id;if(id!=0)encounterBerryEnabled=true;saveSettings();}
+    public static void setAutoBerry(int id){if(id!=0&&!BerryPriority.validId(id))return;berryPriority=id==0?"":String.valueOf(id);saveSettings();}
+    public static void selectBerryPriority(int id){if(id!=0&&!BerryPriority.validId(id))return;berryPriority=BerryPriority.select(berryPriority,id);saveSettings();}
     public static void setBerryReady(boolean ready){berryReady=ready;}
     public static boolean berriesAllowed(){return berryReady&&itemAccessAllowed();}
     public static int berryCount(int id){for(String row:itemCatalog.split("\n")){String[] b=row.split("\\|",-1);try{if(b.length==3&&Integer.parseInt(b[0])==id)return Integer.parseInt(b[2]);}catch(NumberFormatException ignored){}}return 0;}
@@ -878,10 +881,12 @@ public final class Control {
                 try{vgpOptions=Integer.parseInt(p.getProperty("vgpOptions","3"))&7;}catch(NumberFormatException ignored){vgpOptions=3;}
                 try{buddyBerry=Integer.parseInt(p.getProperty("buddyBerry","0"));}catch(NumberFormatException ignored){buddyBerry=0;}
                 if(buddyBerry!=701&&buddyBerry!=703&&buddyBerry!=705&&buddyBerry!=706&&buddyBerry!=707)buddyBerry=0;
-                try{autoBerry=Integer.parseInt(p.getProperty("autoBerry","0"));}catch(NumberFormatException ignored){autoBerry=0;}
-                if(autoBerry!=701&&autoBerry!=703&&autoBerry!=705&&autoBerry!=706&&autoBerry!=707)autoBerry=0;
+                int legacyBerry;try{legacyBerry=Integer.parseInt(p.getProperty("autoBerry","0"));}catch(NumberFormatException ignored){legacyBerry=0;}
+                if(!BerryPriority.validId(legacyBerry))legacyBerry=0;
+                berryPriority=p.getProperty("berryPriority",legacyBerry==0?"":String.valueOf(legacyBerry));
+                try{BerryPriority.parse(berryPriority);}catch(IllegalArgumentException invalid){berryPriority="";}
                 // Migration: installs that had an active berry keep the overlay enabled; otherwise it defaults off.
-                encounterBerryEnabled=Boolean.parseBoolean(p.getProperty("encounterBerry",String.valueOf(autoBerry!=0)));
+                encounterBerryEnabled=Boolean.parseBoolean(p.getProperty("encounterBerry",String.valueOf(!berryPriority.isEmpty())));
                 try{battleOptions=Integer.parseInt(p.getProperty("battleOptions","0"));}catch(NumberFormatException ignored){battleOptions=0;}
                 if(battleOptions<0||battleOptions>1023)battleOptions=0;
                 try{rocketOptions=Integer.parseInt(p.getProperty("rocketOptions","0"));}catch(NumberFormatException ignored){rocketOptions=0;}
@@ -929,6 +934,7 @@ public final class Control {
     static void importSettings(Application app,Properties incoming,double speed) throws IOException {
         synchronized(stateLock) {
             Properties merged=exportSettings();merged.putAll(incoming);
+            if(incoming.containsKey("autoBerry")&&!incoming.containsKey("berryPriority"))merged.remove("berryPriority");
             FileOutputStream out=null;
             try{out=settingsFile.startWrite();merged.store(out,"PGRazor settings");settingsFile.finishWrite(out);out=null;}
             finally{if(out!=null)settingsFile.failWrite(out);}
@@ -953,7 +959,7 @@ public final class Control {
                 p.setProperty("buddyBerry",String.valueOf(buddyBerry));
                 p.setProperty("autoIncubate",String.valueOf(autoIncubate));
                 p.setProperty("incubateLongest",String.valueOf(incubateLongest));
-                p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("autoBerry",String.valueOf(autoBerry));
+                p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("berryPriority",berryPriority);
                 p.setProperty("encounterBerry",String.valueOf(encounterBerryEnabled));
                 p.setProperty("battleOptions",String.valueOf(battleOptions));
                 p.setProperty("rocketOptions",String.valueOf(rocketOptions));

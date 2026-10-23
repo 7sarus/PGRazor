@@ -31,7 +31,7 @@ function fixture(faults={}) {
         };
         control[name]=wrapper;
     }
-    for(const n of ['setTransferKeepAll','setAutoTransferEnabled','setTransferKeepSpecies','setTransferProtect']) {
+    for(const n of ['setTransferKeepAll','setAutoTransferEnabled','setTransferKeepSpecies','setTransferProtect','selectBerryPriority','setAutoBerry','setEncounterBerryEnabled']) {
         const method={implementation:null,call(){}};
         control[n]={overload:()=>method};
     }
