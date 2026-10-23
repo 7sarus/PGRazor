@@ -32,4 +32,8 @@ Thumbs.db
 .idea/
 /pgrazor/build-retention.json
 /dist/
+**/node_modules/
+/website/dist/
+/website/test-results/
+/website/playwright-report/
 *.txt

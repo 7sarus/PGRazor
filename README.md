@@ -4,6 +4,8 @@
 
 PGRazor adds an in-game menu, independent joystick, encounter controls, and optional automation. Settings persist across restarts, with light and dark themes.
 
+Explore [the PGRazor website](https://jpitty03.github.io/PGRazor/) for screenshots, a settings guide, and installation steps.
+
 Download the installable **PGRazor.apk** from [Releases](https://github.com/jpitty03/PGRazor/releases). Each release includes a changelog, SHA-256 checksum, and build information. Signing keys, original build inputs, and investigation logs are excluded from Git. Selected map artwork includes [third-party notices](THIRD_PARTY.md).
 
 ## Install a release
@@ -90,6 +92,7 @@ pgrazor/diagnostics/  Version-specific native hooks
 pgrazor/test/     Regression tests
 pgrazor/vendor/   Pinned bridge, provenance, and licenses
 tools/                   Checks, source packaging, release CI setup
+website/                 React showcase deployed to GitHub Pages
 ```
 
 PGRazor uses the `pgrazor/` project directory and `dev.pgrazor` Java namespace. Assets, settings, logs, build outputs, and tooling use the same name. There are no legacy-name aliases or settings migrations.

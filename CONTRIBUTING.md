@@ -1,5 +1,7 @@
 # Contributing
 
+For the React showcase and its independent GitHub Pages workflow, see [website development](website/README.md). Website pushes publish the site, not an APK release.
+
 Use small changes with a clear problem, expected behavior, and focused validation. Run `python -B tools/check.py`; Android UI changes also require `python -B pgrazor/build.py`. Include device observations separately from automated test results.
 
 Do not submit game APKs/assets, signing keys, private logs, account details, or coordinates. The source artifact builder fails if generated/private files are Git-visible. Keep third-party provenance and license notices intact.
