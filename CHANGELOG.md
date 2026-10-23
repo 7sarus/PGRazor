@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Allow location spoofing with Android's system Location switch off or the app's location permission denied. System Location can stay enabled for other apps; disabling spoofing restores normal device-location requirements.
+
+- Keep spoofed location accuracy, timestamps, and provider status consistent when real GPS updates arrive.
+
 - Make the joystick more transparent with no backing panel, retaining the drag handle; add a tap-to-walk/double-tap-to-teleport game-map mode.
 
 - Add saved 100%, 75%, 50%, and 25% map-overlay UI scale presets under Location & Overlays.

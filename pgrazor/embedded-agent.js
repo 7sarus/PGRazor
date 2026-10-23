@@ -73,16 +73,63 @@ function bootLog(text) {
 }
 // Game-facing fixes do not depend on Android delivering a GPS update.
 let locationDelivery = null;
+function installLocationPermissionGates() {
+    const installed = [];
+    let reported = false;
+    function report() {
+        if (!reported) { reported = true; control.event('location-permission', 'Using synthetic location; Android permission unchanged'); }
+    }
+    function hook(method, implementation) { installed.push(method); method.implementation = implementation; }
+    try {
+    // Only the game's foreground-location gates accept our synthetic provider.
+    // Android Context/PackageManager checks and actual OS grants remain untouched.
+    function syntheticPermission(permission) {
+        const name = String(permission);
+        return !disposed && control.desiredEnabled() &&
+        (name === 'android.permission.ACCESS_FINE_LOCATION' || name === 'android.permission.ACCESS_COARSE_LOCATION');
+    }
+    const unityPermission = Java.use('com.unity3d.player.UnityPermissions')
+        .hasUserAuthorizedPermission.overload('android.content.Context', 'java.lang.String');
+    hook(unityPermission, function (context, permission) {
+        if (syntheticPermission(permission)) { report(); return true; }
+        return unityPermission.call(this, context, permission);
+    });
+    const pluginPermission = Java.use('com.unity3d.plugin.UnityAndroidPermissions')
+        .IsPermissionGranted.overload('android.app.Activity', 'java.lang.String');
+    hook(pluginPermission, function (activity, permission) {
+        if (activity !== null && syntheticPermission(permission)) { report(); return true; }
+        return pluginPermission.call(this, activity, permission);
+    });
+        // Current game builds also query Niantic's foreground permission service.
+        const Permissions = Java.use('com.nianticlabs.platform.niaadvsynccore.permission.Permissions');
+        const PermissionStatus = Java.use('com.nianticlabs.platform.niaadvsynccore.permission.PermissionStatus');
+        const locationFlag = String(Permissions.LOCATION.value.getValue());
+        const preciseFlag = String(Permissions.PRECISE_LOCATION.value.getValue());
+        const permissionStatus = Java.use('com.nianticlabs.platform.niaadvsyncpermissions.internal.InternalPermissionManager')
+            .permissionStatus.overload('long');
+        hook(permissionStatus, function (permission) {
+            if (!disposed && control.desiredEnabled()) {
+                const flag = String(permission);
+                if (flag === locationFlag) { report(); return PermissionStatus.GRANTED_IN_USE.value; }
+                if (flag === preciseFlag) { report(); return PermissionStatus.GRANTED_ALWAYS.value; }
+            }
+            return permissionStatus.call(this, permission);
+        });
+        hooks.push(...installed);
+    } catch (error) {
+        for (const method of installed) method.implementation = null;
+        control.event('location-permission-error', String(error));
+    }
+}
 function installLocationDelivery() {
     control.event('location-delivery', 'Initializing game location adapter on main thread');
     const Manager = Java.use('com.nianticlabs.nia.location.NianticLocationManager');
     const Service = Java.use('com.nianticlabs.nia.contextservice.ContextService');
-    const Status = Java.use('com.nianticlabs.nia.contextservice.ServiceStatus');
     const Location = Java.use('android.location.Location');
     const System = Java.use('java.lang.System');
     const Clock = Java.use('android.os.SystemClock');
     const handler = Service.getServiceHandler();
-    const notify = Manager.notifyLocationUpdate.overload('java.lang.String', 'android.location.Location', 'com.nianticlabs.nia.contextservice.ServiceStatus');
+    const notify = Manager.nativeLocationUpdate.overload('java.lang.String', 'android.location.Location', 'int', 'android.content.Context');
     const installed = [];
     let manager = null, paused = false, stopped = false, runnable = null, first = true;
     function same(object) { return manager !== null && manager.$isSameObject(object); }
@@ -91,11 +138,8 @@ function installLocationDelivery() {
         const old = manager; manager = null;
         if (old !== null) old.$dispose();
     }
-    function permitted(object) {
-        return object.getContext().checkSelfPermission('android.permission.ACCESS_FINE_LOCATION') === 0;
-    }
     function enabled(object) {
-        return !stopped && !disposed && !paused && same(object) && control.active() && permitted(object);
+        return !stopped && !disposed && !paused && same(object) && control.active();
     }
     function capture(object) {
         if (stopped || disposed) return;
@@ -104,26 +148,31 @@ function installLocationDelivery() {
         handler.removeCallbacks(runnable);
         handler.post(runnable);
     }
+    function deliver(current, provider) {
+        let sent = false;
+        // Use identical freshness/accuracy for both periodic and physical-provider callbacks.
+        // Otherwise an old real fix can replace the synthetic fix between timer ticks.
+        Java.synchronized(current.callbackLock.value, () => {
+            if (!enabled(current) || String(current.nativeClassPointer.value) === '0') return;
+            const fix = Location.$new(provider);
+            try {
+                fix.setLatitude(control.latitude()); fix.setLongitude(control.longitude());
+                fix.setSpeed(control.speed()); fix.setBearing(control.bearing());
+                fix.setAltitude(10); fix.setAccuracy(5);
+                fix.setTime(System.currentTimeMillis());
+                fix.setElapsedRealtimeNanos(Clock.elapsedRealtimeNanos());
+                notify.call(current, provider, fix, 3, current.getContext());
+                sent = true;
+                if (first) { first = false; control.event('location-delivery', 'Synthetic location updates active'); }
+            } finally { fix.$dispose(); }
+        });
+        return sent;
+    }
     function tick() {
         if (stopped || disposed || manager === null || paused) return;
         const current = manager;
         try {
-            if (enabled(current)) {
-                // Match resetNativeClassPointer's lock so teardown cannot race delivery.
-                Java.synchronized(current.callbackLock.value, () => {
-                    if (!enabled(current) || String(current.nativeClassPointer.value) === '0') return;
-                    const fix = Location.$new('fused');
-                    try {
-                        fix.setLatitude(control.latitude()); fix.setLongitude(control.longitude());
-                        fix.setSpeed(control.speed()); fix.setBearing(control.bearing());
-                        fix.setAltitude(10); fix.setAccuracy(5);
-                        fix.setTime(System.currentTimeMillis());
-                        fix.setElapsedRealtimeNanos(Clock.elapsedRealtimeNanos());
-                        notify.call(current, 'fused', fix, Status.RUNNING.value);
-                        if (first) { first = false; control.event('location-delivery', 'Synthetic location updates active'); }
-                    } finally { fix.$dispose(); }
-                });
-            }
+            if (enabled(current)) deliver(current, 'fused');
         } catch (error) {
             if (first) { first = false; bootLog('location-delivery-error: ' + error); }
         } finally {
@@ -159,14 +208,17 @@ function installLocationDelivery() {
             return pause.call(this);
         });
         hook(resume, function () { const result = resume.call(this); if (locationManager(this)) capture(Java.cast(this, Manager)); return result; });
-        hook(notify, function (provider, fix, status) {
-            // A disabled physical provider must not invalidate the synthetic provider.
-            // Permission failures and all real-location behavior still pass through.
-            if (fix === null && enabled(this) && String(status.name()) !== 'PERMISSION_DENIED') return;
-            return notify.call(this, provider, fix, status);
+        hook(notify, function (provider, fix, status, context) {
+            // Keep every reporting provider consistent, including stale/poor real fixes
+            // and permission-denied notifications. This changes only the game-facing
+            // synthetic provider; Android permission and OS location access stay denied.
+            if (enabled(this)) {
+                if (deliver(this, String(provider))) return;
+            }
+            return notify.call(this, provider, fix, status, context);
         });
         locationDelivery = {stop};
-        control.event('location-delivery', 'Game location adapter installed');
+        control.event('location-delivery', 'Game location adapter installed; OS permission unchanged');
     } catch (error) {
         stop();
         throw error;
@@ -679,6 +731,7 @@ function start() {
             if (disposed) return;
             try {
                 control = Java.use('dev.pgrazor.Control');
+                installLocationPermissionGates();
                 try { installGoogleBrowserLogin(); } catch (_) { control.event('google-browser', 'Browser sign-in unavailable'); }
                 const Location = Java.use('android.location.Location');
                 // Observe only the value already returned; never call another hooked getter.

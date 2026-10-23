@@ -1,35 +1,58 @@
 ﻿const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('pgrazor/embedded-agent.js','utf8');
 const code=source.slice(source.indexOf('let locationDelivery ='),source.indexOf('function rollback()'));
-let active=true,permission=0,now=1000,disposed=false,locked=false;
+let desired=true,active=true,permission=0,now=1000,disposed=false,locked=false;
 const queue=[],delivered=[];
 const handler={removeCallbacks:r=>{for(let i=queue.length-1;i>=0;i--)if(queue[i]===r)queue.splice(i,1)},post:r=>queue.push(r),postDelayed:r=>queue.push(r)};
 function method(fn=()=>{}){const m={call:(self,...args)=>fn(self,...args)};return {overload:()=>m,m};}
-const Manager={notifyLocationUpdate:method((self,p,fix,status)=>{if(fix)assert.ok(locked);delivered.push({self,p,fix,status});})};
+const Manager={nativeLocationUpdate:method((self,p,fix,status)=>{if(fix)assert.ok(locked);delivered.push({self,p,fix,status});})};
 const Service={invokeOnStart:method(),invokeOnStop:method(),invokeOnPause:method(),invokeOnResume:method(),getServiceHandler:()=>handler};
 Manager.class={isInstance:o=>!!o.nativeClassPointer};
-const running={name:()=> 'RUNNING'},failed={name:()=> 'FAILED'},denied={name:()=> 'PERMISSION_DENIED'};
+const running=3,failed=4,denied=5;
 function manager(){const m={callbackLock:{value:{}},nativeClassPointer:{value:1},getContext:()=>({checkSelfPermission:()=>permission}),$dispose:()=>m.released=true,$isSameObject:o=>o===m};return m;}
+const unityPermission=method(()=>false),pluginPermission=method(()=>false);
+const permissionStatus=method(()=>"denied");
 const classes={
+ 'com.nianticlabs.platform.niaadvsynccore.permission.Permissions':{LOCATION:{value:{getValue:()=>1}},PRECISE_LOCATION:{value:{getValue:()=>16}}},
+ 'com.nianticlabs.platform.niaadvsynccore.permission.PermissionStatus':{GRANTED_IN_USE:{value:'in-use'},GRANTED_ALWAYS:{value:'always'}},
+ 'com.nianticlabs.platform.niaadvsyncpermissions.internal.InternalPermissionManager':{permissionStatus},
+ 'com.unity3d.player.UnityPermissions':{hasUserAuthorizedPermission:unityPermission},
+ 'com.unity3d.plugin.UnityAndroidPermissions':{IsPermissionGranted:pluginPermission},
  'com.nianticlabs.nia.location.NianticLocationManager':Manager,
  'com.nianticlabs.nia.contextservice.ContextService':Service,
  'com.nianticlabs.nia.contextservice.ServiceStatus':{RUNNING:{value:running}},
  'android.location.Location':{$new:p=>{const f={provider:p,$dispose:()=>{}};for(const k of ['Latitude','Longitude','Speed','Bearing','Altitude','Accuracy','Time','ElapsedRealtimeNanos'])f['set'+k]=v=>f[k]=v;return f;}},
  'java.lang.System':{currentTimeMillis:()=>now},'android.os.SystemClock':{elapsedRealtimeNanos:()=>now*1000000},'java.lang.Runnable':{}
 };
-const ctx={disposed:false,control:{active:()=>active,latitude:()=>12,longitude:()=>34,speed:()=>2,bearing:()=>90,event:()=>{}},bootLog:()=>{},Java:{use:n=>{assert.ok(classes[n],n);return classes[n]},retain:o=>o,cast:o=>o,synchronized:(l,f)=>{locked=true;try{f()}finally{locked=false}},registerClass:spec=>({$new:()=>({run:spec.methods.run})})}};
-vm.createContext(ctx);vm.runInContext(code+'\nthis.install=installLocationDelivery;this.stop=()=>locationDelivery.stop();',ctx);ctx.install();
-const invoke=(n,m,...args)=>(n==='notifyLocationUpdate'?Manager[n]:Service['invoke'+n.slice(0,1).toUpperCase()+n.slice(1)]).m.implementation.call(m,...args);
+const ctx={hooks:[],disposed:false,control:{desiredEnabled:()=>desired,active:()=>active,latitude:()=>12,longitude:()=>34,speed:()=>2,bearing:()=>90,event:()=>{}},bootLog:()=>{},Java:{use:n=>{assert.ok(classes[n],n);return classes[n]},retain:o=>o,cast:o=>o,synchronized:(l,f)=>{locked=true;try{f()}finally{locked=false}},registerClass:spec=>({$new:()=>({run:spec.methods.run})})}};
+vm.createContext(ctx);vm.runInContext(code+'\ninstallLocationPermissionGates();this.install=installLocationDelivery;this.stop=()=>locationDelivery.stop();',ctx);ctx.install();
+const invoke=(n,m,...args)=>(n==='nativeLocationUpdate'?Manager[n]:Service['invoke'+n.slice(0,1).toUpperCase()+n.slice(1)]).m.implementation.call(m,...args);
 function tick(){assert.ok(queue.length);queue.shift().run();}
-const a=manager();invoke('onStart',a);tick();assert.equal(delivered.length,1);assert.equal(delivered[0].fix.Latitude,12);assert.equal(delivered[0].fix.Time,1000);
+assert.equal(permissionStatus.m.implementation(1),'in-use');assert.equal(permissionStatus.m.implementation(16),'always');assert.equal(permissionStatus.m.implementation(32),'denied');
+desired=false;assert.equal(permissionStatus.m.implementation(1),'denied');desired=true;
+const a=manager();
+for(const p of ['android.permission.ACCESS_FINE_LOCATION','android.permission.ACCESS_COARSE_LOCATION'])assert.equal(unityPermission.m.implementation({},p),true);
+for(const p of ['android.permission.ACCESS_BACKGROUND_LOCATION','android.permission.CAMERA'])assert.equal(unityPermission.m.implementation({},p),false);
+assert.equal(pluginPermission.m.implementation(null,'android.permission.ACCESS_FINE_LOCATION'),false);
+active=false;assert.equal(unityPermission.m.implementation({},'android.permission.ACCESS_FINE_LOCATION'),true);
+desired=false;assert.equal(unityPermission.m.implementation({},'android.permission.ACCESS_FINE_LOCATION'),false);desired=true;active=true;
+invoke('onStart',a);tick();assert.equal(delivered.length,1);assert.equal(delivered[0].fix.Latitude,12);assert.equal(delivered[0].fix.Time,1000);
 now=2000;tick();assert.equal(delivered[1].fix.Time,2000);assert.equal(delivered[1].fix.ElapsedRealtimeNanos,2000000000);
-invoke('notifyLocationUpdate',a,'gps',null,failed);assert.equal(delivered.length,2);
-invoke('notifyLocationUpdate',a,'gps',null,denied);assert.equal(delivered.length,3);
-active=false;tick();assert.equal(delivered.length,3);invoke('notifyLocationUpdate',a,'gps',null,failed);assert.equal(delivered.length,4);
-active=true;permission=-1;tick();assert.equal(delivered.length,4);permission=0;
-invoke('onPause',a);assert.equal(queue.length,0);invoke('onResume',a);tick();assert.equal(delivered.length,5);
-a.nativeClassPointer.value=0;tick();assert.equal(delivered.length,5);
+invoke('nativeLocationUpdate',a,'gps',null,failed);assert.equal(delivered.length,3);
+assert.equal(delivered.at(-1).p,'gps');assert.equal(delivered.at(-1).status,running);
+const stale={Time:1,Accuracy:500};now=3000;
+invoke('nativeLocationUpdate',a,'gps',stale,failed);
+assert.notEqual(delivered.at(-1).fix,stale);assert.equal(delivered.at(-1).fix.Time,3000);assert.equal(delivered.at(-1).fix.Accuracy,5);assert.equal(stale.Time,1);
+invoke('nativeLocationUpdate',a,'gps',null,denied);assert.equal(delivered.at(-1).status,running);
+let count=delivered.length;
+active=false;tick();assert.equal(delivered.length,count);invoke('nativeLocationUpdate',a,'gps',null,failed);assert.equal(delivered.at(-1).status,failed);
+// OFF leaves actual location objects and status untouched.
+locked=true;invoke('nativeLocationUpdate',a,'gps',stale,failed);locked=false;assert.equal(delivered.at(-1).fix,stale);
+active=true;permission=-1;count=delivered.length;tick();assert.equal(delivered.length,count+1);
+active=false;invoke('nativeLocationUpdate',a,'gps',null,denied);assert.equal(delivered.at(-1).status,denied);active=true;count=delivered.length;
+invoke('onPause',a);assert.equal(queue.length,0);invoke('onResume',a);tick();assert.equal(delivered.length,count+1);
+a.nativeClassPointer.value=0;count=delivered.length;tick();assert.equal(delivered.length,count);
 const b=manager();invoke('onStart',b);assert.ok(a.released);assert.equal(queue.length,1);tick();assert.equal(delivered.at(-1).self,b);
 invoke('onStop',a);assert.equal(queue.length,1);invoke('onStop',b);assert.equal(queue.length,0);assert.ok(b.released);
 invoke('onStart',manager());ctx.stop();assert.equal(queue.length,0);for(const v of [...Object.values(Manager),...Object.values(Service)])if(v.m)assert.equal(v.m.implementation,null);
-console.log('PASS location delivery: GPS-independent start, fresh fixes, OFF/permission gates, pause/resume, zero pointer, manager replacement, stop and rollback');
+console.log('PASS location delivery: GPS-independent start, fresh fixes, OFF gate and denied OS permission, pause/resume, zero pointer, manager replacement, stop and rollback');
