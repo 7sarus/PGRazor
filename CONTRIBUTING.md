@@ -6,6 +6,17 @@ Do not submit game APKs/assets, signing keys, private logs, account details, or 
 
 Native changes must validate metadata and preserve foreground/map leases, GC ownership, cancellation, and error handling. Destructive inventory automation must keep uncertain data and honor selected protection rules. Never use an automated test to spend balls, transfer live Pokémon, or change a user's inventory.
 
-Internal identifiers retain the earlier `pgrazor` name for compatibility. New user-facing labels should say PGRazor. Changes to the supported game version need updated contracts and explicit device testing.
+Use PGRazor for display names and `dev.pgrazor` for Java packages. Preserve the public `Control` bridge API and existing saved-setting keys when moving code into smaller classes. Changes to the supported game version need updated contracts and explicit device testing.
 
-Private APK publishing is a maintainer operation, not a pull-request workflow. See [BUILDING.md](docs/BUILDING.md).
+APK publishing is a maintainer operation, not a pull-request workflow. See [BUILDING.md](docs/BUILDING.md).
+
+## Adding or separating a feature
+
+- Start with the [architecture map](docs/ARCHITECTURE.md) and [maintainability guide](docs/MAINTAINABILITY.md). Keep policy, UI, and native contracts separate where existing boundaries allow it.
+- Give each runtime module explicit dependencies and ownership of its timers, hooks, and retained objects. Construction must not initialize game classes; installation belongs on the required thread.
+- Register composed scripts in `pgrazor/runtime/bundles.json`. Keep deployed asset names stable and use the shared manifest in tests.
+- Name Python tests `test_*.py` and Node tests `*-test.cjs` so `tools/check.py` discovers them. Java tests need a Python/build runner; document that mapping in the architecture page. Do not add standalone Java tests that CI never runs.
+- Prefer tests through a module API. Before extracting code covered by source-slicing tests, replace those slices with direct module fixtures. Avoid mass reformatting alongside behavioral changes.
+- Report compilation, fixture checks, and device observations separately. Passing mocked tests does not validate game offsets or Android UI behavior.
+
+CI sets `PGRAZOR_BUILD_TOOLS=36.0.0` and `PGRAZOR_ANDROID_PLATFORM=android-36`. Set those locally when reproducing CI; local defaults currently select the installed 36.1 SDK. Keep generated outputs ignored, and use `pgrazor/cleanup.ps1` after packaging with deployed/rollback retention pins preserved.

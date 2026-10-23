@@ -21,6 +21,7 @@ import zipfile
 import axml
 import build
 import runtime_assets
+import script_bundle
 
 ROOT=Path(__file__).resolve().parent
 NIANTIC_CERT_SHA256='944bda466eaf64be1c93896d5c8e9a454a07c8d8fcbc4adeeefb3545b335e979'
@@ -200,7 +201,7 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
             assets[f'assets/pgrazor/{abi}/libfrida-gadget.so']=binary; runtimes.append(metadata)
         bridge=runtime_assets.java_bridge()
         assets['assets/pgrazor/java-bridge.js']=bridge
-        assets['assets/pgrazor/embedded-agent.js']=ROOT/'embedded-agent.js'
+        assets['assets/pgrazor/embedded-agent.js']=script_bundle.bundle(ROOT,'embedded-agent.js')
         if il2cpp_survey:
             assets['assets/pgrazor/il2cpp-survey.js']=ROOT/'diagnostics/il2cpp-survey.js'
         if camera_probe:
@@ -213,7 +214,7 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
             assets['assets/pgrazor/'+summary_script]=ROOT/'diagnostics'/summary_script
         if quick_close:
             assets['assets/pgrazor/quick-summary.js']=ROOT/'diagnostics/quick-summary.js'
-            assets['assets/pgrazor/quick-close.js']=(ROOT/'diagnostics/catch-presentation-bridge.js').read_bytes()+b'\n;\n'+(ROOT/'diagnostics/quick-close.js').read_bytes()
+            assets['assets/pgrazor/quick-close.js']=script_bundle.bundle(ROOT,'quick-close.js')
         if quick_ball:
             assets['assets/pgrazor/quick-ball.js']=ROOT/'diagnostics/quick-ball.js'
         for notice in ['NOTICE.txt','COPYING.frida-tools','bridge-provenance.json']:
@@ -225,7 +226,12 @@ def package(source, *,panel_only=False,download=False,preview=False,probe_abi=No
     if not panel_only:
         report['bridge_sha256']=runtime_assets.sha256(bridge)
         report['bridge_upstream_patch']=runtime_assets.BRIDGE_COMMIT
-        report['agent_sha256']=runtime_assets.sha256(ROOT/'embedded-agent.js')
+        report['agent_sha256']=hashlib.sha256(assets['assets/pgrazor/embedded-agent.js']).hexdigest()
+        manifest=json.loads((ROOT/'runtime/bundles.json').read_text(encoding='utf-8'))
+        report['script_bundles']={name:{
+            'sha256':hashlib.sha256(assets['assets/pgrazor/'+name]).hexdigest(),
+            'sources':[{'path':part,'sha256':runtime_assets.sha256(ROOT/part)} for part in parts]
+        } for name,parts in manifest.items() if 'assets/pgrazor/'+name in assets}
     if il2cpp_survey:
         report['diagnostics']={'il2cpp_survey':{
             'source':str(ROOT/'diagnostics/il2cpp-survey.js'),

@@ -1,13 +1,33 @@
-"""Run the maintained, device-free PGRazor checks from any working directory."""
+"""Run every device-free test; naming conventions keep new suites in CI."""
 from pathlib import Path
+import json
 import subprocess
 import sys
+
 ROOT = Path(__file__).resolve().parents[1]
-def run(*args): subprocess.run([str(x) for x in args],cwd=ROOT,check=True)
-run(sys.executable,'-B','pgrazor/build.py','--test-only')
-for name in ['test_axml.py','test_packaging.py','test_release_apk.py','test_private_input.py','test_live_feed_java.py']:
-    run(sys.executable,'-B','-m','unittest','discover','-s','pgrazor/test','-p',name)
-for name in ['transfer-keep-test.cjs','location-toggle-test.cjs','location-delivery-test.cjs','iv-display-test.cjs','quick-summary-test.cjs','quick-summary-agent-test.cjs','quick-dismiss-canvas-test.cjs','vgp-test.cjs','item-transfer-test.cjs','berry-test.cjs','buddy-test.cjs','ar-throw-test.cjs','incubation-test.cjs','other-battles-test.cjs','rocket-test.cjs','rocket-minigame-test.cjs']:
-    run('node','pgrazor/test/'+name)
-for path in [ROOT/'pgrazor/embedded-agent.js',*sorted((ROOT/'pgrazor/diagnostics').glob('*.js'))]:
-    run('node','--check',path)
+PROJECT = ROOT / 'pgrazor'
+sys.path.insert(0, str(PROJECT))
+from script_bundle import bundle
+
+
+def run(*args, **kwargs):
+    subprocess.run([str(x) for x in args], cwd=ROOT, check=True, **kwargs)
+
+
+def main():
+    run(sys.executable, '-B', PROJECT / 'build.py', '--test-only')
+    run(sys.executable, '-B', '-m', 'unittest', 'discover', '-s', PROJECT / 'test', '-p', 'test_*.py')
+    for path in sorted((PROJECT / 'test').glob('*-test.cjs')):
+        print('Checking', path.relative_to(ROOT), flush=True)
+        run('node', path)
+    for path in [PROJECT / 'embedded-agent.js',
+                 *sorted((PROJECT / 'diagnostics').glob('*.js')),
+                 *sorted((PROJECT / 'runtime').rglob('*.js'))]:
+        run('node', '--check', path)
+    # Parse the exact bytes shipped, including separators and source order.
+    for name in json.loads((PROJECT / 'runtime/bundles.json').read_text(encoding='utf-8')):
+        run('node', '--check', input=bundle(PROJECT, name))
+
+
+if __name__ == '__main__':
+    main()

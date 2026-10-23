@@ -392,7 +392,7 @@ function install(s,p){
    prepareOutline(r,obj);
    if(kind==='owned')s.ivOwnedRecords.push(r);else s.ivRecords.catch=r;renderIv(r,ivEnabled(kind));
   }catch(e){if(ivList(kind).includes(r))dropIv(kind,obj);else api.gchandle_free(r.text);throw e;}}
- function ivTick(){const now=s.now();if(!s.stopping&&now<s.ivNext)return;s.ivNext=now+250;
+ function ivTick(){const now=s.stopping?0:s.now();if(!s.stopping&&now<s.ivNext)return;s.ivNext=now+250;
   for(const kind of ['catch','owned'])for(const r of [...ivList(kind)]){
    try{if(s.stopping||!alive(r.text)){dropIv(kind,target(r.text));continue;}renderIv(r,ivEnabled(kind));}
    catch(e){if(kind==='catch')s.ivFault=true;else s.ivOwnedFault=true;dropIv(kind,target(r.text));event(s,'iv-display-error',{context:kind,reason:String(e)});}}
@@ -525,7 +525,9 @@ function install(s,p){
   }catch(e){a.retryAt=now===null?0:now+1000;a.retryTicks=60;s.allowedUntil=0;s.stopping=true;s.reason=s.reason||'restoration-failed';if(!a.reported){a.reported=true;event(s,'cleanup-failed',{reason:String(e).slice(0,140),pending:true,tid:s.thread});}}
  }
  function cleanupTick(tid){if(s.busy)return;s.busy=true;try{if(!unity(tid))return;pruneSeen();traceTick();
-  ivTick();
+  // Optional IV work must not bypass restoration of an owned animation speed.
+  // In particular, a clock failure must still reach the stop/restore path below.
+  try{ivTick();}catch(e){fault(s,e);}
   const a=s.attempt;if(!a)return;if(s.stopping||s.allowedUntil===0){restore(s.stopping?'stop':'off',false);return;}
   let now;try{now=s.now();}catch(e){fault(s,e);restore('clock-failed',true);return;}
   if(now>=s.allowedUntil||now>=a.deadline)restore(now>=a.deadline?'timeout':'lease-expired',false);

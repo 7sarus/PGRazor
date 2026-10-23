@@ -1,6 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const source=fs.readFileSync(__dirname+'/../diagnostics/quick-close.js','utf8');
-const block=source.slice(source.indexOf(' const itemState='),source.indexOf(' function clearSpin(){'));
+const feature=require('./feature-fixture.cjs');
 function fixture(){
  let now=1000,quantity=150,requests=[],events=[],handles=new Set(),hooks=new Map(),serial=0;
  class P{constructor(v=0,at=0){this.v=v;this.at=at;}isNull(){return this.v===0;}equals(p){return this.v===p.v;}toString(){return 'ptr'+(this.v.id||0);}add(n){return new P(this.v,this.at+n);}writePointer(p){this.v.slots??={};this.v.slots[this.at]=p;}readPointer(){return this.v.slots?.[this.at]||new P();}writeS32(n){this.v.n=n;}readS32(){return this.v.n;}readU8(){return this.v.n;}}
@@ -12,7 +11,7 @@ function fixture(){
   if(m==='list')return list;if(m==='count')return obj('int',{n:1});if(m==='get'){data.v.fields.count=quantity;return data;}if(m==='quantity')return obj('int',{n:quantity});if(m==='expiring')return expiry;if(m==='proto')return o.v.fields.proto;
   if(m==='recycle'){requests.push(args.add(8).readPointer().readS32());return obj('promise');}throw Error(m);
  }};
- vm.runInNewContext(block+'\nglobalThis.tick=itemTick;',ctx);
+ Object.assign(ctx,feature('itemValues',ctx));ctx.tick=feature('items',ctx).itemTick;
  const init=hooks.get('init'),call={threadId:1};init.onEnter.call(call,[service]);init.onLeave.call(call);hooks.get("list").onEnter.call(call,[service,nil(),nil(),nil(),nil(),nil()]);
  return{s,requests,events,handles,tick(){ctx.tick(now);},advance(n=3100){now+=n;},setCount:n=>quantity=n,result(id=1,ok=true){const h=hooks.get('result'),c={threadId:1};h.onEnter.call(c,[obj('callback',{bag,prediction:obj('prediction',{proto:obj('proto',{id})})}),obj('response',{status:ok?1:2})]);h.onLeave.call(c);},stop(){s.stopping=true;ctx.tick(now);}};
 }

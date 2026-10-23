@@ -1,0 +1,23 @@
+{
+  "embedded-agent.js": [
+    "runtime/location.js",
+    "embedded-agent.js"
+  ],
+  "quick-close.js": [
+    "diagnostics/catch-presentation-bridge.js",
+    "runtime/berry-policy.js",
+    "runtime/features/incubation.js",
+    "runtime/features/buddy.js",
+    "runtime/features/gifts.js",
+    "runtime/features/spawn.js",
+    "runtime/features/berries.js",
+    "runtime/features/battles.js",
+    "runtime/features/rocketMinigame.js",
+    "runtime/features/rocket.js",
+    "runtime/features/itemValues.js",
+    "runtime/features/items.js",
+    "runtime/features/nativePromise.js",
+    "runtime/features/vgp.js",
+    "diagnostics/quick-close.js"
+  ]
+}

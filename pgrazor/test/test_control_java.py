@@ -13,7 +13,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 STUBS = {
-    'android/content/Context.java': 'package android.content; public class Context {}',
+    'android/content/Context.java': 'package android.content; public class Context {public static final String NOTIFICATION_SERVICE="notification";}',
     'android/app/Activity.java': '''package android.app;
 public class Activity extends android.content.Context {
  public boolean finishing, destroyed;
@@ -22,6 +22,9 @@ public class Activity extends android.content.Context {
     'android/app/Application.java': '''package android.app;
 public class Application {
  public java.io.File getFilesDir(){throw new UnsupportedOperationException("Files not exercised");}
+ public java.io.File getExternalFilesDir(String type){return null;}
+ public int checkSelfPermission(String permission){return 0;}
+ public Object getSystemService(String name){return null;}
  public void registerActivityLifecycleCallbacks(ActivityLifecycleCallbacks c){}
  public interface ActivityLifecycleCallbacks {
   void onActivityResumed(Activity a); void onActivityPaused(Activity a); void onActivityDestroyed(Activity a);
@@ -76,9 +79,55 @@ public class AtomicFile {
  public java.io.FileInputStream openRead() throws java.io.IOException {return new java.io.FileInputStream(file);}
  public void finishWrite(java.io.FileOutputStream out){try{out.close();}catch(java.io.IOException e){throw new RuntimeException(e);}} public void failWrite(java.io.FileOutputStream out){}
 }''',
+    'android/os/Build.java': '''package android.os;
+public class Build {public static class VERSION {public static final int SDK_INT=34;}}''',
+    'android/content/pm/PackageManager.java': '''package android.content.pm;
+public class PackageManager {public static final int PERMISSION_GRANTED=0;}''',
+    'android/view/ViewConfiguration.java': '''package android.view;
+public class ViewConfiguration {public static int getDoubleTapTimeout(){return 300;}}''',
+    'android/R.java': '''package android;
+public final class R {public static final class drawable {public static final int stat_notify_sync=0x1080000;}}''',
+    'android/app/NotificationChannel.java': '''package android.app;
+public class NotificationChannel {public NotificationChannel(String id,CharSequence name,int importance){}}''',
+    'android/app/Notification.java': '''package android.app;
+public class Notification {
+ public static class Builder {
+  public Builder(Application context,String channelId){}
+  public Builder setSmallIcon(int icon){return this;}
+  public Builder setContentTitle(CharSequence title){return this;}
+  public Builder setContentText(CharSequence text){return this;}
+  public Builder setAutoCancel(boolean value){return this;}
+  public Notification build(){return new Notification();}
+ }
+}''',
+    'android/app/NotificationManager.java': '''package android.app;
+public class NotificationManager {
+ public static final int IMPORTANCE_LOW=2;
+ public void createNotificationChannel(NotificationChannel channel){}
+ public void notify(int id,Notification notification){}
+}''',
     'dev/pgrazor/Pad.java': '''package dev.pgrazor;
 public class Pad {public final android.app.Activity activity; public Pad(android.app.Activity a){activity=a;} public void close(){}}''',
     'dev/pgrazor/LogActivity.java': 'package dev.pgrazor; public class LogActivity extends android.app.Activity {}',
+    # Shells for collaborators whose real sources pull in Android UI/network far beyond Control's
+    # narrow use of them. Control only references the members shelled here; policy is never exercised
+    # through these, so they return inert values. BerryPriority/MapTapSequence/CooldownState compile
+    # from real source below because they are pure Java with exercised behavior.
+    'dev/pgrazor/Cooldown.java': '''package dev.pgrazor;
+public final class Cooldown {
+ // Tests drive the estimated cooldown explicitly; defaults match the previous inert shell.
+ public static long remaining=0;
+ public static final java.util.List<String> recorded=new java.util.ArrayList<>();
+ public static void init(android.app.Application app){}
+ public static long remaining(){return remaining;}
+ public static void record(String action){recorded.add(action);}
+}''',
+    'dev/pgrazor/GoogleBrowserAuth.java': '''package dev.pgrazor;
+public final class GoogleBrowserAuth {
+ public static void onHostResumed(android.app.Activity activity){}
+ public static void onHostPaused(android.app.Activity activity){}
+}''',
+    'dev/pgrazor/GoogleAuthActivity.java': 'package dev.pgrazor; public class GoogleAuthActivity extends android.app.Activity {}',
 }
 
 
@@ -112,9 +161,13 @@ class ControlJavaTests(unittest.TestCase):
                 sources.append(source)
             sources.extend(ROOT / 'src/dev/pgrazor' / name for name in (
                 'Control.java', 'MotionEngine.java', 'LocationState.java',
-                'CameraHeadingState.java', 'CameraSteering.java'))
+                'CameraHeadingState.java', 'CameraSteering.java',
+                'BerryPriority.java', 'MapTapSequence.java', 'CooldownState.java',
+                'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java'))
             sources.extend([ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
-                            ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java'])
+                            ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java',
+                            ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',
+                            ROOT / 'test/ControlSettingsReloadTest.java'])
             classes = work / 'classes'
             compiled = subprocess.run([str(compiler), '-encoding', 'UTF-8', '-d', str(classes),
                                        *map(str, sources)], capture_output=True, text=True, timeout=30)
@@ -131,9 +184,20 @@ class ControlJavaTests(unittest.TestCase):
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
             self.assertIn('PASS: real Control ball outcome', tested.stdout)
+            tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.VgpControllerTest'],
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
+            self.assertIn('PASS: real Control VGP', tested.stdout)
+            tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.CooldownTest'],
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
+            self.assertIn('PASS cooldown', tested.stdout)
             for phase in ('save','load'):
                 tested=subprocess.run([str(runtime),'-cp',str(classes),'dev.pgrazor.ControlSettingsTest',phase,str(work)],capture_output=True,text=True,timeout=15)
                 self.assertEqual(tested.returncode,0,tested.stdout+tested.stderr)
+            tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlSettingsReloadTest',str(work)],
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
 
 
 if __name__ == '__main__':

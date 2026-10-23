@@ -14,18 +14,13 @@ import java.util.Locale;
 public final class Pad {
     final Activity activity;
     private final FrameLayout parent;
-    private final LinearLayout panel, body;
-    private final ScrollView bodyScroll;
-    private final TextView coords;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Stick stick;
-    private View launcher, closeIcon, themeIcon;
+    // The full-screen settings body (switches, captions, sections) owns its own construction/refresh.
+    private final SettingsPanel settings;
+    private View launcher;
     private VgpToggle vgpToggle;
-    private Switch incubatorSwitch;
-    private Button incubatorPriority;
-    private Button uiScale;
     private int appliedUiScale;
-    private TextView incubatorStatus;
     private LinearLayout joystickOverlay;
     private BerryOverlay encounterBerry;
     private Button cooldownTimer;
@@ -33,89 +28,32 @@ public final class Pad {
     private VgpMarker vgpMarker;
     // Draggable, position-persisting handles for the cooldown and VGP overlays.
     private OverlayDrag cooldownDrag, vgpDrag;
-    // Primary action and cycle/dialog rows.
-    private Button mapTap, throwGrade, itemSettings, cameraSample, interactionCapture, transferKeepList;
     private QuickMenu quickMenu;
     // Draggable, position-persisting Keep All / transfer-rules overlay button.
     private TransferToggle transferToggle;
     private OverlayDrag transferDrag;
-    // Boolean settings use proper switches.
-    private Switch locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, arSwitch, ivCatchSwitch, ivOwnedSwitch, transferOverlaySwitch;
-    private TextView quickSummaryLabel, vgpStatus;
-    private final CheckBox[] vgpChoices=new CheckBox[3];
-    private CheckBox vgpCooldownStop;
-    // Status / caption lines (muted, readiness driven).
-    private TextView state, steeringStatus, spawnStatus, quickSummaryStatus, transferStatus, quickSpinStatus,
-        buddyStatus, giftStatus, itemStatus, rocketStatus, battleStatus, quickBallStatus, ivStatus, cameraStatus, interactionStatus;
-    // Multi-option groups keep checkboxes / radios.
-    private final CheckBox[] transferProtection=new CheckBox[6];
-    private final CheckBox[] giftChoices=new CheckBox[3];
-    private final CheckBox[] rocketChoices=new CheckBox[3];
-    private final CheckBox[] battleChoices=new CheckBox[10];
-    private final RadioButton[] buddyChoices=new RadioButton[6];
-    // Section roots gated by backend readiness, refreshed without recreation.
-    private View catchRoot, buddyRoot, giftRoot, itemsRoot, rocketRoot, battleRoot, quickBallRoot;
-    private LinearLayout cameraRoot, interactionRoot;
-    private static final int[] BERRY_IDS={0,701,703,705,706,707};
-    private static final String[] BERRY_NAMES={"Off","Razz Berry","Nanab Berry","Pinap Berry","Golden Razz Berry","Silver Pinap Berry"};
-    private final java.util.List<TextView> sectionHeads=new java.util.ArrayList<>();
-    private final java.util.List<TextView> captions=new java.util.ArrayList<>();
 
-    private Context dialogContext(){return new ContextThemeWrapper(activity,Control.darkTheme()?android.R.style.Theme_Material_Dialog_Alert:android.R.style.Theme_Material_Light_Dialog_Alert);}
-    private int ink(){return Control.darkTheme()?Color.rgb(235,241,246):Color.rgb(25,35,47);}
-    private int muted(){return Control.darkTheme()?Color.rgb(154,171,187):Color.rgb(88,105,121);}
-    private int surface(){return Control.darkTheme()?Color.rgb(20,27,37):Color.rgb(249,251,253);}
-    private int accent(){return Control.darkTheme()?Color.rgb(69,225,186):Color.rgb(0,116,92);}
-    private GradientDrawable rounded(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
-    private void styleTree(View view){
-        if(view instanceof TextView){TextView t=(TextView)view;
-            t.setTextColor(new android.content.res.ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled},new int[]{}},new int[]{muted(),ink()}));
-            if(!(view instanceof Button))t.setPadding(dp(4),dp(3),dp(4),dp(3));
-        }
-        if(view instanceof Button){TextView t=(TextView)view;t.setTextSize(14);t.setMinHeight(dp(48));t.setPadding(dp(10),dp(6),dp(10),dp(6));t.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
-            if(!(view instanceof CompoundButton))view.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x2845e1ba),rounded(Control.darkTheme()?0xff202b39:0xffedf2f6,9),null));
-        }
-        if(view instanceof CompoundButton)((CompoundButton)view).setButtonTintList(new android.content.res.ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled},new int[]{android.R.attr.state_checked},new int[]{}},new int[]{muted(),accent(),muted()}));
-        if(view instanceof Switch){Switch s=(Switch)view;int off=Control.darkTheme()?0xff4a5a6a:0xffb4c2ce;s.setText("");s.setMinHeight(0);s.setPadding(dp(8),0,0,0);
-            s.setThumbTintList(new android.content.res.ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled},new int[]{android.R.attr.state_checked},new int[]{}},new int[]{0xff6b7883,accent(),off}));
-            s.setTrackTintList(new android.content.res.ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled},new int[]{android.R.attr.state_checked},new int[]{}},new int[]{0x33808080,(accent()&0x00ffffff)|0x66000000,(off&0x00ffffff)|0x55000000}));
-        }
-        if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++)styleTree(group.getChildAt(i));}
-    }
+    private int dp(float x){return SettingsUi.dp(activity,x);}
+    private int ink(){return SettingsUi.ink();}
+    private int muted(){return SettingsUi.muted();}
+    private int surface(){return SettingsUi.surface();}
+    private int accent(){return SettingsUi.accent();}
+    private GradientDrawable rounded(int color,int radius){return SettingsUi.rounded(activity,color,radius);}
+    private void styleTree(View view){SettingsUi.styleTree(activity,view);}
+    private Context dialogContext(){return SettingsUi.dialogContext(activity);}
+    private TextView text(String label,int size,int color){return SettingsUi.text(activity,label,size,color);}
+    private Button button(String label){return SettingsUi.button(activity,label);}
+
+    /** Re-theme the overlays Pad owns, then the settings body. Invoked on dark/light toggle. */
     private void applyTheme(){
-        panel.setBackgroundColor(surface());styleTree(panel);
-        for(TextView head:sectionHeads){head.setTextColor(accent());head.setTypeface(Typeface.DEFAULT,Typeface.BOLD);}
-        for(TextView c:captions)c.setTextColor(muted());
-        if(coords!=null)coords.setTextColor(ink());
+        settings.applyTheme();
         if(launcher!=null)launcher.invalidate();
-        if(closeIcon!=null)closeIcon.invalidate();
-        if(themeIcon!=null){themeIcon.setContentDescription(Control.darkTheme()?"Switch to light theme":"Switch to dark theme");themeIcon.invalidate();}
         if(joystickOverlay!=null){joystickOverlay.setBackground(null);stick.setAlpha(0.6f);styleTree(joystickOverlay);stick.invalidate();}
         if(encounterBerry!=null)encounterBerry.invalidate();
         if(cooldownTimer!=null)cooldownTimer.setBackground(rounded(Control.darkTheme()?0xcc141b25:0xccf1f5f8,12));
         if(transferToggle!=null)transferToggle.invalidate();
         if(quickMenu!=null)quickMenu.applyTheme();
     }
-    /** A collapsible group. Content is built directly into the returned container, so no post-hoc index moves. */
-    private LinearLayout section(LinearLayout owner,String label,boolean open){
-        LinearLayout group=new LinearLayout(activity);group.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout head=new LinearLayout(activity);head.setOrientation(LinearLayout.HORIZONTAL);head.setGravity(Gravity.CENTER_VERTICAL);head.setMinimumHeight(dp(46));head.setClickable(true);head.setFocusable(true);
-        TextView title=new TextView(activity);title.setText(label);title.setTextSize(14);head.addView(title,new LinearLayout.LayoutParams(0,-2,1f));
-        TextView chev=new TextView(activity);chev.setTextSize(15);chev.setGravity(Gravity.CENTER);chev.setText(open?"–":"+");head.addView(chev,new LinearLayout.LayoutParams(dp(32),-2));
-        LinearLayout content=new LinearLayout(activity);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(6),0,dp(2),dp(8));content.setVisibility(open?View.VISIBLE:View.GONE);
-        head.setOnClickListener(v->{boolean o=content.getVisibility()!=View.VISIBLE;content.setVisibility(o?View.VISIBLE:View.GONE);chev.setText(o?"–":"+");});
-        group.addView(head);group.addView(content);owner.addView(group);
-        sectionHeads.add(title);sectionHeads.add(chev);
-        return content;
-    }
-    private Switch switchRow(LinearLayout owner,String label){
-        LinearLayout r=new LinearLayout(activity);r.setOrientation(LinearLayout.HORIZONTAL);r.setGravity(Gravity.CENTER_VERTICAL);r.setMinimumHeight(dp(44));
-        TextView t=new TextView(activity);t.setText(label);t.setTextSize(14);r.addView(t,new LinearLayout.LayoutParams(0,-2,1f));
-        Switch sw=new Switch(activity);sw.setContentDescription(label);sw.setClickable(true);r.addView(sw,new LinearLayout.LayoutParams(-2,-2));
-        owner.addView(r);return sw;
-    }
-    private TextView caption(LinearLayout owner,String s){TextView t=new TextView(activity);t.setText(s);t.setTextSize(11);owner.addView(t);captions.add(t);return t;}
     private void draggable(View handle,View target,boolean clickable){
         handle.setOnTouchListener(new View.OnTouchListener(){float downX,downY,originX,originY;boolean moved;
             public boolean onTouch(View v,MotionEvent e){int a=e.getActionMasked();if(a==MotionEvent.ACTION_DOWN){downX=e.getRawX();downY=e.getRawY();originX=target.getX();originY=target.getY();moved=false;return true;}
@@ -129,267 +67,30 @@ public final class Pad {
         protected void onDraw(Canvas c){super.onDraw(c);float scale=Math.min(getWidth(),getHeight())/48f;c.save();c.scale(scale,scale);paint.setColor(surface());c.drawCircle(24,24,23,paint);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.5f);paint.setColor(accent());c.drawCircle(24,24,22,paint);paint.setStyle(Paint.Style.FILL);
             Path r=new Path();r.moveTo(13,11);r.lineTo(29,11);r.lineTo(36,18);r.lineTo(29,26);r.lineTo(36,37);r.lineTo(26,37);r.lineTo(19,26);r.lineTo(19,37);r.lineTo(12,37);r.lineTo(17,19);r.lineTo(24,19);r.lineTo(23,22);r.lineTo(27,22);r.lineTo(30,18);r.lineTo(27,16);r.lineTo(12,16);r.close();c.drawPath(r,paint);c.restore();}
     }
-    /** Shows the destination theme: golden sun in dark mode, indigo moon in light mode. */
-    private final class ThemeIcon extends View {
-        private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
-        ThemeIcon(Context c){super(c);setFocusable(true);setClickable(true);setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x3345e1ba),null,rounded(0xffffffff,24)));}
-        protected void onDraw(Canvas c){super.onDraw(c);float x=getWidth()/2f,y=getHeight()/2f;
-            if(Control.darkTheme()){
-                paint.setColor(0xffffcf5c);paint.setStyle(Paint.Style.FILL);c.drawCircle(x,y,dp(5),paint);paint.setStrokeWidth(dp(2));paint.setStrokeCap(Paint.Cap.ROUND);
-                for(int i=0;i<8;i++){double a=i*Math.PI/4;c.drawLine(x+(float)Math.cos(a)*dp(8),y+(float)Math.sin(a)*dp(8),x+(float)Math.cos(a)*dp(11),y+(float)Math.sin(a)*dp(11),paint);}
-            }else{
-                paint.setColor(0xff5355b9);paint.setStyle(Paint.Style.FILL);
-                Path moon=new Path();moon.addCircle(x,y,dp(10),Path.Direction.CW);
-                Path cut=new Path();cut.addCircle(x+dp(6),y-dp(4),dp(9),Path.Direction.CW);moon.op(cut,Path.Op.DIFFERENCE);c.drawPath(moon,paint);
-            }
-        }
-    }
-    /** A clean close affix: a small X drawn inside a 48dp hitbox. */
-    private final class CloseIcon extends View {
-        private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
-        CloseIcon(Context c){super(c);setContentDescription("Close PGRazor settings");setFocusable(true);setClickable(true);
-            setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x3345e1ba),null,rounded(0xffffffff,24)));}
-        protected void onDraw(Canvas c){super.onDraw(c);float cx=getWidth()/2f,cy=getHeight()/2f,r=dp(8);paint.setStyle(Paint.Style.STROKE);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeWidth(dp(2));paint.setColor(muted());c.drawLine(cx-r,cy-r,cx+r,cy+r,paint);c.drawLine(cx-r,cy+r,cx+r,cy-r,paint);}
-    }
 
     private long lastTick = SystemClock.elapsedRealtime(), lastLog;
     private boolean closed, lastEnabled;
-    /** Pads the full-screen settings panel inside the status bar, navigation bar, and IME. */
-    private void applyPanelInsets(WindowInsets insets) {
-        if(insets==null)return;
-        int top,bottom,left,right;
-        if(Build.VERSION.SDK_INT>=30){
-            android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.ime());
-            android.graphics.Insets safe=insets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
-            top=Math.max(bars.top,safe.top);bottom=Math.max(bars.bottom,safe.bottom);left=Math.max(bars.left,safe.left);right=Math.max(bars.right,safe.right);
-        }else{
-            top=insets.getSystemWindowInsetTop();bottom=insets.getSystemWindowInsetBottom();
-            left=insets.getSystemWindowInsetLeft();right=insets.getSystemWindowInsetRight();
-        }
-        if(top==0){int id=activity.getResources().getIdentifier("status_bar_height","dimen","android");top=id!=0?activity.getResources().getDimensionPixelSize(id):dp(28);}
-        panel.setPadding(dp(12)+left,dp(8)+top,dp(12)+right,dp(12)+bottom);
-    }
-    private void showItemSettings(){
-        LinearLayout form=new LinearLayout(activity);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(16),dp(8),dp(16),dp(8));
-        CheckBox enabled=new CheckBox(activity);enabled.setText("Enable automatic item transfer");enabled.setChecked(Control.itemTransferEnabled());form.addView(enabled);
-        TextView explanation=new TextView(activity);explanation.setText("Check items to trim and set the maximum to keep. Saving applies to your current bag and future items. A limit of 0 removes all of that item. Unchecked items are kept.");form.addView(explanation);
-        java.util.Map<Integer,Integer> limits=new java.util.HashMap<>();java.util.Set<Integer> selected=new java.util.HashSet<>();
-        for(String row:Control.itemLimits().split(";"))try{String[] b=row.split(":");limits.put(Integer.parseInt(b[0]),Integer.parseInt(b[1]));}catch(RuntimeException ignored){}
-        for(String row:Control.itemRules().split(";"))try{String[] b=row.split(":");int id=Integer.parseInt(b[0]);selected.add(id);limits.put(id,Integer.parseInt(b[1]));}catch(RuntimeException ignored){}
-        LinearLayout rows=new LinearLayout(activity);rows.setOrientation(LinearLayout.VERTICAL);ScrollView scroll=new ScrollView(activity);scroll.addView(rows);form.addView(scroll,new LinearLayout.LayoutParams(-1,dp(380)));
-        java.util.Map<Integer,CheckBox> boxes=new java.util.LinkedHashMap<>();java.util.Map<Integer,EditText> inputs=new java.util.LinkedHashMap<>();
-        Runnable populate=()->{for(String row:Control.itemCatalog().split("\n")){String[] b=row.split("\\|",-1);if(b.length!=3)continue;int id;try{id=Integer.parseInt(b[0]);}catch(NumberFormatException invalid){continue;}if(boxes.containsKey(id)){boxes.get(id).setText(b[1]+" ("+b[2]+" in bag)");continue;}
-            LinearLayout line=new LinearLayout(activity);line.setOrientation(LinearLayout.HORIZONTAL);line.setGravity(Gravity.CENTER_VERTICAL);
-            CheckBox box=new CheckBox(activity);box.setText(b[1]+" ("+b[2]+" in bag)");box.setChecked(selected.contains(id));line.addView(box,new LinearLayout.LayoutParams(0,-2,1));
-            EditText cap=new EditText(dialogContext());cap.setInputType(InputType.TYPE_CLASS_NUMBER);cap.setSingleLine(true);cap.setHint("Max");cap.setText(String.valueOf(limits.containsKey(id)?limits.get(id):100));cap.setContentDescription("Maximum "+b[1]+" to keep");cap.setEnabled(box.isChecked());box.setOnCheckedChangeListener((button,checked)->cap.setEnabled(checked));line.addView(cap,new LinearLayout.LayoutParams(dp(80),-2));rows.addView(line);styleTree(line);boxes.put(id,box);inputs.put(id,cap);
-        }};populate.run();
-        TextView status=new TextView(activity);status.setText(Control.itemStatus());form.addView(status);
-        AlertDialog dialog=new AlertDialog.Builder(dialogContext()).setTitle("Auto-transfer inventory items").setView(form).setNegativeButton("Cancel",null).setPositiveButton("Save & apply",null).create();
-        final Runnable[] poll=new Runnable[1];poll[0]=()->{if(!dialog.isShowing())return;populate.run();status.setText(Control.itemStatus());handler.postDelayed(poll[0],1000);};
-        dialog.setOnDismissListener(d->handler.removeCallbacks(poll[0]));dialog.show();styleTree(form);handler.post(poll[0]);
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{StringBuilder rules=new StringBuilder(),all=new StringBuilder();for(java.util.Map.Entry<Integer,EditText> e:inputs.entrySet()){int cap;try{cap=Integer.parseInt(e.getValue().getText().toString().trim());if(cap<0||cap>100000)throw new NumberFormatException();}catch(NumberFormatException invalid){e.getValue().setError("Enter 0 to 100000");return;}String rule=e.getKey()+":"+cap+";";all.append(rule);if(boxes.get(e.getKey()).isChecked())rules.append(rule);}
-            Control.saveItemRules(enabled.isChecked(),rules.toString(),all.toString());dialog.dismiss();refresh();});
-    }
-    private int dp(float x) { return Math.round(x * activity.getResources().getDisplayMetrics().density); }
-    private TextView text(String label, int size, int color) {
-        TextView v = new TextView(activity); v.setText(label); v.setTextSize(size); v.setTextColor(color); return v;
-    }
-    private Button button(String label) {
-        Button v = new Button(activity); v.setText(label); v.setAllCaps(false); v.setTextSize(13); return v;
-    }
     public Pad(Activity host) {
         activity = host;
         parent = (FrameLayout)host.getWindow().getDecorView();
-        panel = new LinearLayout(host); panel.setOrientation(LinearLayout.VERTICAL); panel.setPadding(dp(12), dp(8), dp(12), dp(12));
-        panel.setBackgroundColor(surface()); panel.setElevation(dp(12));
-        // Full-screen settings header with theme and close controls.
-        LinearLayout header = new LinearLayout(host); header.setOrientation(LinearLayout.HORIZONTAL); header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = text("PGRazor", 19, accent()); title.setTypeface(Typeface.DEFAULT,Typeface.BOLD); title.setPadding(dp(4), dp(8), 0, dp(8)); sectionHeads.add(title);
-        header.addView(title, new LinearLayout.LayoutParams(0, dp(48), 1f));
-        themeIcon = new ThemeIcon(host); header.addView(themeIcon,new LinearLayout.LayoutParams(dp(48),dp(48)));
-        themeIcon.setOnClickListener(v -> {Control.setDarkTheme(!Control.darkTheme());applyTheme();});
-        closeIcon = new CloseIcon(host); header.addView(closeIcon, new LinearLayout.LayoutParams(dp(48), dp(48)));
-        panel.addView(header);
-        View gap = new View(host); panel.addView(gap, new LinearLayout.LayoutParams(-1, dp(8)));
-        body = new LinearLayout(host); body.setOrientation(LinearLayout.VERTICAL);
-        bodyScroll = new ScrollView(host); bodyScroll.setFillViewport(false); bodyScroll.setVerticalScrollBarEnabled(false);
-        bodyScroll.addView(body, new ScrollView.LayoutParams(-1,-2));
-        panel.addView(bodyScroll, new LinearLayout.LayoutParams(-1,0,1));
-        TextView discord = text("Join our Discord", 14, accent());
-        discord.setGravity(Gravity.CENTER); discord.setMinimumHeight(dp(48));
-        discord.setContentDescription("Join the PGRazor Discord community");
-        discord.setClickable(true); discord.setFocusable(true); sectionHeads.add(discord);
-        panel.addView(discord, new LinearLayout.LayoutParams(-1,dp(48)));
-        discord.setOnClickListener(v -> {
-            try { activity.startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://discord.gg/9QqfkDSQX3"))); }
-            catch (android.content.ActivityNotFoundException unavailable) {
-                android.widget.Toast.makeText(activity, "No app available to open Discord links", android.widget.Toast.LENGTH_SHORT).show();
-            }
+        // Build the settings body first (not yet attached); it calls back through the narrow host
+        // interface for the few overlay/joystick/engine actions Pad still owns.
+        settings = new SettingsPanel(host, new SettingsPanel.Host(){
+            public void refresh(){ Pad.this.refresh(); }
+            public void applyTheme(){ Pad.this.applyTheme(); }
+            public void releaseJoystick(boolean preserveWalk){ stick.release(preserveWalk); }
+            public void setJoystickVisible(boolean visible){ stick.release(true); Control.setJoystickVisible(visible); joystickOverlay.setVisibility(visible?View.VISIBLE:View.GONE); }
+            public void openMap(){ openWorldMap(); }
+            public void editLocation(){ edit(); }
         });
-
 
         stick = new Stick(host);
         joystickOverlay = new LinearLayout(host); joystickOverlay.setOrientation(LinearLayout.VERTICAL);
         TextView grip = text("• • •", 12, muted()); grip.setGravity(Gravity.CENTER); joystickOverlay.addView(grip, new LinearLayout.LayoutParams(-1, dp(28)));
         joystickOverlay.addView(stick, new LinearLayout.LayoutParams(dp(136), dp(136))); draggable(grip, joystickOverlay, false);
 
-        // Always-visible status and primary action.
-        coords = text("", 16, ink()); coords.setPadding(dp(4), dp(6), dp(4), dp(10)); body.addView(coords);
-        // ----- Location & overlays -----
-        LinearLayout loc = section(body, "Location & overlays", true);
-        uiScale=button("UI scale: "+Control.uiScalePercent()+"%");loc.addView(uiScale);
-        uiScale.setOnClickListener(v->{final int[] values={100,75,50,25};String[] labels={"100%","75%","50%","25%"};int selected=0;for(int i=0;i<values.length;i++)if(values[i]==Control.uiScalePercent())selected=i;
-            new AlertDialog.Builder(dialogContext()).setTitle("Overlay scale").setSingleChoiceItems(labels,selected,(dialog,which)->{stick.release(true);Control.setUiScalePercent(values[which]);refresh();dialog.dismiss();}).setNegativeButton("Cancel",null).show();});
-        locationSwitch=switchRow(loc,"Location spoofing");locationSwitch.setChecked(Control.desiredEnabled());
-        locationSwitch.setOnCheckedChangeListener((v,checked)->{if(checked==Control.desiredEnabled())return;stick.release(true);Control.setLocationSpoofing(checked);refresh();});
-        steeringStatus = caption(loc, "Joystick follows the camera");
-        Button position = button("Coordinates & speed"); loc.addView(position); position.setOnClickListener(v -> edit());
-        Button map = button("World map"); loc.addView(map);
-        map.setOnClickListener(v -> openWorldMap());
-        mapTap = button("Game map tap: Do nothing"); loc.addView(mapTap);
-        mapTap.setOnClickListener(v -> { Control.setMapTapMode((Control.mapTapMode()+1)%4); refresh(); });
-        spawnSwitch = switchRow(loc, "Spawn booster (80 m)"); spawnSwitch.setChecked(Control.spawnBooster());
-        spawnSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.spawnBooster())return; Control.setSpawnBooster(spawnSwitch.isChecked()); });
-        spawnStatus = caption(loc, "");
-        cooldownSwitch = switchRow(loc, "Cooldown overlay"); cooldownSwitch.setChecked(Control.cooldownOverlay());
-        cooldownSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.cooldownOverlay())return; Control.setCooldownOverlay(cooldownSwitch.isChecked()); refresh(); });
-        Button history = button("Cooldown history"); loc.addView(history); history.setOnClickListener(v -> Cooldown.show(activity));
-        joystickSwitch = switchRow(loc, "Show joystick"); joystickSwitch.setChecked(Control.joystickVisible());
-        joystickSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.joystickVisible())return; stick.release(true); Control.setJoystickVisible(joystickSwitch.isChecked()); joystickOverlay.setVisibility(joystickSwitch.isChecked()?View.VISIBLE:View.GONE); });
-
-        // ----- Catch & summary (gated by catch-summary support) -----
-        LinearLayout catchC = section(body, "Catch & summary", false); catchRoot = (View)catchC.getParent();
-        LinearLayout sumRow = new LinearLayout(host); sumRow.setOrientation(LinearLayout.HORIZONTAL); sumRow.setGravity(Gravity.CENTER_VERTICAL); sumRow.setMinimumHeight(dp(44));
-        quickSummaryLabel = new TextView(host); quickSummaryLabel.setTextSize(14); sumRow.addView(quickSummaryLabel, new LinearLayout.LayoutParams(0,-2,1f));
-        quickSummarySwitch = new Switch(host); quickSummarySwitch.setContentDescription("Quick catch"); sumRow.addView(quickSummarySwitch, new LinearLayout.LayoutParams(-2,-2)); catchC.addView(sumRow);
-        quickSummarySwitch.setChecked(Control.quickSummaryEnabled());
-        quickSummarySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSummaryEnabled())return; Control.setQuickSummaryEnabled(quickSummarySwitch.isChecked()); refresh(); });
-        quickSummaryStatus = caption(catchC, "");
-        LinearLayout txC = section(catchC, "Transfer on catch", false);
-        autoTransferSwitch = switchRow(txC, "Transfer below 90% IV"); autoTransferSwitch.setChecked(Control.autoTransferEnabled());
-        autoTransferSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoTransferEnabled())return; Control.setAutoTransferEnabled(autoTransferSwitch.isChecked()); refresh(); });
-        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event / costume Pokemon","Keep background Pokemon","Keep XXS","Keep XXL"};
-        for(int i=0;i<6;i++){final int bit=1<<i;CheckBox box=new CheckBox(host);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;txC.addView(box);
-            box.setOnClickListener(v->Control.setTransferProtect(box.isChecked()?Control.transferProtect()|bit:Control.transferProtect()&~bit));}
-        transferKeepList = button("Custom keep list"); txC.addView(transferKeepList);
-        transferKeepList.setOnClickListener(v -> TransferKeepDialog.show(activity, this::refresh));
-        transferOverlaySwitch = switchRow(txC, "Keep-all overlay button"); transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());
-        transferOverlaySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.transferOverlayEnabled())return; Control.setTransferOverlayEnabled(transferOverlaySwitch.isChecked()); refresh(); });
-        caption(txC, "Kept species are never auto-transferred, across all forms. The floating button holds every catch (Keep All) or follows the rules above.");
-        caption(txC, "Transfers are permanent. Favorites and unknown data are always kept.");
-        transferStatus = caption(txC, "");
-        quickSpinSwitch = switchRow(catchC, "Quick spin"); quickSpinSwitch.setChecked(Control.quickSpinEnabled());
-        quickSpinSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.quickSpinEnabled())return; Control.setQuickSpinEnabled(quickSpinSwitch.isChecked()); });
-        quickSpinStatus = caption(catchC, "");
-        berrySwitch = switchRow(catchC, "Catching berry overlay"); berrySwitch.setChecked(Control.encounterBerryEnabled());
-        berrySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.encounterBerryEnabled())return; Control.setEncounterBerryEnabled(berrySwitch.isChecked()); refresh(); });
-
-
-        LinearLayout vgpC=section(body,"Virtual Go Plus",false);
-        vgpSwitch=switchRow(vgpC,"VGP overlay");vgpSwitch.setChecked(Control.vgpOverlay());
-        vgpSwitch.setOnCheckedChangeListener((b,checked)->{if(checked!=Control.vgpOverlay())Control.setVgpOverlay(checked);});
-        String[] vgpLabels={"Nearby Pok\u00e9mon","Nearby Pok\u00e9Stops","Push notifications"};
-        for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(host);box.setText(vgpLabels[i]);box.setChecked((Control.vgpOptions()&bit)!=0);vgpChoices[i]=box;vgpC.addView(box);
-            box.setOnClickListener(v->{Control.setVgpOptions(box.isChecked()?Control.vgpOptions()|bit:Control.vgpOptions()&~bit);
-                if(bit==4&&box.isChecked()&&Build.VERSION.SDK_INT>=33&&activity.checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED)activity.requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},7301);
-            });
-        }
-        vgpCooldownStop=new CheckBox(host);vgpCooldownStop.setText("Stop on cooldown (estimated)");vgpCooldownStop.setContentDescription("Stop Virtual Go Plus during the estimated action cooldown");vgpCooldownStop.setChecked(Control.vgpStopOnCooldown());vgpC.addView(vgpCooldownStop);
-        vgpCooldownStop.setOnClickListener(v->{if(vgpCooldownStop.isChecked()!=Control.vgpStopOnCooldown())Control.setVgpStopOnCooldown(vgpCooldownStop.isChecked());refresh();});
-        vgpStatus=caption(vgpC,Control.vgpStatus());
-
-        // ----- Auto feed buddy -----
-        LinearLayout eggsC = section(body, "Auto incubate eggs", false);
-        incubatorSwitch = switchRow(eggsC, "Auto incubate");
-        incubatorSwitch.setChecked(Control.autoIncubate());
-        incubatorSwitch.setOnCheckedChangeListener((v, checked) -> {
-            if (checked != Control.autoIncubate()) Control.setAutoIncubate(checked);
-        });
-        incubatorPriority = button("Priority: shortest distance"); eggsC.addView(incubatorPriority);
-        incubatorPriority.setOnClickListener(v -> { Control.setIncubateLongest(!Control.incubateLongest()); refresh(); });
-        caption(eggsC, "Unlimited incubator only");
-        incubatorStatus = caption(eggsC, Control.incubatorStatus());
-
-        LinearLayout buddyC = section(body, "Auto feed buddy", false); buddyRoot = (View)buddyC.getParent();
-        buddyStatus = caption(buddyC, Control.buddyStatus());
-        RadioGroup buddyBerries = new RadioGroup(host); buddyBerries.setOrientation(LinearLayout.VERTICAL);
-        for(int i=0;i<BERRY_IDS.length;i++){final int id=BERRY_IDS[i];RadioButton b=new RadioButton(host);b.setId(View.generateViewId());b.setText(BERRY_NAMES[i]);b.setChecked(Control.buddyBerry()==id);b.setOnClickListener(v->Control.setBuddyBerry(id));buddyChoices[i]=b;buddyBerries.addView(b);}
-        buddyC.addView(buddyBerries);
-
-
-        // ----- Friend gifts -----
-        LinearLayout giftC = section(body, "Friend gifts", false); giftRoot = (View)giftC.getParent();
-        String[] giftLabels={"Auto open gifts","Auto send gifts","Add an owned sticker"};
-        for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(host);box.setText(giftLabels[i]);box.setChecked((Control.giftOptions()&bit)!=0);giftChoices[i]=box;giftC.addView(box);box.setOnClickListener(v->Control.setGiftOptions(box.isChecked()?Control.giftOptions()|bit:Control.giftOptions()&~bit));}
-
-        giftStatus = caption(giftC, "");
-
-        // ----- Inventory (opens its modal directly) -----
-        LinearLayout itemsC = new LinearLayout(host); itemsC.setOrientation(LinearLayout.VERTICAL); body.addView(itemsC); itemsRoot = itemsC;
-        itemSettings = button("Auto-transfer items"); itemsC.addView(itemSettings); itemSettings.setOnClickListener(v -> showItemSettings());
-        itemStatus = caption(itemsC, "");
-
-        // ----- Team Rocket -----
-        LinearLayout rocketC = section(body, "Team Rocket", false); rocketRoot = (View)rocketC.getParent();
-        String[] rocketLabels={"Auto quick attack","Auto charged attack","Auto shield"};
-        for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(host);box.setText(rocketLabels[i]);box.setChecked((Control.rocketOptions()&bit)!=0);rocketChoices[i]=box;rocketC.addView(box);
-            box.setOnClickListener(v->Control.setRocketOptions(box.isChecked()?Control.rocketOptions()|bit:Control.rocketOptions()&~bit));}
-
-        rocketStatus = caption(rocketC, "");
-
-        // ----- Raids, gyms & Dynamax -----
-        LinearLayout battleC = section(body, "Raids, gyms & Dynamax", false); battleRoot = (View)battleC.getParent();
-        String[] battleLabels={"Raids: auto quick attack","Raids: auto charged attack","Gyms: auto quick attack","Gyms: auto charged attack","Dynamax: auto quick attack","Dynamax: auto charged attack","Dynamax: auto Max attack","Raids: auto dodge","Gyms: auto dodge","Dynamax: auto dodge"};
-        for(int i=0;i<10;i++){final int bit=1<<i;CheckBox box=new CheckBox(host);box.setText(battleLabels[i]);box.setChecked((Control.battleOptions()&bit)!=0);battleChoices[i]=box;battleC.addView(box);box.setOnClickListener(v->Control.setBattleOptions(box.isChecked()?Control.battleOptions()|bit:Control.battleOptions()&~bit));}
-
-        battleStatus = caption(battleC, "");
-
-        // ----- Throws & catch animation (gated by ball-animation support) -----
-        LinearLayout throwC = section(body, "Throws", false); quickBallRoot = (View)throwC.getParent();
-
-        throwGrade = button("Throw rating: OFF"); throwC.addView(throwGrade);
-        throwGrade.setOnClickListener(v -> { Control.setThrowGrade((Control.throwGrade()+1)%4); refresh(); });
-        curveSwitch = switchRow(throwC, "Always curveball"); curveSwitch.setChecked(Control.throwCurve());
-        curveSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwCurve())return; Control.setThrowCurve(curveSwitch.isChecked()); refresh(); });
-        arSwitch = switchRow(throwC, "AR+ throw bonus"); arSwitch.setChecked(Control.throwAr());
-        arSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.throwAr())return; Control.setThrowAr(arSwitch.isChecked()); refresh(); });
-        caption(throwC, "Wild encounters. Combines with throw rating and curveball; server bonus unverified.");
-        ivCatchSwitch = switchRow(throwC, "Catch IV/level"); ivCatchSwitch.setChecked(Control.ivCatchEnabled());
-        ivCatchSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.ivCatchEnabled())return; Control.setIvCatchEnabled(ivCatchSwitch.isChecked()); refresh(); });
-        ivOwnedSwitch = switchRow(throwC, "Inventory IV/level"); ivOwnedSwitch.setChecked(Control.ivOwnedEnabled());
-        ivOwnedSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.ivOwnedEnabled())return; Control.setIvOwnedEnabled(ivOwnedSwitch.isChecked()); refresh(); });
-        ivStatus = caption(throwC, "");
-        quickBallStatus = caption(throwC, "");
-
-        Button settingsBackup=button("Export / import settings");body.addView(settingsBackup);
-        settingsBackup.setOnClickListener(v->activity.startActivity(new Intent(activity,LogActivity.class).putExtra("settingsBackup",true)));
-
-        // ----- Diagnostics (status plumbing kept out of everyday settings) -----
-        LinearLayout diag = section(body, "Diagnostics", false);
-        state = caption(diag, Control.connection);
-        for(TextView status:new TextView[]{steeringStatus,spawnStatus,quickSummaryStatus,transferStatus,quickSpinStatus,buddyStatus,giftStatus,itemStatus,rocketStatus,battleStatus,quickBallStatus}){
-            ((ViewGroup)status.getParent()).removeView(status);diag.addView(status);
-        }
-        cameraRoot = new LinearLayout(host); cameraRoot.setOrientation(LinearLayout.VERTICAL); diag.addView(cameraRoot);
-        cameraStatus = caption(cameraRoot, ""); cameraStatus.setMaxLines(3); cameraStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        cameraSample = button("Sample camera (10s)"); cameraRoot.addView(cameraSample);
-        cameraSample.setOnClickListener(v -> { if (Control.requestCameraSample()) { stick.release(); refresh(); } });
-        interactionRoot = new LinearLayout(host); interactionRoot.setOrientation(LinearLayout.VERTICAL); diag.addView(interactionRoot);
-        interactionStatus = caption(interactionRoot, ""); interactionStatus.setMaxLines(3); interactionStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        interactionCapture = button("Capture catch/spin (60s)"); interactionRoot.addView(interactionCapture);
-        interactionCapture.setOnClickListener(v -> {
-            if (Control.interactionDiagnosticRunning()) Control.requestInteractionStop();
-            else if (Control.requestInteractionTrace()) stick.release();
-            refresh();
-        });
-        Button logs = button("Run log / export"); diag.addView(logs);
-        logs.setOnClickListener(v -> activity.startActivity(new Intent(activity, LogActivity.class)));
-
-        // Closing the full-screen settings panel simply returns to the game (or the quick menu on the next tap).
-        closeIcon.setOnClickListener(v -> panel.setVisibility(View.GONE));
-        // The settings panel is a full-screen modal now; it consumes taps so the game behind it stays inert.
-        panel.setClickable(true);
-        parent.addView(panel, new FrameLayout.LayoutParams(-1, -1));
+        // The settings panel is a full-screen modal; it consumes taps so the game behind it stays inert.
+        parent.addView(settings.view(), new FrameLayout.LayoutParams(-1, -1));
 
         FrameLayout.LayoutParams joyLayout=new FrameLayout.LayoutParams(dp(136),-2,Gravity.LEFT|Gravity.BOTTOM);joyLayout.leftMargin=dp(16);joyLayout.bottomMargin=dp(96);parent.addView(joystickOverlay,joyLayout);
 
@@ -399,8 +100,10 @@ public final class Pad {
 
         cooldownTimer=button("History  --:--");cooldownTimer.setTextSize(14);cooldownTimer.setAllCaps(false);cooldownTimer.setTextColor(accent());FrameLayout.LayoutParams timerLayout=new FrameLayout.LayoutParams(dp(165),dp(44),Gravity.TOP|Gravity.RIGHT);timerLayout.topMargin=dp(44);timerLayout.rightMargin=dp(12);parent.addView(cooldownTimer,timerLayout);cooldownTimer.setOnClickListener(v->Cooldown.show(activity));cooldownDrag=OverlayDrag.attach(parent,cooldownTimer,"cooldown");
 
-        panel.setOnApplyWindowInsetsListener((view,insets) -> {applyPanelInsets(insets);return insets;});
-        panel.requestApplyInsets();
+        // Window attachment: the panel pads itself inside the system bars/IME as insets arrive.
+        View panelView=settings.view();
+        panelView.setOnApplyWindowInsetsListener((view,insets) -> {settings.applyInsets(insets);return insets;});
+        panelView.requestApplyInsets();
 
         vgpToggle=new VgpToggle(host);FrameLayout.LayoutParams vgpButtonLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);vgpButtonLayout.leftMargin=dp(12);vgpButtonLayout.topMargin=dp(156);parent.addView(vgpToggle,vgpButtonLayout);vgpToggle.setOnClickListener(v->{Control.setVgpEnabled(!Control.vgpEnabled());refresh();});
         vgpActivity=text("VGP",12,ink());vgpActivity.setPadding(dp(10),dp(6),dp(10),dp(6));vgpActivity.setMaxLines(2);vgpActivity.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -425,7 +128,7 @@ public final class Pad {
         });
         launcher.setOnClickListener(v->{if(quickMenu!=null)quickMenu.toggle();});draggable(launcher,launcher,true);
 
-        panel.setVisibility(View.GONE);joystickOverlay.setVisibility(Control.joystickVisible()?View.VISIBLE:View.GONE);applyTheme();
+        settings.hide();joystickOverlay.setVisibility(Control.joystickVisible()?View.VISIBLE:View.GONE);applyTheme();
         refresh();parent.post(this::applyMapScale); handler.post(tick);
     }
     /** Decode a bundled map-icon once; returns null (never throws, never hits the network) if unavailable. */
@@ -508,73 +211,19 @@ public final class Pad {
         if(quickMenu!=null)quickMenu.applyScale(scale);
     }
     private void refresh() {
-        applyMapScale();if(uiScale!=null)uiScale.setText("UI scale: "+Control.uiScalePercent()+"%");
-        if(vgpToggle!=null){vgpToggle.setVisibility(Control.vgpOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpToggle.setContentDescription("Virtual Go Plus "+(Control.vgpEnabled()?"on; tap to turn off":"off; tap to turn on")+". "+Control.vgpStatus());vgpToggle.invalidate();}
+        applyMapScale();
+        if(vgpToggle!=null){vgpToggle.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpToggle.setContentDescription("Virtual Go Plus "+(Control.vgpEnabled()?"on; tap to turn off":"off; tap to turn on")+". "+Control.vgpStatus());vgpToggle.invalidate();}
 
         // Pair the status line with the toggle so the cooldown shutoff reason is visible even when VGP is off.
-        if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpActivity.setText("VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());vgpActivity.setBackground(rounded(surface(),10));}
-        if(vgpMarker!=null){boolean show=Control.vgpTargetVisible()&&panel.getVisibility()!=View.VISIBLE;vgpMarker.setVisibility(show?View.VISIBLE:View.GONE);if(show){vgpMarker.setX(Control.vgpTargetX()*parent.getWidth()-dp(19)*vgpMarker.getScaleX());vgpMarker.setY(Control.vgpTargetY()*parent.getHeight()-dp(36)-dp(46)*vgpMarker.getScaleY());vgpMarker.invalidate();}}
-        if(transferToggle!=null){transferToggle.setVisibility(Control.transferOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);transferToggle.setContentDescription(transferToggleDescription());transferToggle.invalidate();}
+        if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpActivity.setText("VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());vgpActivity.setBackground(rounded(surface(),10));}
+        if(vgpMarker!=null){boolean show=Control.vgpTargetVisible()&&!settings.isVisible();vgpMarker.setVisibility(show?View.VISIBLE:View.GONE);if(show){vgpMarker.setX(Control.vgpTargetX()*parent.getWidth()-dp(19)*vgpMarker.getScaleX());vgpMarker.setY(Control.vgpTargetY()*parent.getHeight()-dp(36)-dp(46)*vgpMarker.getScaleY());vgpMarker.invalidate();}}
+        if(transferToggle!=null){transferToggle.setVisibility(Control.transferOverlayVisible()&&!settings.isVisible()&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);transferToggle.setContentDescription(transferToggleDescription());transferToggle.invalidate();}
 
         if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);cooldownTimer.setText("☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}
         if (lastEnabled != Control.engine.enabled) { lastEnabled = Control.engine.enabled; stick.invalidate(); }
-        coords.setText((Control.desiredEnabled()?"":"Saved spoof location\n")+String.format(Locale.US, "%.6f, %.6f\n%.1f km/h", Control.engine.latitude, Control.engine.longitude, Control.engine.speedKmh));
         if(encounterBerry!=null)encounterBerry.refresh();
-        boolean preview = Control.preview();
-        MotionEngine.RouteProgress route=Control.engine.routeProgress();
-        locationSwitch.setChecked(Control.desiredEnabled());
-        String movement=!Control.desiredEnabled()?"DEVICE LOCATION":Control.engine.enabled ? (Control.engine.walking ? "WALKING" : "ON") : "WAITING FOR ADAPTER";
-        if (route.total>1 && route.active) movement=String.format(Locale.US,"ROUTE %d/%d  ·  %.0f m left",route.visited+1,route.total,route.remainingMeters);
-        else if (route.total>1 && route.visited==route.total) movement="ON  ·  route complete";
-        state.setText(Control.connection + "\n" + movement + "  ·  coordinate reads " + Control.latitudeReads + "/" + Control.longitudeReads);
-        steeringStatus.setText(Control.cameraSteeringConfigured() ? Control.cameraSteeringStatus() : "Joystick follows the camera");
         if(quickMenu!=null)quickMenu.onRefresh();
-        cameraRoot.setVisibility(Control.cameraDiagnosticsConfigured() ? View.VISIBLE : View.GONE);
-        cameraStatus.setText(Control.cameraDiagnosticStatus());
-        cameraSample.setText(Control.cameraDiagnosticRunning() ? "Sampling camera..." : "Sample camera (10s)");
-        cameraSample.setEnabled(Control.cameraDiagnosticsReady() && !Control.cameraSamplePending());
-        interactionRoot.setVisibility(Control.interactionDiagnosticsConfigured() ? View.VISIBLE : View.GONE);
-        interactionStatus.setText(Control.interactionDiagnosticStatus());
-        interactionCapture.setText(Control.interactionDiagnosticRunning() ? "Stop capture" : "Capture catch/spin (60s)");
-        interactionCapture.setEnabled(Control.interactionDiagnosticRunning() || (Control.interactionDiagnosticsReady() && !Control.interactionTracePending()));
-        int summaryGate = Control.quickSummaryConfigured() ? View.VISIBLE : View.GONE;
-        catchRoot.setVisibility(summaryGate); buddyRoot.setVisibility(summaryGate); giftRoot.setVisibility(summaryGate);
-        itemsRoot.setVisibility(summaryGate); rocketRoot.setVisibility(summaryGate); battleRoot.setVisibility(summaryGate);
-        quickSummaryStatus.setText(Control.quickSummaryStatus());
-        autoTransferSwitch.setChecked(Control.autoTransferEnabled());
-        for(int i=0;i<6;i++)transferProtection[i].setChecked((Control.transferProtect()&(1<<i))!=0);
-        if(transferKeepList!=null){String kept=Control.transferKeepSpecies();int n=kept.isEmpty()?0:kept.split(",").length;transferKeepList.setText(n>0?"Custom keep list ("+n+")":"Custom keep list");}
-        if(transferOverlaySwitch!=null){transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());transferOverlaySwitch.setEnabled(Control.autoTransferEnabled());transferOverlaySwitch.setAlpha(Control.autoTransferEnabled()?1f:0.45f);}
-        transferStatus.setText(Control.transferStatus());
-        vgpSwitch.setChecked(Control.vgpOverlay());vgpStatus.setText(Control.vgpStatus());
-        incubatorSwitch.setChecked(Control.autoIncubate());
-        incubatorSwitch.setEnabled(Control.incubatorAvailable());
-        incubatorPriority.setText("Priority: " + (Control.incubateLongest() ? "longest" : "shortest") + " distance");
-        incubatorStatus.setText(Control.autoIncubate() ? Control.incubatorStatus() : "Off");
-        for(int i=0;i<3;i++)vgpChoices[i].setChecked((Control.vgpOptions()&(1<<i))!=0);
-        vgpCooldownStop.setChecked(Control.vgpStopOnCooldown());
-        buddyStatus.setText(Control.buddyStatus());
-        for(int i=0;i<BERRY_IDS.length;i++){int id=BERRY_IDS[i],count=Control.berryCount(id);RadioButton b=buddyChoices[i];b.setText(BERRY_NAMES[i]+(id==0?"":" ("+count+")"));b.setChecked(Control.buddyBerry()==id);boolean ready=id==0||(count>0&&Control.buddyAvailable());b.setEnabled(ready);b.setAlpha(ready?1f:0.4f);}
-        for(int i=0;i<3;i++)giftChoices[i].setChecked((Control.giftOptions()&(1<<i))!=0);giftStatus.setText(Control.giftStatus());
-        for(int i=0;i<10;i++)battleChoices[i].setChecked((Control.battleOptions()&(1<<i))!=0);battleStatus.setText(Control.battleStatus());
-        for(int i=0;i<3;i++)rocketChoices[i].setChecked((Control.rocketOptions()&(1<<i))!=0);rocketStatus.setText(Control.rocketStatus());
-        itemSettings.setText("Auto-transfer items: "+(Control.itemTransferEnabled()?"ON":"OFF"));itemStatus.setText(Control.itemStatus());
-        quickSpinSwitch.setChecked(Control.quickSpinEnabled());quickSpinStatus.setText(Control.quickSpinStatus());
-        quickSummaryLabel.setText(Control.quickSummaryAutoDismiss() ? "Quick catch" : "Faster catch summary");
-        quickSummarySwitch.setChecked(Control.quickSummaryEnabled());
-        quickSummarySwitch.setEnabled(Control.quickSummaryConfigured());
-        quickBallRoot.setVisibility(Control.quickBallConfigured() ? View.VISIBLE : View.GONE);
-        quickBallStatus.setText(Control.quickBallStatus());
-        mapTap.setText("Game map tap: "+new String[]{"Do nothing","Walk","Teleport","Walk / double tap teleport"}[Control.mapTapMode()]);
-        mapTap.setEnabled(Control.quickBallConfigured());
-        spawnSwitch.setChecked(Control.spawnBooster());spawnSwitch.setEnabled(Control.spawnAllowed());spawnStatus.setText(Control.spawnStatus());
-        throwGrade.setText("Throw rating: "+new String[]{"OFF","Nice","Great","Excellent"}[Control.throwGrade()]);
-        throwGrade.setEnabled(Control.quickBallConfigured());
-        curveSwitch.setChecked(Control.throwCurve());curveSwitch.setEnabled(Control.quickBallConfigured());
-        arSwitch.setChecked(Control.throwAr());arSwitch.setEnabled(Control.throwArReady());
-        ivCatchSwitch.setChecked(Control.ivCatchEnabled());ivCatchSwitch.setEnabled(Control.quickBallConfigured());
-        ivOwnedSwitch.setChecked(Control.ivOwnedEnabled());ivOwnedSwitch.setEnabled(Control.quickBallConfigured());
-        ivStatus.setText(Control.ivDisplayStatus());
+        settings.refresh();
     }
     private final Runnable tick = new Runnable() {
         public void run() {
@@ -658,7 +307,7 @@ public final class Pad {
     private void openSettings() {
         if(quickMenu!=null)quickMenu.hide();
         stick.release(true);
-        panel.setVisibility(View.VISIBLE); panel.bringToFront(); panel.requestApplyInsets(); applyPanelInsets(parent.getRootWindowInsets());
+        settings.show(); settings.applyInsets(parent.getRootWindowInsets());
         Control.event("settings-open", "Full-screen panel; runtime unaffected");
         refresh();
     }
@@ -676,8 +325,9 @@ public final class Pad {
         closed = true; stick.release(true); Control.suspendForBackground(); handler.removeCallbacks(tick);
         if(quickMenu!=null){quickMenu.destroy();quickMenu=null;}
         if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}if(transferDrag!=null){transferDrag.detach();transferDrag=null;}
-        parent.removeView(panel);parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null){encounterBerry.close();parent.removeView(encounterBerry);}if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);if(transferToggle!=null)parent.removeView(transferToggle);
-        panel.setOnApplyWindowInsetsListener(null);
+        settings.close();
+        parent.removeView(settings.view());parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null){encounterBerry.close();parent.removeView(encounterBerry);}if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);if(transferToggle!=null)parent.removeView(transferToggle);
+        settings.view().setOnApplyWindowInsetsListener(null);
         Control.event("panel-closed", "Runtime suspended on activity change; desiredEnabled=" + Control.desiredEnabled() + "; movement stopped");
     }
     private final class Stick extends View {

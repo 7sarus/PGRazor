@@ -15,7 +15,7 @@ x.f.dropIv('catch');assert.deepEqual(a,original);assert.equal(x.h.size,0);
 const b=label();x.f.captureIv('owned',b,'984 · Lv 14 · IV 71.1%');assert.equal(b.text,'984');x.s.ivOwned=true;x.s.ivNext=0;x.f.ivTick();assert.match(b.text,/Lv 14/);
 b.text='1001';x.s.ivOwned=false;x.s.ivNext=0;x.f.ivTick();assert.equal(b.text,'1001');assert.equal(b.fontSize,42);
 x.f.dropIv('owned');assert.equal(x.h.size,0);
-const c=label();x.f.captureIv('catch',c,'984 · Lv 14 · IV 71.1%');x.s.stopping=true;x.f.ivTick();assert.deepEqual(c,label());assert.equal(x.h.size,0);
+const c=label();x.f.captureIv('catch',c,'984 · Lv 14 · IV 71.1%');x.s.stopping=true;x.s.now=()=>{throw Error('Clock unavailable during cleanup');};x.f.ivTick();assert.deepEqual(c,label());assert.equal(x.h.size,0);
 const d=fixture(),dead=label();d.f.captureIv('catch',dead,'984 · Lv 14 · IV 71.1%');dead.dead=true;d.f.ivTick();assert.equal(d.h.size,0);
 console.log('PASS: independent IV toggles, original text/style restoration, external CP preservation, stop and destroyed-label GC cleanup');
 

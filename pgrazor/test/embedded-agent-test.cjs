@@ -2,13 +2,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
-const source=fs.readFileSync(path.join(__dirname,'../embedded-agent.js'),'utf8');
+const source=require('./script-bundle.cjs')('embedded-agent.js');
 function fixture(failAt, surveyFails=false, continuous=false) {
     const scheduled=[],events=[],methods={},timeouts=new Map(),cameraStatus=[]; let active=false,timerStarted=false,surveyStarts=0,surveyStops=0,beat,request=false,configured=false,busy=false;
     let steeringConfigured=false, requested=true, probeOptions, finishProbe, probeCompletion;
     const headings=[],invalidations=[];
     const control={active:()=>active,latitude:()=>10,longitude:()=>20,speed:()=>1,bearing:()=>90,
-        configureCameraSteering(v){steeringConfigured=v;},cameraSteeringRequested(){return requested;},
+        configureCameraSteering(v){steeringConfigured=v;},cameraSteeringRequested(){return requested;},buddySamplingRequested(){return false;},
         updateCameraHeadingAt(...args){headings.push(args);},invalidateCameraHeading(reason){invalidations.push(reason);},
         connect(){active=false;},event:(...x)=>events.push(x),renewLease(){},embedded(){active=false;},disconnect(){active=false;},
         configureCameraDiagnostics(v){configured=v;},setCameraDiagnosticRunning(v){busy=v;},cameraDiagnostic(s){cameraStatus.push(s);},takeCameraSampleRequest(){const r=request;request=false;return r;}};
@@ -18,7 +18,7 @@ function fixture(failAt, surveyFails=false, continuous=false) {
     function File() { this.write=()=>{}; this.flush=()=>{}; this.close=()=>{}; }
     File.readAllText=()=>'';
     const survey={start(options){surveyStarts++;probeOptions=options;if(continuous){probeCompletion=new Promise(resolve=>{finishProbe=resolve;});return probeCompletion;}if(options.sampleCamera)options.onEvent({kind:'camera-sample',yawDegrees:123.456,cameraId:42,sampleIndex:1});options.onEvent({kind:'finished',status:'complete'});return Promise.resolve();},stop(){surveyStops++;return probeCompletion;}};
-    const context={console:{log(){}},File,Script:{evaluate(name){if(name.includes('il2cpp')||name.includes('camera-probe')||name.includes('scene-probe')){if(surveyFails)throw Error('Survey load failure');return survey;}return java;}},rpc:{exports:{}},setImmediate:f=>scheduled.push(f),setInterval(fn){beat=fn;timerStarted=true;return 1;},clearInterval(){timerStarted=false;},setTimeout(fn,ms){assert([0,20000].includes(ms));timeouts.set(1,fn);return 1;},clearTimeout(id){timeouts.delete(id);}};
+    const context={console:{log(){}},File,Script:{evaluate(name){if(name.includes('il2cpp')||name.includes('camera-probe')||name.includes('scene-probe')){if(surveyFails)throw Error('Survey load failure');return survey;}return java;}},rpc:{exports:{}},setImmediate:f=>scheduled.push(f),setInterval(fn){beat=fn;timerStarted=true;return 1;},clearInterval(){timerStarted=false;},setTimeout(fn,ms){assert([1500,20000].includes(ms));timeouts.set(1,fn);return 1;},clearTimeout(id){timeouts.delete(id);}};
     vm.runInNewContext(source,context);
     return {context,methods,events,scheduled,timeouts,cameraStatus,headings,invalidations,
         steeringConfigured:()=>steeringConfigured,probeOptions:()=>probeOptions,setRequested(v){requested=v;},finishProbe(){finishProbe();},

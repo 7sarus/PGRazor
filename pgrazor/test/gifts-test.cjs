@@ -1,7 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const src=fs.readFileSync(__dirname+'/../diagnostics/quick-close.js','utf8'),block=src.slice(src.indexOf(' // Gifts are scoped'),src.indexOf(' // Non-Rocket battle automation'));
-// Evaluate the whole module too: runtime-block mocks cannot catch top-level ordering errors.
-vm.runInNewContext(src,{});
+const feature=require('./feature-fixture.cjs');
 function fixture(){
  let now=1000;const calls=[],events=[],held=new Set(),hooks={},nil={isNull:()=>true};
  const obj=(k,f={})=>({k,f,isNull:()=>false,equals(o){return this===o;},add(off){return {readFloat:()=>this.f[off]||0,writeFloat:v=>this.f[off]=v,writeS32:v=>this.f.sequenceState=v};}});
@@ -21,7 +19,7 @@ function fixture(){
   hold,target:h=>h.o,freeHandle:h=>held.delete(h),alive:o=>!o.dead,exact:(o,k)=>o.k===k,readPtr:(o,f)=>o.f[f]||nil,readS32:(o,f)=>o.f[f],present:(o,f)=>!!o.f[f],rocketBool:(m,o)=>!!o.f[m.method],itemInt:(m,o,args)=>['listCount','rowCount','stickerCount'].includes(m.method)?o.f.items.length:args[0].f.count||0,itemArgs:a=>a,itemNumber:n=>n,
   invoke:(m,o,args)=>{if(m&&m.method)m=m.method;if(m==='sendable')return o.f.gifts;if(m==='getEnumerator')return o;if(m==='moveGift')return {value:o.f.items.length>0,isNull:()=>false};if(m==='currentGift')return o.f.items[0];if(m==='disposeGift')return nil;if(m==='niaId')return args[0].f.playerId;if(m==='panel')return panel;if(m==='inventory')return service.f.inventory||obj('stickerList',{items:[]});if(m==='stickerItem')return o.f.items[args[0]];if(m==='selectSticker')o.f.sendSticker=args[0];if(m==='listItem'||m==='rowItem')return o.f.items[args[0]];if(m==='giftBox')return o.f.proto;calls.push(m);if(m==='giftClick')o.f.clicked=true;if(m==='selectFirst')o.f.chosen=args[0];return nil;},
   api:{object_get_virtual_method:(o,m)=>({method:m,isNull:()=>false}),object_unbox:o=>({readU8:()=>o.value?1:0}),field_get_value:()=>{},string_length:o=>o.f.value.length,string_chars:o=>({readUtf16String:()=>o.f.value})},event:(s,k,e)=>events.push([k,e]),unity:()=>true,Interceptor:{replace:(n,fn)=>replacements[n]=fn,revert:()=>{},attach:(n,h)=>{hooks[n]=h;return{};}}};
- vm.runInNewContext(block+'\nglobalThis.r=giftState;globalThis.tick=giftTick;globalThis.bundled=()=>bundledGift;',ctx);
+ const module=feature('gifts',ctx);ctx.r=module.state;ctx.tick=module.tick;ctx.bundled=module.bundled;
  function hook(name,args){if(replacements[name])return replacements[name](args[0],nil);const h=hooks[name],self={threadId:1};h.onEnter.call(self,args);h.onLeave.call(self);}
  hook('profileOpen',[profile,nil,nil]);
  return {ctx,s,held,calls,events,obj,button,service,open,send,panel,a,b,nil,hold,hook,stickerType,detailType,tick(ms=700){now+=ms;ctx.tick(now);}};

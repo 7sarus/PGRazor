@@ -402,6 +402,13 @@ class PackageTests(unittest.TestCase):
             close=work/'diagnostics/quick-close.js'; close.write_bytes(b'// summary close fixture\n')
             ball=work/'diagnostics/quick-ball.js'; ball.write_bytes(b'// ball feature fixture\n')
             agent=work/'embedded-agent.js'; agent.write_bytes(b'// embedded fixture\n')
+            (work/'runtime').mkdir()
+            shutil.copyfile(ROOT/'runtime/bundles.json', work/'runtime/bundles.json')
+            (work/'runtime/location.js').write_bytes(b'// location fixture\n')
+            for part in json.loads((ROOT/'runtime/bundles.json').read_text())['quick-close.js']:
+                if part.startswith('runtime/'):
+                    fixture=work/part; fixture.parent.mkdir(parents=True,exist_ok=True)
+                    fixture.write_bytes(('// fixture '+part+'\n').encode())
             bridge=work/'bridge.js'; bridge.write_bytes(b'// bridge fixture\n')
             gadget=work/'gadget.so'; gadget.write_bytes(b'gadget fixture')
             for name in ['NOTICE.txt','COPYING.frida-tools','bridge-provenance.json']:
@@ -435,6 +442,15 @@ class PackageTests(unittest.TestCase):
                     self.assertEqual(json.loads((folder/'report.json').read_text()),report)
                     with zipfile.ZipFile(report['outputs'][0]['file']) as archive:
                         mode=json.loads(archive.read('assets/pgrazor/mode.json'))
+                        bundled=archive.read('assets/pgrazor/embedded-agent.js')
+                        self.assertEqual(bundled,b'// location fixture\n\n;\n// embedded fixture\n')
+                        self.assertEqual(report['agent_sha256'],hashlib.sha256(bundled).hexdigest())
+                        for name,receipt in report['script_bundles'].items():
+                            self.assertEqual(receipt['sha256'],hashlib.sha256(archive.read('assets/pgrazor/'+name)).hexdigest())
+                            self.assertEqual([part['path'] for part in receipt['sources']],
+                                             json.loads((work/'runtime/bundles.json').read_text())[name])
+                            for part in receipt['sources']:
+                                self.assertEqual(part['sha256'],runtime_assets.sha256(work/part['path']))
                         self.assertEqual(mode.get('il2cppSurvey',False),options.get('il2cpp_survey',False))
                         self.assertEqual(mode.get('cameraProbe',False),camera_enabled)
                         self.assertEqual(mode.get('cameraSample',False),options.get('camera_sample',False))
@@ -477,7 +493,7 @@ class PackageTests(unittest.TestCase):
                                     self.assertIs(diagnostic['acceleration_default'],False)
                                 expected_bytes=expected.read_bytes()
                                 if key=='quick_summary' and options.get('quick_close'):
-                                    expected_bytes=presentation.read_bytes()+b'\n;\n'+expected_bytes
+                                    expected_bytes=b'\n;\n'.join((work/part).read_bytes() for part in json.loads((work/'runtime/bundles.json').read_text())['quick-close.js'])
                                 self.assertEqual(diagnostic['sha256'],hashlib.sha256(expected_bytes).hexdigest())
                                 self.assertEqual(diagnostic['source'],str(expected))
                                 self.assertEqual(archive.read(diagnostic['asset']),expected_bytes)

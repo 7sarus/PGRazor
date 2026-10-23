@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Separate native feature state machines, GPS delivery, VGP/toast policy, and map tile/POI layers into modules with explicit ownership.
+- Split the settings menu into named section builders and refresh binders, share theme styling, and stop item-dialog polling when its panel closes.
+- Save settings through an ordered background writer, with flush checks for export/import and protection against stale reloads after a failed save.
+- Discover all device-free test suites in CI, replace moved-feature source-slice fixtures with module tests, and record hashes for composed runtime scripts and their sources.
+- Keep map tile requests tracked until their completion callback runs, avoiding a queue-overflow race during viewport changes.
+- Restore catch animation speed and release IV labels during cleanup even when the runtime clock fails.
+
 ## v0.1.2
 
 [Full release notes](docs/releases/v0.1.2.md)

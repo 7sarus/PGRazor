@@ -1,6 +1,5 @@
 ﻿const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const source=fs.readFileSync('pgrazor/embedded-agent.js','utf8');
-const code=source.slice(source.indexOf('let locationDelivery ='),source.indexOf('function rollback()'));
+const code=fs.readFileSync('pgrazor/runtime/location.js','utf8');
 let desired=true,active=true,permission=0,now=1000,disposed=false,locked=false;
 const queue=[],delivered=[];
 const handler={removeCallbacks:r=>{for(let i=queue.length-1;i>=0;i--)if(queue[i]===r)queue.splice(i,1)},post:r=>queue.push(r),postDelayed:r=>queue.push(r)};
@@ -25,7 +24,7 @@ const classes={
  'java.lang.System':{currentTimeMillis:()=>now},'android.os.SystemClock':{elapsedRealtimeNanos:()=>now*1000000},'java.lang.Runnable':{}
 };
 const ctx={hooks:[],disposed:false,control:{desiredEnabled:()=>desired,active:()=>active,latitude:()=>12,longitude:()=>34,speed:()=>2,bearing:()=>90,event:()=>{}},bootLog:()=>{},Java:{use:n=>{assert.ok(classes[n],n);return classes[n]},retain:o=>o,cast:o=>o,synchronized:(l,f)=>{locked=true;try{f()}finally{locked=false}},registerClass:spec=>({$new:()=>({run:spec.methods.run})})}};
-vm.createContext(ctx);vm.runInContext(code+'\ninstallLocationPermissionGates();this.install=installLocationDelivery;this.stop=()=>locationDelivery.stop();',ctx);ctx.install();
+vm.createContext(ctx);vm.runInContext(code+'\nconst adapter=PGRazorLocation.create({Java,control,isDisposed:()=>disposed,bootLog});adapter.installPermissions();this.install=adapter.installDelivery;this.stop=adapter.stop;',ctx);ctx.install();
 const invoke=(n,m,...args)=>(n==='nativeLocationUpdate'?Manager[n]:Service['invoke'+n.slice(0,1).toUpperCase()+n.slice(1)]).m.implementation.call(m,...args);
 function tick(){assert.ok(queue.length);queue.shift().run();}
 assert.equal(permissionStatus.m.implementation(1),'in-use');assert.equal(permissionStatus.m.implementation(16),'always');assert.equal(permissionStatus.m.implementation(32),'denied');
@@ -55,4 +54,6 @@ a.nativeClassPointer.value=0;count=delivered.length;tick();assert.equal(delivere
 const b=manager();invoke('onStart',b);assert.ok(a.released);assert.equal(queue.length,1);tick();assert.equal(delivered.at(-1).self,b);
 invoke('onStop',a);assert.equal(queue.length,1);invoke('onStop',b);assert.equal(queue.length,0);assert.ok(b.released);
 invoke('onStart',manager());ctx.stop();assert.equal(queue.length,0);for(const v of [...Object.values(Manager),...Object.values(Service)])if(v.m)assert.equal(v.m.implementation,null);
+assert.equal(unityPermission.m.implementation,null);assert.equal(pluginPermission.m.implementation,null);assert.equal(permissionStatus.m.implementation,null);
+ctx.stop(); // Disposal is idempotent.
 console.log('PASS location delivery: GPS-independent start, fresh fixes, OFF gate and denied OS permission, pause/resume, zero pointer, manager replacement, stop and rollback');

@@ -1,6 +1,5 @@
 ﻿const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const source=fs.readFileSync(__dirname+'/../diagnostics/quick-close.js','utf8');
-const block=source.slice(source.indexOf(' // Auto incubation:'),source.indexOf(' // Buddy feeding uses'));
+const feature=require('./feature-fixture.cjs');
 function fixture(longest=false){
  let now=1000;const nil={isNull:()=>true},obj=(kind,fields={})=>({kind,fields,isNull:()=>false}),handles=new Set(),calls=[],events=[];
  const inc=obj('inc',{item:901,incId:'unlimited',pokemonId:'0',expiry:'0'}),limited=obj('inc',{item:902,incId:'limited',pokemonId:'0',expiry:'0'});
@@ -22,7 +21,7 @@ function fixture(longest=false){
  }
  const c={p,s,classes,PK:'pokemon',BAG:'bag',VGP:{player:'player',playerContract:'playerContract',bagContract:'bagContract'},Memory:{alloc:mem},uint64:v=>({uint64:true,value:String(v)}),ptr,invoke,itemArgs:x=>x,exact:(o,k)=>o.kind===k,hold:o=>{handles.add(o);return o;},target:h=>h,freeHandle:h=>handles.delete(h),readPtr:(o,f)=>({isNull:()=>!o.fields[f],text:o.fields[f]}),readS32:(o,f)=>o.fields[f],event:(s,k,d)=>events.push([k,d]),api:{field_get_value:(o,f,v)=>v.value=o.fields[f],object_get_virtual_method:(o,m)=>({isNull:()=>false,toString:()=>m}),class_get_type:x=>x,string_length:o=>o.text.length,string_chars:o=>({readUtf16String:()=>o.text}),object_unbox:x=>x}};
  c.api.object_get_virtual_method=(o,m)=>Object.assign(new String(m),{isNull:()=>false});c.invoke=(m,o,a)=>invoke(String(m),o,a);
- vm.runInNewContext(block+'\nglobalThis.tick=incubatorTick;globalThis.state=incubatorState;',c);
+ const module=feature('incubation',c);c.tick=module.tick;c.state=module.state;
  return {c,s,inc,limited,eggs,calls,handles,tick(ms=5000){now+=ms;c.tick(now);}};
 }
 {const f=fixture();f.tick();assert.equal(f.calls[0].egg,'1');assert.equal(f.calls[0].incubator,'unlimited');f.tick();assert.equal(f.calls.length,1);f.inc.fields.pokemonId='1';f.tick();assert.equal(f.c.state.pending,null);f.tick();assert.equal(f.calls.length,1);f.eggs.shift();f.inc.fields.pokemonId='0';f.tick();assert.equal(f.calls[1].egg,'3');}

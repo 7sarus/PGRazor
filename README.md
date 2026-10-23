@@ -15,7 +15,7 @@ Download the installable **PGRazor.apk** from [Releases](https://github.com/jpit
 
 Pre-releases are test candidates; check their release notes for device-validation status. The current game baseline is **Pokémon GO 0.433.1 / 2026101502**. Native hooks are version-specific. A different game version can leave features unavailable.
 
-The Android package identity stays compatible with the game. An official-store installation uses a different signing certificate and cannot be updated in place with a PGRazor build. This pre-release uses a fresh PGRazor signing key and settings namespace; install it fresh. See [installation and builds](docs/BUILDING.md).
+The Android package identity stays compatible with the game. An official-store installation uses a different signing certificate and cannot be updated in place with a PGRazor build. See [installation and builds](docs/BUILDING.md).
 
 ## Main menu
 
@@ -70,6 +70,7 @@ Enjoying PGRazor? You can support development on [Ko-fi](https://ko-fi.com/pgraz
 
 - [Build, signing, release CI, and installation](docs/BUILDING.md)
 - [Architecture and compatibility](docs/ARCHITECTURE.md)
+- [Maintainability review and refactoring priorities](docs/MAINTAINABILITY.md)
 - [Contributing and checks](CONTRIBUTING.md)
 - [Third-party notices](THIRD_PARTY.md)
 

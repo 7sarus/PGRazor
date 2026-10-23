@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const source=fs.readFileSync(require('node:path').join(__dirname,'../embedded-agent.js'),'utf8');
+const source=require('./script-bundle.cjs')('embedded-agent.js');
 function fixture(loadFails=false) {
     const tasks=[],timers=new Map(),events=[],status=[],starts=[],methods={};
     let ready=true,busy=false,configured=false,request=false,stopRequest=false,beat,id=0,cameraOptions,finishCamera,finishTrace,stopCount=0,holdStop=false,releaseStop;
@@ -22,7 +22,7 @@ function fixture(loadFails=false) {
     const plain=fixture();plain.init({});assert.equal(plain.timers.size,0);assert(!plain.configured());await plain.context.rpc.exports.dispose();
     const both=fixture();both.init({cameraSteering:true,cameraProbePath:'camera',interactionProbe:true,interactionProbePath:'interaction'});
     assert(both.configured());assert.equal(both.starts.length,0,'No capture during loader initialization');
-    both.fire(20000);assert(both.cameraOptions().continuous);
+    both.fire(1500);assert(both.cameraOptions().continuous);
     both.fire(25000);assert.equal(both.starts.length,1);assert.equal(both.starts[0].observeRuntime,false,'Automatic start must be metadata only');
     assert.equal(both.starts[0].readResults,false,'Automatic metadata never reads result objects');
     await new Promise(setImmediate);assert(!both.busy());

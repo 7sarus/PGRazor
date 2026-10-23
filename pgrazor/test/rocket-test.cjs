@@ -1,6 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const source=fs.readFileSync(__dirname+'/../diagnostics/quick-close.js','utf8');
-const block=source.slice(source.indexOf(' const rocketState='),source.indexOf(' const itemState='));
+const feature=require('./feature-fixture.cjs');
 function fixture(vnext=false){
  let now=1000;const hooks=new Map(),handles=new Set(),calls=[];
  const nil={isNull:()=>true};const obj=(k,f={})=>({k,f,isNull:()=>false,equals(o){return this===o;}});
@@ -11,7 +10,7 @@ function fixture(vnext=false){
  hold:o=>{handles.add(o);return o;},target:o=>o,freeHandle:o=>handles.delete(o),exact:(o,k)=>o.k===k,alive:o=>!o.dead,unity:()=>true,event:()=>{},readS32:(o,f)=>o.f[f],readPtr:(o,f)=>o.f[f]||nil,present:(o,f)=>!!o.f[f],api:{object_unbox:o=>({readU8:()=>o.f.value})},invoke:(m,o)=>{if(m==='director')return dir;if(['active','visible','interactable'].includes(m))return obj('bool',{value:o.f[m]});calls.push(m);return nil;},Interceptor:{attach:(a,h)=>{hooks.set(a,h);return{};}}};
  const vg=obj('vgesture',{enabled:1,tap:obj('tap')}),vc=obj('vcharge',{charged:1,visible:1,button}),vu=obj('vui',{gesture:vg,blocked:0});
  if(vnext){Object.assign(ctx,{RVUI:'vui',RVGEST:'vgesture',RVCHARGE:'vcharge',Memory:{alloc:()=>({writePointer(){}})}});Object.assign(ctx.classes,{vui:'vui',vgesture:'vgesture',vcharge:'vcharge'});ctx.p.rocket.vnext={fields:{gesture:'gesture',enabled:'enabled',tap:'tap',button:'button'},methods:Object.fromEntries(['update','close','blocked','fast','observe','charge','charged','visible'].map(n=>[n,{method:'v'+n,address:'v'+n}]))};const invoke=ctx.invoke;ctx.invoke=(m,o,a)=>{if(['vblocked','vcharged','vvisible'].includes(m))return obj('bool',{value:o.f[m.slice(1)]});if(m==='vfast'||m==='vcharge'){calls.push(m);return nil;}return invoke(m,o,a);};}
- vm.runInNewContext(block+'\nglobalThis.tick=rocketTick;',ctx);
+ ctx.tick=feature('rocket',ctx).rocketTick;
  function hook(n,args){const h=hooks.get(n),c={threadId:1};h.onEnter.call(c,args);h.onLeave.call(c);}
  return{s,calls,handles,dir,charge,ui,shield,hook,vg,vc,vu,tick(){ctx.tick(now);now+=600;},enter(){hook('enter',[state]);hook('ui',[ui]);},exit(){hook('exit',[state]);},prompt(){hook('prompt',[shield,{toInt32:()=>1}]);}};
 }

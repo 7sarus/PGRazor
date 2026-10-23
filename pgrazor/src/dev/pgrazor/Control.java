@@ -9,11 +9,11 @@ import android.os.StrictMode;
 import android.os.SystemClock;
 import android.util.AtomicFile;
 import android.util.Log;
-import android.widget.Toast;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,7 +25,7 @@ public final class Control {
     private static volatile long mapPoiAt;
     public static void setMapPoiOpen(boolean open){mapPoiOpen=open;if(!open&&!autoWalkPlanning){mapPoiSnapshot="";mapPoiAt=0;}}
     public static void setAutoWalkPlanning(boolean open){autoWalkPlanning=open;if(!open&&!mapPoiOpen){mapPoiSnapshot="";mapPoiAt=0;}}
-    public static boolean mapPoiAllowed(){return (mapPoiOpen||autoWalkPlanning)&&foreground&&backendReady&&connected();}
+    public static boolean mapPoiAllowed(){return (mapPoiOpen||autoWalkPlanning)&&hostLive();}
     public static void setMapPoiSnapshot(String value){if((mapPoiOpen||autoWalkPlanning)&&value!=null&&value.length()<160000){mapPoiSnapshot=value;mapPoiAt=SystemClock.elapsedRealtime();}}
     public static String mapPoiSnapshot(){return SystemClock.elapsedRealtime()-mapPoiAt<10000?mapPoiSnapshot:"";}
     public static final MotionEngine engine = new MotionEngine();
@@ -74,9 +74,6 @@ public final class Control {
     private static volatile int mapTapMode, mapTapEpoch;
     private static final MapTapSequence mapTapSequence=new MapTapSequence();
     private static volatile boolean mapTapReady;
-    /** Guarded by quickBallLock; any change invalidates a queued outcome toast. */
-    private static long quickBallOutcomeToken;
-    /** Main thread only. */
     private static volatile boolean spawnBooster,spawnReady;
     private static volatile long spawnRangeAt;
     private static volatile double spawnOriginal,spawnEffective;
@@ -90,7 +87,7 @@ public final class Control {
     public static boolean spawnBooster(){return spawnBooster;}
     public static void setSpawnBooster(boolean enabled){spawnRangeAt=0;spawnBooster=enabled;saveSettings();}
     public static void setSpawnReady(boolean ready){spawnReady=ready;if(!ready)spawnRangeAt=0;}
-    public static boolean spawnAllowed(){return spawnReady&&quickSummaryReady()&&foreground&&backendReady&&connected();}
+    public static boolean spawnAllowed(){return spawnReady&&quickSummaryReady()&&hostLive();}
     private static volatile int giftOptions;
     private static volatile boolean giftsReady;
     private static volatile String giftStatus="Waiting for gift support";
@@ -99,21 +96,29 @@ public final class Control {
     public static void setGiftsReady(boolean ready,String status){giftsReady=ready;giftStatus=status;}
     public static void setGiftStatus(String status){giftStatus=status;}
     public static String giftStatus(){return giftStatus;}
-    public static boolean giftsAllowed(){return giftsReady&&quickSummaryReady()&&foreground&&backendReady&&connected();}
+    public static boolean giftsAllowed(){return giftsReady&&quickSummaryReady()&&hostLive();}
     private static volatile boolean vgpEnabled,vgpReady,vgpOverlay;
     /** Persistent safety preference; when armed a live cooldown keeps VGP off. */
     private static volatile boolean vgpStopOnCooldown;
     private static volatile int vgpOptions=3;
-    private static volatile String vgpStatus="Waiting for VGP support";
-    /** Sticky reason for the current VGP pause/refusal; takes priority over native status when set. */
-    private static volatile String vgpGuardReason="";
-    /** Serializes the compound enabled/overlay/guard decisions; never held across Cooldown or stateLock. */
-    private static final Object vgpLock=new Object();
-    private static Application vgpApplication;
+    /**
+     * Runtime-only VGP state (guard reason, status text, on-screen target), the enable/cooldown
+     * guard decision and the result notification live in {@link VgpController}. The persistent
+     * overlay/stop-on-cooldown/option preferences and the {@code vgpEnabled}/{@code vgpReady} flags
+     * stay here and feed the controller through the accessors below, so the runtime state is owned
+     * in one place only. These flags remain at the bridge boundary with the other readiness gates.
+     */
+    private static final VgpController vgp = new VgpController(
+        () -> vgpEnabled, value -> vgpEnabled=value,
+        () -> vgpOverlay, value -> vgpOverlay=value,
+        () -> vgpStopOnCooldown, value -> vgpStopOnCooldown=value,
+        () -> foreground, () -> vgpOptions,
+        () -> Cooldown.remaining(), Control::cooldownAction,
+        Control::event, Control::saveSettings);
     public static boolean vgpEnabled(){guardVgpCooldown();return vgpOverlay&&vgpEnabled;}
     public static boolean vgpOverlay(){return vgpOverlay;}
-    public static void setVgpOverlay(boolean value){synchronized(vgpLock){vgpOverlay=value;if(!value)vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="";}saveSettings();}
-    public static boolean vgpOverlayVisible(){return vgpOverlay&&foreground&&backendReady&&connected();}
+    public static void setVgpOverlay(boolean value){vgp.setOverlay(value);}
+    public static boolean vgpOverlayVisible(){return vgpOverlay&&hostLive();}
     public static int vgpOptions(){return vgpOptions;}
     public static boolean vgpStopOnCooldown(){return vgpStopOnCooldown;}
     /**
@@ -121,78 +126,32 @@ public final class Control {
      * guard is armed and a cooldown is live is refused with a visible reason; turning it off
      * clears any guard reason.
      */
-    public static void setVgpEnabled(boolean value){
-        if(!value){synchronized(vgpLock){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="";vgpStatus="Off";}return;}
-        // Read Cooldown before taking vgpLock so the two locks are never nested.
-        boolean cooldownActive=vgpStopOnCooldown&&Cooldown.remaining()>0;
-        boolean refused=false,enabled=false;
-        synchronized(vgpLock){
-            if(!vgpOverlay||!foreground){vgpEnabled=false;vgpTargetAt=0;}
-            else if(cooldownActive){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="Cooldown active; tap VGP after it clears";refused=true;}
-            else{vgpEnabled=true;vgpGuardReason="";enabled=true;}
-        }
-        if(refused)event("vgp-cooldown-guard","Enable refused; cooldown active");
-        else if(enabled)event("vgp-enabled","ON; runtime only");
-    }
+    public static void setVgpEnabled(boolean value){vgp.setEnabled(value);}
     /**
      * Arms or disarms the optional cooldown safety. Arming it while VGP is already active and a
      * cooldown is live switches VGP off immediately; disarming clears any lingering guard reason.
      */
-    public static void setVgpStopOnCooldown(boolean value){
-        boolean cooldownActive=value&&Cooldown.remaining()>0;
-        boolean tripped=false;
-        synchronized(vgpLock){
-            vgpStopOnCooldown=value;
-            if(!value)vgpGuardReason="";
-            else if(vgpEnabled&&cooldownActive){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="Paused for active cooldown; tap VGP to resume once it clears";tripped=true;}
-        }
-        saveSettings();
-        event("vgp-stop-on-cooldown",value?(tripped?"ON; switched VGP off for active cooldown":"ON"):"OFF");
-    }
+    public static void setVgpStopOnCooldown(boolean value){vgp.setStopOnCooldown(value);}
     public static void setVgpOptions(int value){vgpOptions=value&7;saveSettings();}
-    public static void setVgpReady(boolean ready,String status){vgpReady=ready;vgpStatus=status;}
-    public static void setVgpStatus(String status){vgpStatus=status;}
+    public static void setVgpReady(boolean ready,String status){vgpReady=ready;vgp.setStatus(status);}
+    public static void setVgpStatus(String status){vgp.setStatus(status);}
     /** A guard reason (cooldown pause/refusal) is shown in place of a generic native status. */
-    public static String vgpStatus(){String reason=vgpGuardReason;return reason.length()>0?reason:vgpStatus;}
+    public static String vgpStatus(){return vgp.status();}
     /**
      * When the guard is armed, a live cooldown trips VGP off before the next request and it stays
      * off (no auto-resume). Driven by the vgpEnabled()/vgpAllowed() heartbeat; the Cooldown read
      * happens with no lock held and logs only on the single off transition.
      */
-    private static void guardVgpCooldown(){
-        if(!(vgpEnabled&&vgpStopOnCooldown))return;
-        if(Cooldown.remaining()<=0)return;
-        boolean tripped=false;
-        synchronized(vgpLock){
-            if(vgpEnabled&&vgpStopOnCooldown){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="Paused for active cooldown; tap VGP to resume once it clears";tripped=true;}
-        }
-        if(tripped)event("vgp-cooldown-guard","VGP switched off; cooldown active");
-    }
-    private static volatile float vgpTargetX,vgpTargetY;
-    private static volatile long vgpTargetAt;
-    private static volatile boolean vgpTargetSpin;
-    public static void setVgpTarget(boolean visible,double x,double y,boolean spin){
-        if(!visible){if(vgpTargetAt>0)vgpTargetAt=Math.min(vgpTargetAt,SystemClock.elapsedRealtime()-600);return;}
-        if(!Double.isFinite(x)||!Double.isFinite(y)||x<0||x>1||y<0||y>1){vgpTargetAt=0;return;}
-        vgpTargetX=(float)x;vgpTargetY=(float)y;vgpTargetSpin=spin;vgpTargetAt=SystemClock.elapsedRealtime();
-    }
+    private static void guardVgpCooldown(){vgp.guardCooldown();}
+    public static void setVgpTarget(boolean visible,double x,double y,boolean spin){vgp.setTarget(visible,x,y,spin);}
     public static boolean vgpMapVisible(){long age=SystemClock.elapsedRealtime()-buddyMapSample;return buddyMapSample>0&&age>=0&&age<1500;}
-    public static boolean vgpTargetVisible(){long age=SystemClock.elapsedRealtime()-vgpTargetAt;return vgpAllowed()&&vgpMapVisible()&&vgpTargetAt>0&&age>=0&&age<1200;}
-    public static float vgpTargetX(){return vgpTargetX;}
-    public static float vgpTargetY(){return vgpTargetY;}
-    public static boolean vgpTargetSpin(){return vgpTargetSpin;}
+    public static boolean vgpTargetVisible(){return vgp.targetVisible(vgpAllowed(),vgpMapVisible());}
+    public static float vgpTargetX(){return vgp.targetX();}
+    public static float vgpTargetY(){return vgp.targetY();}
+    public static boolean vgpTargetSpin(){return vgp.targetSpin();}
 
     public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed();}
-    public static void vgpResult(String action,boolean success){
-        if(success&&action.equals("spin"))cooldownAction("Pokestop spin");
-        Application app=vgpApplication;if(!vgpEnabled||(vgpOptions&4)==0||app==null)return;
-        if(android.os.Build.VERSION.SDK_INT>=33&&app.checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=android.content.pm.PackageManager.PERMISSION_GRANTED)return;
-        try{android.app.NotificationManager manager=(android.app.NotificationManager)app.getSystemService(android.content.Context.NOTIFICATION_SERVICE);
-            manager.createNotificationChannel(new android.app.NotificationChannel("pgrazor-vgp","PGRazor VGP",android.app.NotificationManager.IMPORTANCE_LOW));
-            String message=action.equals("catch")?(success?"Pok\u00e9mon caught":"Pok\u00e9mon not caught"):(success?"Pok\u00e9Stop spun":"Spin unsuccessful");
-            manager.notify(7301,new android.app.Notification.Builder(app,"pgrazor-vgp").setSmallIcon(android.R.drawable.stat_notify_sync).setContentTitle("PGRazor VGP").setContentText(message).setAutoCancel(true).build());
-        }catch(RuntimeException error){event("vgp-notification-error",error.toString());}
-    }
+    public static void vgpResult(String action,boolean success){vgp.result(action,success);}
     private static volatile boolean autoIncubate, incubateLongest, incubatorReady;
     private static volatile String incubatorStatus="Waiting for incubation support";
     public static boolean autoIncubate(){return autoIncubate;}
@@ -214,7 +173,7 @@ public final class Control {
     public static void setBuddyStatus(String status){buddyStatus=status;}
     public static String buddyStatus(){return buddyStatus;}
     public static boolean buddyAvailable(){return buddyReady&&itemAccessAllowed();}
-    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate)&&foreground&&backendReady&&connected();}
+    public static boolean buddySamplingRequested(){return (buddyBerry!=0||vgpEnabled||autoIncubate)&&hostLive();}
     public static boolean buddyAllowed(){long age=SystemClock.elapsedRealtime()-buddyMapSample;return buddyAvailable()&&buddyMapSample>0&&age>=0&&age<1500;}
     private static volatile boolean encounterBerryActive,encounterBerryBusy;
     private static volatile long encounterBerrySeen;
@@ -259,7 +218,7 @@ public final class Control {
     public static void setBattleOptions(int value){if(value<0||value>1023)return;battleOptions=value;saveSettings();event("battle-options",String.valueOf(value));}
     public static void setBattlesReady(boolean ready,String status){battlesReady=ready;battleStatus=status;}
     public static void setBattleStatus(String status){battleStatus=status;}
-    public static boolean battlesAllowed(){return battlesReady&&quickSummaryReady()&&foreground&&backendReady&&connected();}
+    public static boolean battlesAllowed(){return battlesReady&&quickSummaryReady()&&hostLive();}
     private static volatile int rocketOptions;
     private static volatile boolean rocketReady;
     private static volatile String rocketStatus="Waiting for battle support";
@@ -268,7 +227,7 @@ public final class Control {
     public static void setRocketOptions(int value){if(value<0||value>7)return;rocketOptions=value;saveSettings();event("rocket-options",String.valueOf(value));}
     public static void setRocketReady(boolean ready,String status){rocketReady=ready;rocketStatus=status;}
     public static void setRocketStatus(String status){rocketStatus=status;}
-    public static boolean rocketAllowed(){return rocketReady&&quickSummaryReady()&&foreground&&backendReady&&connected();}
+    public static boolean rocketAllowed(){return rocketReady&&quickSummaryReady()&&hostLive();}
     private static volatile boolean itemTransferEnabled,itemTransferReady;
     private static volatile String itemRules="",itemLimits="",itemCatalog="",itemStatus="Waiting for item bag";
     public static boolean itemTransferEnabled(){return itemTransferEnabled;}
@@ -276,7 +235,7 @@ public final class Control {
     public static String itemLimits(){return itemLimits;}
     public static String itemCatalog(){return itemCatalog;}
     public static String itemStatus(){return itemStatus;}
-    public static boolean itemAccessAllowed(){return itemTransferReady&&quickSummaryReady()&&foreground&&backendReady&&connected();}
+    public static boolean itemAccessAllowed(){return itemTransferReady&&quickSummaryReady()&&hostLive();}
     public static void setItemReady(boolean ready,String status){itemTransferReady=ready;itemStatus=status;}
     public static void setItemStatus(String status){itemStatus=status==null?"":status;}
     public static void setItemCatalog(String value){
@@ -300,11 +259,14 @@ public final class Control {
     public static String quickSpinStatus() { return quickSpinStatus; }
     public static void setQuickSpinEnabled(boolean value) { quickSpinEnabled=value; saveSettings(); event("quick-spin-setting",value?"ON":"OFF"); }
     public static void setQuickSpinReady(boolean value,String status) { quickSpinReady=value; quickSpinStatus=status; }
-    public static boolean quickSpinAllowed() { return quickSpinEnabled && quickSpinReady && quickSummaryReady() && foreground && backendReady && connected(); }
-    private static Toast quickBallToast;
+    public static boolean quickSpinAllowed() { return quickSpinEnabled && quickSpinReady && quickSummaryReady() && hostLive(); }
     private static volatile boolean cameraSteeringConfigured;
     private static final CameraHeadingState cameraHeading = new CameraHeadingState();
     private static final Handler main = new Handler(Looper.getMainLooper());
+    private static final CatchOutcomeController catchOutcome = new CatchOutcomeController(
+        main, () -> pad==null ? null : pad.activity,
+        Control::quickBallAllowed, Control::autoTransferAllowed,
+        detail -> event("quick-ball-toast",detail));
     private static final Object stateLock = new Object();
     private static final Object logLock = new Object();
     private static AtomicFile stateFile, settingsFile;
@@ -315,6 +277,14 @@ public final class Control {
     private static final ExecutorService stateWriter = Executors.newSingleThreadExecutor(task -> {
         Thread thread = new Thread(task, "pgrazor-state-writer"); thread.setDaemon(true); return thread;
     });
+    // One daemon worker per burst: SettingsWriter only schedules a drain when idle, so at most one
+    // drain writes at a time, and it exits once the queue empties. Nothing permanent blocks JVM exit.
+    private static final Executor settingsIo = task -> {
+        Thread thread = new Thread(task, "pgrazor-settings-writer"); thread.setDaemon(true); thread.start();
+    };
+    private static SettingsWriter settingsWriter;
+    // Explicit export/import block until durable; a shorter bound keeps a background flush from stalling.
+    private static final long SETTINGS_FLUSH_MS = 5000, SETTINGS_BACKGROUND_FLUSH_MS = 1000;
     public static void embedded(String status) {
         engine.pause(); preview = false; backendReady = false; connection = status;
         setQuickSummaryReady(false,"Waiting for catch summary support");
@@ -361,7 +331,7 @@ public final class Control {
         if(changed)event("quick-summary-setting",actual ? (quickSummaryAutoDismiss ? "ON; summary and details auto-dismiss; new-species screens remain" : "ON; shorter post-catch wait; summary stays open") : "OFF");
     }
     public static boolean quickSummaryAllowed() {
-        return quickSummaryEnabled && quickSummaryReady && foreground && backendReady && connected();
+        return quickSummaryEnabled && quickSummaryReady && hostLive();
     }
     public static boolean autoTransferEnabled(){return autoTransferEnabled;}
     public static boolean autoTransferReady(){return quickSummaryReady()&&autoTransferReady;}
@@ -371,7 +341,7 @@ public final class Control {
     public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=63?mask:63;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
     public static void setAutoTransferReady(boolean ready,String status){autoTransferReady=ready&&quickSummaryReady();transferStatus=status==null?"":status;}
     public static void transferResult(String status){transferStatus=status==null?"":status;}
-    public static boolean autoTransferAllowed(){return autoTransferEnabled&&!transferKeepAll&&autoTransferReady()&&foreground&&backendReady&&connected();}
+    public static boolean autoTransferAllowed(){return autoTransferEnabled&&!transferKeepAll&&autoTransferReady()&&hostLive();}
     /** Canonical keep list: sorted, de-duplicated positive dex IDs (1..2000), comma-separated; empty when none. */
     public static String transferKeepSpecies(){return transferKeepSpecies;}
     public static void setTransferKeepSpecies(String value){
@@ -425,7 +395,7 @@ public final class Control {
     public static boolean ivCatchEnabled(){return ivCatchEnabled;}
     public static boolean ivOwnedEnabled(){return ivOwnedEnabled;}
     public static boolean ivOwnedReady(){return ivOwnedReady;}
-    public static boolean ivDisplayAllowed(){return quickBallReady&&foreground&&backendReady&&connected();}
+    public static boolean ivDisplayAllowed(){return quickBallReady&&hostLive();}
     public static void setIvCatchEnabled(boolean enabled){ivCatchEnabled=enabled;saveSettings();event("iv-catch-overlay",enabled?"ON":"OFF");}
     public static void setIvOwnedEnabled(boolean enabled){ivOwnedEnabled=enabled;saveSettings();event("iv-owned-overlay",enabled?"ON":"OFF");}
     public static void setIvOwnedReady(boolean ready){ivOwnedReady=ready;}
@@ -434,9 +404,8 @@ public final class Control {
         synchronized(quickBallLock) {
             quickBallConfigured=configured; quickBallReady=false; ivOwnedReady=false; setThrowReady(false);setMapTapReady(false);
             quickBallStatus=configured ? "Checking successful ball animation support" : "";
-            quickBallOutcomeToken++;
         }
-        main.post(Control::cancelQuickBallToast);
+        invalidateQuickBallOutcome();
     }
     public static boolean quickBallConfigured() { return quickBallConfigured; }
     public static boolean quickBallReady() { return quickBallConfigured && quickBallReady; }
@@ -465,14 +434,14 @@ public final class Control {
         if(changed)event("quick-ball-setting",actual ? "ON; experimental 20x catch and break-free ball animation; summary screens remain" : "OFF");
     }
     public static boolean quickBallAllowed() {
-        return quickBallEnabled && quickBallReady && foreground && backendReady && connected();
+        return quickBallEnabled && quickBallReady && hostLive();
     }
     public static boolean mapTapReady() { return quickBallReady() && mapTapReady; }
     public static void setMapTapReady(boolean ready) { mapTapReady=ready; if(!ready)mapTapEpoch++; }
     public static int mapTapMode() { return mapTapMode; }
     public static int mapTapEpoch() { return mapTapEpoch; }
     public static void setMapTapMode(int mode) { mapTapEpoch++; mapTapMode=mode>=0 && mode<=3 ? mode : 0; saveSettings(); event("map-tap-mode",""+mapTapMode); }
-    public static boolean mapTapAllowed() { return desiredEnabled && mapTapMode!=0 && mapTapReady() && foreground && backendReady && connected(); }
+    public static boolean mapTapAllowed() { return desiredEnabled && mapTapMode!=0 && mapTapReady() && hostLive(); }
     public static void applyMapTap(double latitude,double longitude,int mode,int epoch,double sampledAt) {
         double age=SystemClock.elapsedRealtime()-sampledAt;
         if(!Double.isFinite(age)||age<0||age>750)return;
@@ -496,68 +465,23 @@ public final class Control {
 
     public static void setThrowGrade(int grade) { throwGrade=grade>=0 && grade<=3 ? grade : 0; saveSettings(); event("throw-grade",""+throwGrade); }
     public static void setThrowCurve(boolean enabled) { throwCurve=enabled; saveSettings(); event("throw-curve",""+throwCurve); }
-    public static boolean throwAllowed() { return throwReady() && foreground && backendReady && connected(); }
+    public static boolean throwAllowed() { return throwReady() && hostLive(); }
     /** Visible text for a natively confirmed outcome; anything else is rejected. */
-    static String quickBallOutcomeText(String outcome) {
-        if("transferred".equals(outcome))return "Transferred";
-        if("transfer-error".equals(outcome))return "Transfer Error";
-        if("caught".equals(outcome))return "Caught";
-        if("broke-free".equals(outcome))return "Not caught - broke free";
-        if("fled".equals(outcome))return "Not caught - fled";
-        return null;
-    }
+    static String quickBallOutcomeText(String outcome) { return CatchOutcomeController.text(outcome); }
     /**
-     * Queues one short toast while the feature is active in the foreground. The
-     * gate is checked again on the main thread; a newer outcome or any OFF,
-     * readiness, background or connection change discards queued work.
-     * Logs record request/suppression only, never that the user saw the toast.
+     * Queues one short post-catch toast; the queue, its cancellation token and the main-thread
+     * display gate are owned by {@link CatchOutcomeController}. A newer outcome or any OFF,
+     * readiness, background or connection change discards queued work via {@link #invalidateQuickBallOutcome()}.
      */
-    private static boolean outcomeAllowed(String outcome) { return ("transferred".equals(outcome)||"transfer-error".equals(outcome)) ? autoTransferAllowed() : quickBallAllowed(); }
-    public static boolean quickBallOutcome(String outcome) {
-        final String text=quickBallOutcomeText(outcome);
-        if(text==null) { event("quick-ball-toast","suppressed; unsupported outcome"); return false; }
-        final long token;
-        synchronized(quickBallLock) { token=outcomeAllowed(outcome) ? ++quickBallOutcomeToken : -1; }
-        if(token<0) { event("quick-ball-toast","suppressed outcome="+outcome+"; feature not active in foreground"); return false; }
-        event("quick-ball-toast","received outcome="+outcome+"; queued for display");
-        if(main.post(() -> showQuickBallOutcome(token,outcome,text))) return true;
-        event("quick-ball-toast","suppressed outcome="+outcome+"; main thread unavailable");
-        return false;
-    }
-    private static void showQuickBallOutcome(long token,String outcome,String text) {
-        String reason=null;
-        synchronized(quickBallLock) {
-            if(token!=quickBallOutcomeToken) reason="superseded or turned off";
-            else if(!outcomeAllowed(outcome)) reason="feature not active in foreground";
-        }
-        Activity activity=pad==null ? null : pad.activity;
-        if(reason==null && (activity==null || activity.isFinishing() || activity.isDestroyed())) reason="no resumed game screen";
-        if(reason!=null) { event("quick-ball-toast","suppressed outcome="+outcome+"; "+reason); return; }
-        try {
-            cancelQuickBallToast();
-            quickBallToast=Toast.makeText(activity,text,Toast.LENGTH_SHORT);
-            quickBallToast.show();
-            event("quick-ball-toast","displayed outcome="+outcome+"; Toast.show requested, user visibility unverified");
-        } catch(RuntimeException error) {
-            quickBallToast=null;
-            event("quick-ball-toast","suppressed outcome="+outcome+"; toast error "+error.getClass().getSimpleName());
-        }
-    }
-    private static void invalidateQuickBallOutcome() {
-        synchronized(quickBallLock) { quickBallOutcomeToken++; }
-        main.post(Control::cancelQuickBallToast);
-    }
-    private static void cancelQuickBallToast() {
-        Toast toast=quickBallToast; quickBallToast=null;
-        if(toast!=null) try { toast.cancel(); } catch(RuntimeException ignored) {}
-    }
+    public static boolean quickBallOutcome(String outcome) { return catchOutcome.request(outcome); }
+    private static void invalidateQuickBallOutcome() { catchOutcome.invalidate(); }
     public static void configureInteractionDiagnostics(boolean configured) {
         interactionDiagnosticsConfigured=configured; interactionDiagnosticRunning=false;
         interactionTraceRequest.set(false); interactionStopRequest.set(false);
         interactionDiagnosticStatus=configured ? "Catch/spin diagnostics: checking metadata shortly" : "";
     }
     public static boolean interactionDiagnosticsConfigured() { return interactionDiagnosticsConfigured; }
-    public static boolean interactionDiagnosticsReady() { return interactionDiagnosticsConfigured && foreground && backendReady && connected(); }
+    public static boolean interactionDiagnosticsReady() { return interactionDiagnosticsConfigured && hostLive(); }
     public static boolean interactionDiagnosticRunning() { return interactionDiagnosticRunning; }
     public static boolean interactionTracePending() { return interactionTraceRequest.get(); }
     public static String interactionDiagnosticStatus() { return interactionDiagnosticStatus; }
@@ -602,7 +526,7 @@ public final class Control {
     /** Camera-relative is the only joystick mode; unavailable headings stop input. */
     public static boolean cameraRelative() { return true; }
     public static boolean cameraSteeringRequested() {
-        return cameraSteeringConfigured && foreground && backendReady && connected();
+        return cameraSteeringConfigured && hostLive();
     }
     public static void updateCameraHeading(double yawDegrees, int cameraId, boolean mapVisible, long ageMillis) {
         synchronized (cameraHeading) {
@@ -664,7 +588,7 @@ public final class Control {
         cameraDiagnosticStatus = configured ? "Camera diagnostic ready" : "";
     }
     public static boolean cameraDiagnosticsConfigured() { return cameraDiagnosticsConfigured; }
-    public static boolean cameraDiagnosticsReady() { return cameraDiagnosticsConfigured && foreground && backendReady && connected(); }
+    public static boolean cameraDiagnosticsReady() { return cameraDiagnosticsConfigured && hostLive(); }
     public static boolean cameraSamplePending() { return cameraSampleRequest.get() || cameraDiagnosticRunning; }
     public static boolean cameraDiagnosticRunning() { return cameraDiagnosticRunning; }
     public static void setCameraDiagnosticRunning(boolean running) { cameraDiagnosticRunning = running && cameraDiagnosticsConfigured; }
@@ -708,10 +632,12 @@ public final class Control {
         if(!connected() && !leaseExpired) { leaseExpired=true; cameraSampleRequest.set(false); invalidateQuickBallOutcome(); invalidateCameraHeading("Connection lost"); engine.pause(); saveState(); connection="Adapter heartbeat late - suspended"; event("heartbeat-expired","Runtime suspended; saved enabled preference unchanged"); }
     }
     public static boolean connected() { return !instrumented || android.os.SystemClock.elapsedRealtime() <= leaseDeadline; }
+    /** Shared host gate: foreground, with a ready backend whose connection lease is still live. */
+    private static boolean hostLive() { return foreground && backendReady && connected(); }
     public static synchronized void begin(Application app) {
         if (registered) return;
         registered = true;
-        vgpApplication=app;
+        vgp.setApplication(app);
         try {
             File dir = new File(app.getFilesDir(), "pgrazor-logs");
             if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Cannot create log folder");
@@ -793,8 +719,12 @@ public final class Control {
         requestInteractionStop();
         foreground = false; autoWalkPlanning=false;mapPoiOpen=false;mapPoiSnapshot="";mapPoiAt=0; mapTapEpoch++; invalidateQuickBallOutcome(); cameraSampleRequest.set(false); invalidateCameraHeading("App backgrounded");
         // Losing the foreground switches VGP off, clears any target, and never auto-resumes.
-        synchronized(vgpLock){vgpEnabled=false;vgpTargetAt=0;vgpGuardReason="App left foreground; tap VGP to start";}
+        vgp.suspend();
         engine.pause(); saveState();
+        // Best effort: give any queued settings a bounded window to reach disk before a possible kill.
+        // Writes already run off-thread, so this only waits briefly; failures are logged, never thrown.
+        try { flushSettings(SETTINGS_BACKGROUND_FLUSH_MS); }
+        catch (IOException pending) { event("settings-save-error",pending.toString()); }
     }
     private static void restoreRuntime(String reason) {
         if (!registered) return;
@@ -865,7 +795,17 @@ public final class Control {
     public static void setJoystickVisible(boolean value){joystickVisible=value;saveSettings();}
     private static void loadSettings(Application app) {
         synchronized(stateLock) {
-            settingsFile=new AtomicFile(new File(app.getFilesDir(),"pgrazor-settings-v1.properties"));
+            if(settingsFile==null) {
+                // Create the destination and its writer once so the sink can close over a stable
+                // target; the file path never changes within a process.
+                settingsFile=new AtomicFile(new File(app.getFilesDir(),"pgrazor-settings-v1.properties"));
+                final AtomicFile target=settingsFile;
+                settingsWriter=new SettingsWriter(settingsIo,snapshot->writeSettings(target,snapshot),
+                                                  error->event("settings-save-error",error.toString()));
+            }
+            // A reload must reflect every queued write for this file, never a half-finished one.
+            try { settingsWriter.flush(SETTINGS_FLUSH_MS); }
+            catch(IOException pending) { event("settings-load-error","Pending save not flushed: "+pending); return; }
             StrictMode.ThreadPolicy policy=StrictMode.allowThreadDiskReads();
             try(FileInputStream in=settingsFile.openRead()) {
                 Properties p=new Properties(); p.load(in);
@@ -882,7 +822,7 @@ public final class Control {
                 // VGP active state is runtime only: always start OFF, ignoring any legacy persisted vgpEnabled.
                 autoIncubate=Boolean.parseBoolean(p.getProperty("autoIncubate","false"));
                 incubateLongest=Boolean.parseBoolean(p.getProperty("incubateLongest","false"));
-                vgpEnabled=false;vgpTargetAt=0;
+                vgpEnabled=false;vgp.clearTarget();
                 vgpOverlay=Boolean.parseBoolean(p.getProperty("vgpOverlay","false"));
                 vgpStopOnCooldown=Boolean.parseBoolean(p.getProperty("vgpStopOnCooldown","false"));
                 try{vgpOptions=Integer.parseInt(p.getProperty("vgpOptions","3"))&7;}catch(NumberFormatException ignored){vgpOptions=3;}
@@ -931,15 +871,20 @@ public final class Control {
     }
     static Properties exportSettings() throws IOException {
         synchronized(stateLock) {
-            saveSettings();
-            Properties p=new Properties();
             if(settingsFile==null)throw new IOException("Settings are not ready");
+            // Persist the live snapshot and wait for it so the read reflects current choices; a failed
+            // write surfaces synchronously here rather than silently returning stale settings.
+            settingsWriter.submit(settingsSnapshot());
+            settingsWriter.flush(SETTINGS_FLUSH_MS);
+            Properties p=new Properties();
             try(FileInputStream in=settingsFile.openRead()){p.load(in);}
             return p;
         }
     }
     static void importSettings(Application app,Properties incoming,double speed) throws IOException {
         synchronized(stateLock) {
+            // exportSettings drained every queued write; holding stateLock blocks new submissions, so the
+            // atomic replacement below cannot race the background writer for this destination.
             Properties merged=exportSettings();merged.putAll(incoming);
             if(incoming.containsKey("autoBerry")&&!incoming.containsKey("berryPriority"))merged.remove("berryPriority");
             FileOutputStream out=null;
@@ -949,39 +894,53 @@ public final class Control {
             engine.stop();engine.speed(speed);mapTapEpoch++;restoreRuntime("settings-import");saveState(); // Keep current coordinates; never resume a route.
         }
     }
+    // Capture current preferences under stateLock; serialization and AtomicFile IO run off the main thread.
     private static void saveSettings() {
         synchronized(stateLock) {
             if(settingsFile==null)return;
-            StrictMode.ThreadPolicy policy=StrictMode.allowThreadDiskWrites(); FileOutputStream out=null;
-            try {
-                Properties p=new Properties();
-                p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
-                p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
-                p.setProperty("joystickVisible",String.valueOf(joystickVisible));
-                p.setProperty("spawnBooster",String.valueOf(spawnBooster));
-                p.setProperty("giftOptions",String.valueOf(giftOptions));
-                p.setProperty("vgpOverlay",String.valueOf(vgpOverlay));
-                p.setProperty("vgpStopOnCooldown",String.valueOf(vgpStopOnCooldown));
-                p.setProperty("vgpOptions",String.valueOf(vgpOptions));
-                p.setProperty("buddyBerry",String.valueOf(buddyBerry));
-                p.setProperty("autoIncubate",String.valueOf(autoIncubate));
-                p.setProperty("incubateLongest",String.valueOf(incubateLongest));
-                p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("berryPriority",berryPriority);
-                p.setProperty("encounterBerry",String.valueOf(encounterBerryEnabled));
-                p.setProperty("battleOptions",String.valueOf(battleOptions));
-                p.setProperty("rocketOptions",String.valueOf(rocketOptions));
-                p.setProperty("itemTransfer",String.valueOf(itemTransferEnabled));p.setProperty("itemRules",itemRules);p.setProperty("itemLimits",itemLimits);p.setProperty("itemCatalog",itemCatalog);
-                p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
-                p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
-                p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
-                p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled));
-                p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
-                p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
-                p.setProperty("mapTap",String.valueOf(mapTapMode));
-                out=settingsFile.startWrite(); p.store(out,"PGRazor settings"); settingsFile.finishWrite(out); out=null;
-            } catch(IOException | RuntimeException error) { if(out!=null)settingsFile.failWrite(out); event("settings-save-error",error.toString()); }
-            finally { StrictMode.setThreadPolicy(policy); }
+            settingsWriter.submit(settingsSnapshot());
         }
+    }
+    /** Snapshot of every persisted preference; must be built while holding stateLock. */
+    private static Properties settingsSnapshot() {
+        Properties p=new Properties();
+        p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
+        p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
+        p.setProperty("joystickVisible",String.valueOf(joystickVisible));
+        p.setProperty("spawnBooster",String.valueOf(spawnBooster));
+        p.setProperty("giftOptions",String.valueOf(giftOptions));
+        p.setProperty("vgpOverlay",String.valueOf(vgpOverlay));
+        p.setProperty("vgpStopOnCooldown",String.valueOf(vgpStopOnCooldown));
+        p.setProperty("vgpOptions",String.valueOf(vgpOptions));
+        p.setProperty("buddyBerry",String.valueOf(buddyBerry));
+        p.setProperty("autoIncubate",String.valueOf(autoIncubate));
+        p.setProperty("incubateLongest",String.valueOf(incubateLongest));
+        p.setProperty("cooldownOverlay",String.valueOf(cooldownOverlay));p.setProperty("berryPriority",berryPriority);
+        p.setProperty("encounterBerry",String.valueOf(encounterBerryEnabled));
+        p.setProperty("battleOptions",String.valueOf(battleOptions));
+        p.setProperty("rocketOptions",String.valueOf(rocketOptions));
+        p.setProperty("itemTransfer",String.valueOf(itemTransferEnabled));p.setProperty("itemRules",itemRules);p.setProperty("itemLimits",itemLimits);p.setProperty("itemCatalog",itemCatalog);
+        p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
+        p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
+        p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
+        p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled));
+        p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
+        p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));
+        p.setProperty("mapTap",String.valueOf(mapTapMode));
+        return p;
+    }
+    /** Writer sink: serializes to the captured AtomicFile off-thread, rolling back on failure. Never takes stateLock. */
+    private static void writeSettings(AtomicFile file,Properties snapshot) throws IOException {
+        FileOutputStream out=null;
+        try { out=file.startWrite(); snapshot.store(out,"PGRazor settings"); file.finishWrite(out); out=null; }
+        finally { if(out!=null)file.failWrite(out); }
+    }
+    /** Blocks until queued settings writes are durable; IO failures reach the caller synchronously. */
+    static void flushSettings(long timeoutMillis) throws IOException {
+        SettingsWriter writer;
+        synchronized(stateLock) { writer=settingsWriter; }
+        // Flush off stateLock: the writer never needs it, so a timed wait must not pin it either.
+        if(writer!=null) writer.flush(timeoutMillis);
     }
     public static void event(String kind, String detail) {
         synchronized (logLock) {
@@ -1011,7 +970,7 @@ public final class Control {
         }catch(IOException|RuntimeException error){event("log-recovery-error",error.toString());}
     }
     public static File currentLog() { return logFile; }
-    public static boolean active() { return desiredEnabled && foreground && backendReady && connected() && engine.enabled; }
+    public static boolean active() { return desiredEnabled && hostLive() && engine.enabled; }
     public static double latitude() { latitudeReads++; return currentLatitude(); }
     public static double longitude() { longitudeReads++; return currentLongitude(); }
     public static float speed() { return (float)engine.metersPerSecond(); }

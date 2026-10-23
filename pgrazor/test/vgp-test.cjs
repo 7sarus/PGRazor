@@ -1,10 +1,13 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const src=fs.readFileSync('pgrazor/diagnostics/quick-close.js','utf8');
-const code=src.slice(src.indexOf(' const vgpState='),src.indexOf(" event(s,'vgp-ready'"));
+const feature=require('./feature-fixture.cjs');
 function setup(){const events=[],freed=[],s={vgpMask:1,vgpLease:5000,stopping:false,listeners:[]};
  const c={Interceptor:{attach:()=>({})},s,p:{vgp:{m:{capture:{method:'capture'},itemCount:{},manualUI:{address:'manual-ui'}},f:{}}},classes:{},VGP:{},RESP:'response',SPINRESULT:'spin',itemState:{service:'inventory'},event:(s,k,v)=>events.push([k,v]),freeHandle:h=>freed.push(h),hold:o=>o,target:o=>o,alive:()=>true,readPtr:()=>({}),itemInt:()=>1,itemArgs:a=>a,itemNumber:n=>n,ptr:()=>null,Memory:{alloc:()=>({writeByteArray(){},writeS32(){},add(){return {writeFloat(){}}}})},invoke:()=>({}),exact:()=>false};
- c.p.items={fields:{bag:{}}};vm.createContext(c);vm.runInContext(code+'\nthis.state=vgpState;',c);s.vgpManualReady=true;c.vgpPromise=()=>null;return {c,s,events,freed};}
+ c.p.items={fields:{bag:{}}};c.PK='pokemon';c.fields={caughtId:'id'};c.api={field_get_value(){}};c.vgpPromise=()=>null;
+ const dependencies={...c,getItemState:()=>c.itemState};
+ for(const name of ['vgpPromise','invoke','itemInt','exact','capturedKey','releaseRecord','transferCatch','readS32'])dependencies[name]=(...args)=>c[name](...args);
+ const module=feature('vgp',dependencies);c.state=module.vgpState;c.vgpTick=module.vgpTick;c.vgpTransferTick=module.vgpTransferTick;s.vgpManualReady=true;return {c,s,events,freed};}
 {
  const {c}=setup();c.state.pending={target:'target',promise:'promise',deadline:100,phase:'catch'};c.vgpTick(101);assert.equal(c.state.pending,null);assert.equal(c.state.blocked,true);c.s.vgpMask=0;c.vgpTick(102);assert.equal(c.state.blocked,false);
 }
@@ -32,7 +35,7 @@ console.log('VGP: timeout, rejection, map lease, one throw, and empty-ball guard
 }
 for(const match of [true,false]){
  const {c,s}=setup();s.transferEnabled=true;s.epoch=1;s.allowedUntil=5000;
- const pokemon={isNull:()=>false};c.PK='pokemon';c.classes.pokemon='pokemon';c.fields={caughtId:'id'};c.api={field_get_value(){}};
+ const pokemon={isNull:()=>false};c.classes.pokemon='pokemon';
  c.p.transfer={methods:{get:{method:'get'}}};c.p.details={fields:{id:'id'}};
  c.invoke=()=>pokemon;c.exact=()=>true;c.capturedKey=()=>match?'new-catch':'other-catch';c.releaseRecord=()=>{};
  let requested=false;c.transferCatch=r=>{requested=true;r.transferRequested=true;r.transferDeadline=4000;};
@@ -53,7 +56,7 @@ console.log('XXS/XXL keep rules and independent opt-out passed');
 // Exercise real result handlers, not a copied retry policy. Use deliberately nonstandard enum values.
 for(const [status,delay] of [[11,3600000],[12,5000],[13,3600000],[14,5000],[15,30000],[16,5000],[99,30000]]){
  const {c}=setup();c.p.vgp.catchStates={CatchSuccess:11,CatchEscape:12,CatchFlee:13,CatchMissed:14,CatchError:15,CatchItemReplacement:16};c.p.success=11;
- c.exact=()=>true;c.readS32=()=>status;c.vgpQueueTransfer=()=>{};
+ c.exact=()=>true;c.readS32=()=>status;
  c.vgpPromise=()=>({value:{isNull:()=>false}});c.state.seen.set('p123',3600000);
  c.state.pending={key:'p123',target:'target',promise:'promise',bag:'bag',deadline:10000,phase:'catch'};
  c.vgpTick(100);assert.equal(c.state.pending,null);assert.equal(c.state.seen.get('p123'),100+delay);
@@ -75,18 +78,8 @@ console.log('VGP retry: escape/miss/replacement retry, success/flee terminal, er
  c.state.pending={target:'target',promise:'promise',deadline:100,phase:'encounter'};
  c.vgpTick(20);assert.equal(calls,0);assert.equal(c.state.pending,null);
 }
-// Permission no longer depends on map camera visibility, but all other gates remain.
-{
- const control=fs.readFileSync('pgrazor/src/dev/pgrazor/Control.java','utf8');
- const body=control.match(/public static boolean vgpAllowed\(\)\{([^}]+)\}/)[1];
- const c={locationKnown:()=>true,guardVgpCooldown:()=>{},vgpEnabled:true,vgpReady:true,itemAccessAllowed:()=>true,buddyMapSample:0};
- const allowed=()=>vm.runInNewContext('(function(){'+body+'})()',c);
- assert.equal(allowed(),true,'off-map foreground can run');
- c.itemAccessAllowed=()=>false;assert.equal(allowed(),false,'background/not ready cannot run');
- c.itemAccessAllowed=()=>true;c.locationKnown=()=>false;assert.equal(allowed(),false,'unknown location cannot run');
- c.locationKnown=()=>true;c.guardVgpCooldown=()=>{c.vgpEnabled=false};assert.equal(allowed(),false,'cooldown can revoke permission');
-}
-console.log('PASS: VGP off-map permission retains safety gates; manual target never receives VGP throw');
+// Host permission policy is exercised against real Java in VgpControllerTest.
+console.log('PASS: manual target never receives VGP throw');
 
 {
  const {c,s,freed}=setup();c.state.manualTarget='manual';c.state.manualAt=10;s.vgpMapVisible=true;s.vgpMask=0;
