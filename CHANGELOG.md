@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v0.1.2
+
+[Full release notes](docs/releases/v0.1.2.md)
+
 - Allow location spoofing with Android's system Location switch off or the app's location permission denied. System Location can stay enabled for other apps; disabling spoofing restores normal device-location requirements.
 
 - Keep spoofed location accuracy, timestamps, and provider status consistent when real GPS updates arrive.

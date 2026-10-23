@@ -25,7 +25,7 @@ The Android package identity stays compatible with the game. An official-store i
 
 | Area | Controls |
 | --- | --- |
-| Map | Optional location spoofing; camera-relative joystick, saved locations, routes, Autowalk, tap-to-walk/teleport, nearby stop/gym/raid layers |
+| Map | Optional location spoofing, including with app location permission denied; camera-relative joystick, saved locations, routes, Autowalk, tap-to-walk/teleport, nearby stop/gym/raid layers |
 | Catching | Quick Catch; Nice/Great/Excellent throws; always curveball; optional AR+ flag; optional level and color-graded IV display; berry selector |
 | Inventory | Optional IV/level on Pokémon details; transfer newly caught Pokémon below 90% IV; configurable item limits |
 | Keep rules | Legendary/mythical/Ultra Beasts, shiny, event/costume, background, **XXS**, **XXL**, searchable custom species keep list, and a persistent Keep All overlay; favorites and eggs always kept |
@@ -63,6 +63,8 @@ These are experimental client modifications. Server outcomes are not guaranteed.
 **Settings backup:** Open **Settings ? Export / import settings** to save a JSON file outside the app and restore it after reinstalling or on another phone. It includes feature preferences, speed, favorites, map layers, Feed filters/presets, and overlay positions. Login tokens, current location, cooldown history, and active routes are excluded. Import leaves VGP off. Ordinary updates signed with the same PGRazor key already preserve app data.
 
 Join the [PGRazor Discord community](https://discord.gg/9QqfkDSQX3). You can also open it from the settings footer.
+
+Enjoying PGRazor? You can support development on [Ko-fi](https://ko-fi.com/pgrazor). Donations are optional.
 
 ## Build and contribute
 

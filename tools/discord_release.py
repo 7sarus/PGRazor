@@ -37,6 +37,9 @@ def message(release, role_id=''):
     assets = release.get('assets', [])
     apk = next((a['browser_download_url'] for a in assets if a.get('name') == 'PGRazor.apk'), None)
     fields = [{'name': 'Download', 'value': '[Install PGRazor.apk](' + apk + ')'}] if apk else []
+    # Keep the support link visible even when long release notes are truncated.
+    if 'https://ko-fi.com/pgrazor' not in notes:
+        fields.append({'name': 'Support development', 'value': '[Ko-fi](https://ko-fi.com/pgrazor) (optional)'})
     payload = {'username': 'PGRazor Releases', 'allowed_mentions': {'parse': []},
             'embeds': [{'title': (release.get('name') or release['tag_name'])[:256],
                         'url': release['html_url'], 'description': notes,
