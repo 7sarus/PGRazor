@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make the joystick more transparent with no backing panel, retaining the drag handle; add a tap-to-walk/double-tap-to-teleport game-map mode.
+
 - Add saved 100%, 75%, 50%, and 25% map-overlay UI scale presets under Location & Overlays.
 
 - Simplify the catching berry overlay to an icon/count and add three saved berry priorities with inventory fallback, including out-of-stock selections.

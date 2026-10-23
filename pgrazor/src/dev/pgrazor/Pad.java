@@ -91,7 +91,7 @@ public final class Pad {
         if(launcher!=null)launcher.invalidate();
         if(closeIcon!=null)closeIcon.invalidate();
         if(themeIcon!=null){themeIcon.setContentDescription(Control.darkTheme()?"Switch to light theme":"Switch to dark theme");themeIcon.invalidate();}
-        if(joystickOverlay!=null){joystickOverlay.setBackground(rounded(Control.darkTheme()?0xd9141b25:0xd9f9fbfd,22));styleTree(joystickOverlay);stick.invalidate();}
+        if(joystickOverlay!=null){joystickOverlay.setBackground(null);stick.setAlpha(0.6f);styleTree(joystickOverlay);stick.invalidate();}
         if(encounterBerry!=null)encounterBerry.invalidate();
         if(cooldownTimer!=null)cooldownTimer.setBackground(rounded(Control.darkTheme()?0xcc141b25:0xccf1f5f8,12));
         if(transferToggle!=null)transferToggle.invalidate();
@@ -247,7 +247,7 @@ public final class Pad {
         Button map = button("World map"); loc.addView(map);
         map.setOnClickListener(v -> openWorldMap());
         mapTap = button("Game map tap: Do nothing"); loc.addView(mapTap);
-        mapTap.setOnClickListener(v -> { Control.setMapTapMode((Control.mapTapMode()+1)%3); refresh(); });
+        mapTap.setOnClickListener(v -> { Control.setMapTapMode((Control.mapTapMode()+1)%4); refresh(); });
         spawnSwitch = switchRow(loc, "Spawn booster (80 m)"); spawnSwitch.setChecked(Control.spawnBooster());
         spawnSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.spawnBooster())return; Control.setSpawnBooster(spawnSwitch.isChecked()); });
         spawnStatus = caption(loc, "");
@@ -565,7 +565,7 @@ public final class Pad {
         quickSummarySwitch.setEnabled(Control.quickSummaryConfigured());
         quickBallRoot.setVisibility(Control.quickBallConfigured() ? View.VISIBLE : View.GONE);
         quickBallStatus.setText(Control.quickBallStatus());
-        mapTap.setText("Game map tap: "+new String[]{"Do nothing","Walk","Teleport"}[Control.mapTapMode()]);
+        mapTap.setText("Game map tap: "+new String[]{"Do nothing","Walk","Teleport","Walk / double tap teleport"}[Control.mapTapMode()]);
         mapTap.setEnabled(Control.quickBallConfigured());
         spawnSwitch.setChecked(Control.spawnBooster());spawnSwitch.setEnabled(Control.spawnAllowed());spawnStatus.setText(Control.spawnStatus());
         throwGrade.setText("Throw rating: "+new String[]{"OFF","Nice","Great","Excellent"}[Control.throwGrade()]);

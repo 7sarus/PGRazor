@@ -1,5 +1,6 @@
 import dev.pgrazor.SettingsBackupRules;
 import dev.pgrazor.BerryPriority;
+import dev.pgrazor.MapTapSequence;
 import org.json.*;
 
 public class SettingsBackupRulesTest {
@@ -13,6 +14,11 @@ public class SettingsBackupRulesTest {
     }
     public static void main(String[] args)throws Exception{
         SettingsBackupRules.validate(valid());
+        MapTapSequence taps=new MapTapSequence();
+        if(taps.doubleTap(40,-70,1000,1,300)||!taps.doubleTap(40.00001,-70,1200,1,300)||taps.doubleTap(40,-70,1300,1,300))throw new AssertionError("Tap pair/triple handling");
+        if(taps.doubleTap(41,-70,1400,1,300)||taps.doubleTap(41,-70,1500,2,300)||taps.doubleTap(41,-70,1900,2,300))throw new AssertionError("Distant, expired, or old-generation tap paired");
+        JSONObject tapSetting=valid();tapSetting.getJSONObject("settings").put("mapTap","3");SettingsBackupRules.validate(tapSetting);
+        tapSetting.getJSONObject("settings").put("mapTap","4");rejects(tapSetting);
         for(int scale:new int[]{100,75,50,25}){JSONObject scaled=valid();scaled.getJSONObject("settings").put("uiScalePercent",String.valueOf(scale));SettingsBackupRules.validate(scaled);}
         for(String scale:new String[]{"0","24","101","50.5","bad"}){JSONObject scaled=valid();scaled.getJSONObject("settings").put("uiScalePercent",scale);rejects(scaled);}
         String choices="";

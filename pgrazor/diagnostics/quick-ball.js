@@ -748,7 +748,7 @@ function start(options){
 function setAllowed(value){const s=running;if(!s||!s.active||!s.ready||s.stopping)return false;
  try{s.allowedUntil=value===true?s.now()+LIMITS.leaseMs:0;return value===true;}catch(e){fault(s,e);return false;}}
 function setMapTapOptions(mode,epoch,allowed){const s=running;if(!s||!s.active||!s.ready||s.stopping||s.mapFault)return false;
- if(!Number.isInteger(mode)||mode<0||mode>2||!Number.isSafeInteger(epoch)){s.mapUntil=0;return false;}
+ if(!Number.isInteger(mode)||mode<0||mode>3||!Number.isSafeInteger(epoch)){s.mapUntil=0;return false;}
  try{s.mapMode=mode;s.mapEpoch=epoch;s.mapUntil=allowed===true?s.now()+LIMITS.leaseMs:0;return allowed===true;}catch(_){s.mapUntil=0;return false;}}
 function setArThrowOptions(enabled,allowed){const s=running;if(!s||!s.active||!s.ready||s.stopping||s.arFault)return false;s.throwAr=enabled===true;s.arUntil=allowed===true?s.now()+LIMITS.leaseMs:0;return true;}
 function setThrowOptions(grade,curve,allowed){const s=running;if(!s||!s.active||!s.ready||s.stopping||s.throwFault)return false;

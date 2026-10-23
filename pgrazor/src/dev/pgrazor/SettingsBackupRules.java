@@ -26,7 +26,7 @@ public final class SettingsBackupRules {
             int n;try{n=Integer.parseInt(value);}catch(NumberFormatException e){throw new JSONException("Invalid "+key);}
             if(key.equals("uiScalePercent")){require(n==25||n==50||n==75||n==100,"Invalid UI scale");continue;}
             if(key.equals("buddyBerry")||key.equals("autoBerry")){require(n==0||n==701||n==703||n==705||n==706||n==707,"Invalid berry");continue;}
-            int max=key.equals("battleOptions")?1023:key.equals("transferProtect")?63:key.equals("grade")?3:key.equals("mapTap")?2:7;
+            int max=key.equals("battleOptions")?1023:key.equals("transferProtect")?63:key.equals("grade")?3:key.equals("mapTap")?3:7;
             require(n>=0&&n<=max,"Invalid "+key);
         }
         JSONObject preferences=root.getJSONObject("preferences");

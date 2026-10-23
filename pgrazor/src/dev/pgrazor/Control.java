@@ -72,6 +72,7 @@ public final class Control {
     // is runtime only: whether the agent resolved the owned-details metadata.
     private static volatile boolean ivCatchEnabled=true, ivOwnedEnabled, ivOwnedReady;
     private static volatile int mapTapMode, mapTapEpoch;
+    private static final MapTapSequence mapTapSequence=new MapTapSequence();
     private static volatile boolean mapTapReady;
     /** Guarded by quickBallLock; any change invalidates a queued outcome toast. */
     private static long quickBallOutcomeToken;
@@ -470,7 +471,7 @@ public final class Control {
     public static void setMapTapReady(boolean ready) { mapTapReady=ready; if(!ready)mapTapEpoch++; }
     public static int mapTapMode() { return mapTapMode; }
     public static int mapTapEpoch() { return mapTapEpoch; }
-    public static void setMapTapMode(int mode) { mapTapEpoch++; mapTapMode=mode>=0 && mode<=2 ? mode : 0; saveSettings(); event("map-tap-mode",""+mapTapMode); }
+    public static void setMapTapMode(int mode) { mapTapEpoch++; mapTapMode=mode>=0 && mode<=3 ? mode : 0; saveSettings(); event("map-tap-mode",""+mapTapMode); }
     public static boolean mapTapAllowed() { return desiredEnabled && mapTapMode!=0 && mapTapReady() && foreground && backendReady && connected(); }
     public static void applyMapTap(double latitude,double longitude,int mode,int epoch,double sampledAt) {
         double age=SystemClock.elapsedRealtime()-sampledAt;
@@ -479,7 +480,8 @@ public final class Control {
         final long received=SystemClock.elapsedRealtime();
         main.post(() -> {
             if(!mapTapAllowed()||mode!=mapTapMode||epoch!=mapTapEpoch||SystemClock.elapsedRealtime()-received>750)return;
-            if(mode==1)walkTo(latitude,longitude);else if(mode==2)teleport(latitude,longitude);else return;
+            if(mode==1)walkTo(latitude,longitude);else if(mode==2)teleport(latitude,longitude);
+            else if(mode==3){if(mapTapSequence.doubleTap(latitude,longitude,sampledAt,epoch,android.view.ViewConfiguration.getDoubleTapTimeout()))teleport(latitude,longitude);else walkTo(latitude,longitude);}else return;
             event("map-tap-applied",String.format(Locale.US,"mode=%d lat=%.7f lon=%.7f",mode,latitude,longitude));
         });
     }
@@ -915,7 +917,7 @@ public final class Control {
                 quickBallEnabled=quickSummaryEnabled;
                 throwCurve=Boolean.parseBoolean(p.getProperty("curve","false"));
                 throwAr=Boolean.parseBoolean(p.getProperty("throwAr","false"));
-                throwGrade=boundedSetting(p,"grade",3); mapTapMode=boundedSetting(p,"mapTap",2);
+                throwGrade=boundedSetting(p,"grade",3); mapTapMode=boundedSetting(p,"mapTap",3);
                 event("settings-restored","dismiss="+quickSummaryEnabled+" fastBall="+quickBallEnabled+" grade="+throwGrade+" curve="+throwCurve+" mapTap="+mapTapMode+" cameraRelative=true");
             } catch(FileNotFoundException missing) {
                 // Defaults apply only until the user first saves a choice.
