@@ -430,7 +430,7 @@ function prepare(module,api,domain){
 
    const tf={resultStatus:enumI32Field(classes[RELEASE],'Status',0x10),bag:typed(classes[VIEW],'dsvj',0x70,'Niantic.Holoholo.IPokemonBag'),gm:typed(classes[VIEW],'dsvo',0x98,'IGameMasterData'),
 
-    attack:typed(classes[PK],'individualAttack_',0x70,INT),defense:typed(classes[PK],'individualDefense_',0x74,INT),stamina:typed(classes[PK],'individualStamina_',0x78,INT),
+    species:typed(classes[PK],'pokemonId_',0x28,INT),attack:typed(classes[PK],'individualAttack_',0x70,INT),defense:typed(classes[PK],'individualDefense_',0x74,INT),stamina:typed(classes[PK],'individualStamina_',0x78,INT),
 
     favorite:typed(classes[PK],'favorite_',0xb0,BOOL),egg:typed(classes[PK],'isEgg_',0x50,BOOL),display:typed(classes[PK],'pokemonDisplay_',0xd8,DISPLAY),events:refField(classes[PK],'originEvents_',0x188),
 
@@ -979,7 +979,20 @@ function flush(s){for(const e of s.queue.splice(0)){try{console.log('[pgrazor-qu
 
 // Pure decision policy: no missing or malformed classification may authorize a transfer.
 
-function transferDecision(v,protect=63){
+function transferKeepSet(raw){
+ if(typeof raw!=='string'||raw.length>10000)return null;
+ const ids=new Set();if(raw==='')return ids;
+ for(const part of raw.split(',')){if(!/^[1-9][0-9]{0,3}$/.test(part))return null;const id=Number(part);if(id>2000||ids.has(id))return null;ids.add(id);}
+ return ids.size<=2000?ids:null;
+}
+function transferKeepReason(species,keepSpecies,keepAll){
+ if(keepAll===true)return 'keep-all';
+ if(keepSpecies===null)return 'invalid-keep-list';
+ if(keepSpecies&&keepSpecies.size){if(!Number.isInteger(species)||species<1||species>2000)return 'unknown-species';if(keepSpecies.has(species))return 'custom-keep-list';}
+ return null;
+}
+function transferDecision(v,protect=63,keepSpecies,keepAll=false){
+ const keep=transferKeepReason(v&&v.species,keepSpecies,keepAll);if(keep)return keep;
 
  if(!v||![v.attack,v.defense,v.stamina].every(n=>Number.isInteger(n)&&n>=0&&n<=15))return 'unknown-iv';
 
@@ -2687,6 +2700,8 @@ function install(s,p){
    if(current.isNull()||!exact(current,classes[PK])||capturedKey(current,p.details.fields.id)!==r.capturedKey)throw Error('transfer-bag-identity');
 
    root(current);
+   const species=readS32(current,f.species),keep=transferKeepReason(species,s.keepSpecies,s.keepAll);
+   if(keep){r.transferReason=keep;event(s,'transfer-kept',{reason:keep,capturedKey:r.capturedKey,tid});return false;}
 
    const display=root(readPtr(current,f.display));if(!exact(display,classes[DISPLAY]))throw Error('transfer-display-type');
 
@@ -2701,7 +2716,7 @@ function install(s,p){
 
    let limitedEvent=false;if(!limited.isNull()){const len=api.class_get_method_from_name(api.object_get_class(limited),Memory.allocUtf8String('get_Length'),0);if(len.isNull())throw Error('transfer-string-length');limitedEvent=boxed({method:len},limited,null,false)!==0;}
 
-   const v={xxs:size===t.xxs,xxl:size===t.xxl,attack:readS32(current,f.attack),defense:readS32(current,f.defense),stamina:readS32(current,f.stamina),rare,shiny,
+   const v={species,xxs:size===t.xxs,xxl:size===t.xxl,attack:readS32(current,f.attack),defense:readS32(current,f.defense),stamina:readS32(current,f.stamina),rare,shiny,
 
     event:count>0||limitedEvent||readS32(display,f.costume)!==t.costumeNone||readS32(display,f.originalCostume)!==t.costumeNone,
 
@@ -2709,7 +2724,7 @@ function install(s,p){
 
     favorite:boolField(current,f.favorite),egg:boolField(current,f.egg)};
 
-   const reason=transferDecision(v,s.protect);if(reason){r.transferReason=reason;event(s,'transfer-kept',{reason,capturedKey:r.capturedKey,tid});return false;}
+   const reason=transferDecision(v,s.protect,s.keepSpecies,s.keepAll);if(reason){r.transferReason=reason;event(s,'transfer-kept',{reason,capturedKey:r.capturedKey,tid});return false;}
 
    if(s.transferSeen.has(r.capturedKey)||s.transferSeen.size>=4096){event(s,'transfer-kept',{reason:'duplicate-or-session-limit',tid});return false;}
 
@@ -2900,14 +2915,12 @@ function setItemOptions(enabled,rules,allowed){const s=running;if(!s||!s.ready||
 
 function stop(){const s=running;if(!s)return Promise.resolve({status:'idle'});s.allowedUntil=0;s.stopping=true;return s.promise;}
 
-function setTransferOptions(enabled,protect,dismiss){const s=running;if(!s||!s.active||s.stopping)return false;
+function setTransferOptions(enabled,protect,dismiss,keepSpecies='',keepAll=false){const s=running;if(!s||!s.active||s.stopping)return false;
+ const ids=transferKeepSet(keepSpecies),config=ids?[...ids].sort((a,b)=>a-b).join(','):null;
+ const keep=keepAll===true,next=enabled===true&&ids!==null&&!keep,mask=Number.isInteger(protect)&&protect>=0&&protect<=63?protect:63;
+ if(s.transferEnabled!==next||s.protect!==mask||s.keepConfig!==config||s.keepAll!==keep)s.epoch++;
+ s.transferEnabled=next;s.protect=mask;s.keepSpecies=ids;s.keepConfig=config;s.keepAll=keep;s.dismissEnabled=dismiss===true;return ids!==null;}
 
- const next=enabled===true,mask=Number.isInteger(protect)&&protect>=0&&protect<=63?protect:63;
-
- if(s.transferEnabled!==next||s.protect!==mask)s.epoch++;
-
- s.transferEnabled=next;s.protect=mask;s.dismissEnabled=dismiss===true;return true;}
-
-const api=Object.freeze({start,setIncubatorOptions,setMapPoiAllowed,setVgpOptions,setVgpManualReady,setAllowed,setSpinAllowed,setTransferOptions,setItemOptions,setRocketOptions,setBattleOptions,setBerryOptions,setBerryImpactReady,setSpawnOptions,setGiftOptions,setBuddyOptions,transferDecision,stop});root.PGRazorQuickClose=api;return api;
+const api=Object.freeze({start,setIncubatorOptions,setMapPoiAllowed,setVgpOptions,setVgpManualReady,setAllowed,setSpinAllowed,setTransferOptions,setItemOptions,setRocketOptions,setBattleOptions,setBerryOptions,setBerryImpactReady,setSpawnOptions,setGiftOptions,setBuddyOptions,transferDecision,transferKeepSet,transferKeepReason,stop});root.PGRazorQuickClose=api;return api;
 
 })(globalThis);

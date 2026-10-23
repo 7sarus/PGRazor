@@ -31,11 +31,14 @@ public final class Pad {
     // Draggable, position-persisting handles for the cooldown and VGP overlays.
     private OverlayDrag cooldownDrag, vgpDrag;
     // Primary action and cycle/dialog rows.
-    private Button mapTap, throwGrade, itemSettings, cameraSample, interactionCapture;
+    private Button mapTap, throwGrade, itemSettings, cameraSample, interactionCapture, transferKeepList;
     private QuickMenu quickMenu;
+    // Draggable, position-persisting Keep All / transfer-rules overlay button.
+    private TransferToggle transferToggle;
+    private OverlayDrag transferDrag;
     // Boolean settings use proper switches.
     private Switch locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, arSwitch, ivCatchSwitch, ivOwnedSwitch;
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, curveSwitch, arSwitch, ivCatchSwitch, ivOwnedSwitch, transferOverlaySwitch;
     private TextView quickSummaryLabel, vgpStatus;
     private final CheckBox[] vgpChoices=new CheckBox[3];
     private CheckBox vgpCooldownStop;
@@ -88,6 +91,7 @@ public final class Pad {
         if(joystickOverlay!=null){joystickOverlay.setBackground(rounded(Control.darkTheme()?0xd9141b25:0xd9f9fbfd,22));styleTree(joystickOverlay);stick.invalidate();}
         if(encounterBerry!=null){GradientDrawable berryBg=rounded(surface(),16);berryBg.setStroke(dp(1),accent());encounterBerry.setBackground(berryBg);encounterBerry.setTextColor(ink());}
         if(cooldownTimer!=null)cooldownTimer.setBackground(rounded(Control.darkTheme()?0xcc141b25:0xccf1f5f8,12));
+        if(transferToggle!=null)transferToggle.invalidate();
         if(quickMenu!=null)quickMenu.applyTheme();
     }
     /** A collapsible group. Content is built directly into the returned container, so no post-hoc index moves. */
@@ -261,6 +265,11 @@ public final class Pad {
         String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event / costume Pokemon","Keep background Pokemon","Keep XXS","Keep XXL"};
         for(int i=0;i<6;i++){final int bit=1<<i;CheckBox box=new CheckBox(host);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;txC.addView(box);
             box.setOnClickListener(v->Control.setTransferProtect(box.isChecked()?Control.transferProtect()|bit:Control.transferProtect()&~bit));}
+        transferKeepList = button("Custom keep list"); txC.addView(transferKeepList);
+        transferKeepList.setOnClickListener(v -> TransferKeepDialog.show(activity, this::refresh));
+        transferOverlaySwitch = switchRow(txC, "Keep-all overlay button"); transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());
+        transferOverlaySwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.transferOverlayEnabled())return; Control.setTransferOverlayEnabled(transferOverlaySwitch.isChecked()); refresh(); });
+        caption(txC, "Kept species are never auto-transferred, across all forms. The floating button holds every catch (Keep All) or follows the rules above.");
         caption(txC, "Transfers are permanent. Favorites and unknown data are always kept.");
         transferStatus = caption(txC, "");
         quickSpinSwitch = switchRow(catchC, "Quick spin"); quickSpinSwitch.setChecked(Control.quickSpinEnabled());
@@ -394,6 +403,9 @@ public final class Pad {
         // The toggle is the drag handle; the status pill follows it as one coherent unit. Tap still flips VGP.
         vgpDrag=OverlayDrag.attach(parent,vgpToggle,vgpActivity,"vgp");
         vgpMarker=new VgpMarker(host);parent.addView(vgpMarker,new FrameLayout.LayoutParams(dp(38),dp(46)));vgpMarker.setVisibility(View.GONE);
+        // Compact Keep All / transfer-rules overlay; tap toggles Keep All, drag repositions (persists transfer.fx/fy).
+        transferToggle=new TransferToggle(host);FrameLayout.LayoutParams transferLayout=new FrameLayout.LayoutParams(dp(54),dp(54),Gravity.TOP|Gravity.LEFT);transferLayout.leftMargin=dp(12);transferLayout.topMargin=dp(300);parent.addView(transferToggle,transferLayout);transferToggle.setOnClickListener(v->{Control.setTransferKeepAll(!Control.transferKeepAll());refresh();});
+        transferDrag=OverlayDrag.attach(parent,transferToggle,"transfer");transferToggle.setVisibility(View.GONE);
         launcher=new RazorIcon(host);FrameLayout.LayoutParams iconLayout=new FrameLayout.LayoutParams(dp(48),dp(48),Gravity.TOP|Gravity.LEFT);iconLayout.leftMargin=dp(12);iconLayout.topMargin=dp(100);parent.addView(launcher,iconLayout);
         launcher.setContentDescription("Open PGRazor quick menu. Drag to reposition.");
         // The R launcher now toggles the compact quick menu; Settings there opens this panel full screen.
@@ -443,6 +455,35 @@ public final class Pad {
             paint.setStyle(Paint.Style.FILL);paint.setColor(Color.WHITE);Path arrow=new Path();arrow.moveTo(13,36);arrow.lineTo(25,36);arrow.lineTo(19,44);arrow.close();canvas.drawPath(arrow,paint);canvas.restore();
         }
     }
+    /**
+     * Compact overlay for the transfer policy with three clearly distinct states: KEEP (Keep All on,
+     * nothing auto-transfers), XFER (Keep All off and the auto-transfer master on, so the rules run),
+     * and OFF (auto-transfer master off, so nothing transfers regardless). Tap toggles Keep All only;
+     * it never re-enables the master.
+     */
+    private final class TransferToggle extends View {
+        private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+        TransferToggle(Context c){super(c);setFocusable(true);setClickable(true);}
+        protected void onDraw(Canvas canvas){super.onDraw(canvas);
+            boolean keep=Control.transferKeepAll(),master=Control.autoTransferEnabled();
+            int tint=keep?Color.rgb(33,188,125):(master?Color.rgb(230,150,40):muted());
+            canvas.save();canvas.scale(getWidth()/54f,getHeight()/54f);
+            paint.setStyle(Paint.Style.FILL);paint.setColor(surface());canvas.drawRoundRect(1,1,53,53,14,14,paint);
+            // Shield outline frames the state glyph.
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2.4f);paint.setColor(tint);paint.setStrokeCap(Paint.Cap.ROUND);
+            Path shield=new Path();shield.moveTo(27,7);shield.lineTo(40,12);shield.lineTo(40,25);shield.cubicTo(40,34,34,39,27,42);shield.cubicTo(20,39,14,34,14,25);shield.lineTo(14,12);shield.close();canvas.drawPath(shield,paint);
+            if(keep){canvas.drawLine(21,24,25,29,paint);canvas.drawLine(25,29,34,18,paint);} // check
+            else if(master){canvas.drawLine(19,24,33,24,paint);Path a=new Path();a.moveTo(29,19);a.lineTo(35,24);a.lineTo(29,29);canvas.drawPath(a,paint);} // transfer-out arrow
+            else{canvas.drawLine(21,24,33,24,paint);} // dash: master off
+            paint.setStyle(Paint.Style.FILL);paint.setColor(tint);paint.setTextSize(10);paint.setTypeface(Typeface.DEFAULT_BOLD);paint.setTextAlign(Paint.Align.CENTER);
+            canvas.drawText(keep?"KEEP":(master?"XFER":"OFF"),27,51,paint);
+            canvas.restore();}
+    }
+    private String transferToggleDescription(){
+        boolean keep=Control.transferKeepAll(),master=Control.autoTransferEnabled();
+        String state=keep?"Keep All on; no catches are auto-transferred":(master?"Normal transfer rules apply":"Auto transfer is off");
+        return "Transfer protection: "+state+". Tap to "+(keep?"use normal transfer rules":"keep every catch")+". Drag to reposition.";
+    }
 
     private void refresh() {
         if(vgpToggle!=null){vgpToggle.setVisibility(Control.vgpOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpToggle.setContentDescription("Virtual Go Plus "+(Control.vgpEnabled()?"on; tap to turn off":"off; tap to turn on")+". "+Control.vgpStatus());vgpToggle.invalidate();}
@@ -450,6 +491,7 @@ public final class Pad {
         // Pair the status line with the toggle so the cooldown shutoff reason is visible even when VGP is off.
         if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpActivity.setText("VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());vgpActivity.setBackground(rounded(surface(),10));}
         if(vgpMarker!=null){boolean show=Control.vgpTargetVisible()&&panel.getVisibility()!=View.VISIBLE;vgpMarker.setVisibility(show?View.VISIBLE:View.GONE);if(show){vgpMarker.setX(Control.vgpTargetX()*parent.getWidth()-dp(19));vgpMarker.setY(Control.vgpTargetY()*parent.getHeight()-dp(82));vgpMarker.invalidate();}}
+        if(transferToggle!=null){transferToggle.setVisibility(Control.transferOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);transferToggle.setContentDescription(transferToggleDescription());transferToggle.invalidate();}
 
         if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);cooldownTimer.setText("☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}
         if (lastEnabled != Control.engine.enabled) { lastEnabled = Control.engine.enabled; stick.invalidate(); }
@@ -478,6 +520,8 @@ public final class Pad {
         quickSummaryStatus.setText(Control.quickSummaryStatus());
         autoTransferSwitch.setChecked(Control.autoTransferEnabled());
         for(int i=0;i<6;i++)transferProtection[i].setChecked((Control.transferProtect()&(1<<i))!=0);
+        if(transferKeepList!=null){String kept=Control.transferKeepSpecies();int n=kept.isEmpty()?0:kept.split(",").length;transferKeepList.setText(n>0?"Custom keep list ("+n+")":"Custom keep list");}
+        if(transferOverlaySwitch!=null)transferOverlaySwitch.setChecked(Control.transferOverlayEnabled());
         transferStatus.setText(Control.transferStatus());
         vgpSwitch.setChecked(Control.vgpOverlay());vgpStatus.setText(Control.vgpStatus());
         incubatorSwitch.setChecked(Control.autoIncubate());
@@ -608,8 +652,8 @@ public final class Pad {
         if (closed) return;
         closed = true; stick.release(true); Control.suspendForBackground(); handler.removeCallbacks(tick);
         if(quickMenu!=null){quickMenu.destroy();quickMenu=null;}
-        if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}
-        parent.removeView(panel);parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null)parent.removeView(encounterBerry);if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);
+        if(cooldownDrag!=null){cooldownDrag.detach();cooldownDrag=null;}if(vgpDrag!=null){vgpDrag.detach();vgpDrag=null;}if(transferDrag!=null){transferDrag.detach();transferDrag=null;}
+        parent.removeView(panel);parent.removeView(launcher);parent.removeView(joystickOverlay);if(encounterBerry!=null)parent.removeView(encounterBerry);if(cooldownTimer!=null)parent.removeView(cooldownTimer);if(vgpToggle!=null)parent.removeView(vgpToggle);if(vgpActivity!=null)parent.removeView(vgpActivity);if(vgpMarker!=null)parent.removeView(vgpMarker);if(transferToggle!=null)parent.removeView(transferToggle);
         panel.setOnApplyWindowInsetsListener(null);
         Control.event("panel-closed", "Runtime suspended on activity change; desiredEnabled=" + Control.desiredEnabled() + "; movement stopped");
     }

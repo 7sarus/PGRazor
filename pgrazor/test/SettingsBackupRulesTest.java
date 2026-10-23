@@ -21,10 +21,24 @@ public class SettingsBackupRulesTest {
         v=valid();v.getJSONObject("settings").put("ivCatch","false").put("ivOwned","true");SettingsBackupRules.validate(v);
         v=valid();v.getJSONObject("settings").put("ivOwned","maybe");rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("vgp.fx",1.2));rejects(v);
+        // Transfer keep list and Keep All / overlay settings.
+        v=valid();v.getJSONObject("settings").put("transferKeepAll","true").put("transferOverlay","false").put("transferKeepSpecies","1,4,25,2000");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("transferKeepSpecies","");SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("settings").put("transferKeepSpecies","1,4,2001");rejects(v);   // out of range (>2000)
+        v=valid();v.getJSONObject("settings").put("transferKeepSpecies","0");rejects(v);           // zero is not positive
+        v=valid();v.getJSONObject("settings").put("transferKeepSpecies","1,4,abc");rejects(v);      // non-numeric token
+        v=valid();v.getJSONObject("settings").put("transferKeepSpecies","1,1");rejects(v);          // duplicate dex id
+        v=valid();v.getJSONObject("settings").put("transferKeepSpecies","1,,4");rejects(v);         // empty token
+        v=valid();v.getJSONObject("settings").put("transferKeepSpecies","01");rejects(v);           // leading zero
+        v=valid();v.getJSONObject("settings").put("transferKeepSpecies",new String(new char[11000]).replace('\0','1'));rejects(v); // over length bound
+        v=valid();v.getJSONObject("settings").put("transferKeepAll","maybe");rejects(v);
+        v=valid();v.getJSONObject("settings").put("transferOverlay","yes");rejects(v);
+        v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("transfer.fx",0.5).put("transfer.fy",0.25));SettingsBackupRules.validate(v);
+        v=valid();v.getJSONObject("preferences").put("pgrazor-overlays",new JSONObject().put("transfer.fx",1.5));rejects(v);
         v=valid();v.getJSONObject("preferences").put("pgrazor-livefeed",new JSONObject().put("radius","2"));rejects(v);
         String places="[{\"id\":\"a\",\"name\":\"Home\",\"latitude\":40,\"longitude\":-70}]";
         v=valid();v.getJSONObject("preferences").put("pgrazor-saved-places-v1",new JSONObject().put("places",places));SettingsBackupRules.validate(v);
         v.getJSONObject("preferences").getJSONObject("pgrazor-saved-places-v1").put("places",places.replace("40","400"));rejects(v);
-        System.out.println("PASS settings backup: valid settings/favorites, schema, credential and VGP exclusion, bounds, IV display booleans and preference types");
+        System.out.println("PASS settings backup: valid settings/favorites, schema, credential and VGP exclusion, bounds, IV display booleans, transfer keep list/Keep All/overlay validation and preference types");
     }
 }

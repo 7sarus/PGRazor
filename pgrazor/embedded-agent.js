@@ -293,18 +293,20 @@ function installSummaryLifecycleHooks() {
         [control.setQuickSummaryEnabled.overload('boolean'), false],
         ...(control.saveItemRules ? [[control.saveItemRules.overload('boolean','java.lang.String','java.lang.String'),true]] : []),
         ...(control.setQuickSpinEnabled ? [[control.setQuickSpinEnabled.overload('boolean'),true]] : []),
-        ...(control.setAutoTransferEnabled ? [[control.setAutoTransferEnabled.overload('boolean'),true],[control.setTransferProtect.overload('int'),true]] : []),
+        ...(control.setAutoTransferEnabled ? [[control.setAutoTransferEnabled.overload('boolean'),true,true],[control.setTransferProtect.overload('int'),true,true]] : []),
         [control.setQuickSummaryReady.overload('boolean', 'java.lang.String'), false],
         [control.suspendForBackground.overload(), true],
         [control.disconnect.overload(), true]
     ];
-    for (const [method, always] of methods) {
+    for (const [method, always, transferPolicy] of methods) {
         // Include even a partially installed method in rollback if installation throws.
         summaryLifecycleHooks.push(method);
         method.implementation = function (...args) {
             if (always || args[0] === false) revokeQuickSummary();
             if (always) revokeQuickBall();
-            return method.call(this, ...args);
+            const result=method.call(this, ...args);
+            if(transferPolicy)try{syncTransferPolicy();}catch(error){failQuickSummary(error);}
+            return result;
         };
     }
 }
@@ -313,6 +315,7 @@ function scheduleQuickSummary() {
     try {
         control.configureQuickSummary(true);
         installSummaryLifecycleHooks();
+        installTransferPolicyHooks();
     } catch (error) {
         quickSummaryFailed = true;
         restoreSummaryLifecycleHooks();
@@ -491,12 +494,25 @@ function stopQuickBall() {
     revokeQuickBall();
     try {return requestBallStop();} catch(error) {return Promise.reject(error);}
 }
+// UI policy edits update the native permission immediately, rather than waiting
+// for the two-second heartbeat. This only changes JS policy; no game RPC is run.
+function syncTransferPolicy(){
+ if(!control||!quickSummary||quickSummaryFailed||!quickSummary.setTransferOptions)return;
+ quickSummary.setTransferOptions(control.autoTransferAllowed(),control.transferProtect(),control.quickSummaryAllowed(),String(control.transferKeepSpecies()),control.transferKeepAll());
+}
+function installTransferPolicyHooks(){
+ for(const [name,type] of [['setTransferKeepAll','boolean'],['setTransferKeepSpecies','java.lang.String']]){
+  const method=control[name].overload(type);
+  summaryLifecycleHooks.push(method);
+  method.implementation=function(value){const result=method.call(this,value);try{syncTransferPolicy();}catch(error){failQuickSummary(error);}return result;};
+ }
+}
 function heartbeat() {
     Java.performNow(() => {
         control.renewLease();
         if (quickSummary && !quickSummaryFailed && bootParameters.quickSummary===true) {
             try {const dismiss=control.quickSummaryAllowed(),transfer=control.autoTransferAllowed?control.autoTransferAllowed():false;
-                if(quickSummary.setTransferOptions)quickSummary.setTransferOptions(transfer,control.transferProtect?control.transferProtect():63,dismiss);
+                syncTransferPolicy();
                 if(quickSummary.setSpinAllowed)quickSummary.setSpinAllowed(control.quickSpinAllowed?control.quickSpinAllowed():false);
                 if(quickSummary.setItemOptions)quickSummary.setItemOptions(control.itemTransferEnabled(),String(control.itemRules()),control.itemAccessAllowed());
                 if(quickSummary.setRocketOptions)quickSummary.setRocketOptions(control.rocketOptions(),control.rocketAllowed());

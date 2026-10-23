@@ -28,7 +28,7 @@ The Android package identity stays compatible with the game. An official-store i
 | Map | Optional location spoofing; camera-relative joystick, saved locations, routes, Autowalk, tap-to-walk/teleport, nearby stop/gym/raid layers |
 | Catching | Quick Catch; Nice/Great/Excellent throws; always curveball; optional AR+ flag; optional level and color-graded IV display; berry selector |
 | Inventory | Optional IV/level on Pokémon details; transfer newly caught Pokémon below 90% IV; configurable item limits |
-| Keep rules | Legendary/mythical/Ultra Beasts, shiny, event/costume, background, **XXS**, **XXL**; favorites and eggs always kept |
+| Keep rules | Legendary/mythical/Ultra Beasts, shiny, event/costume, background, **XXS**, **XXL**, searchable custom species keep list, and a persistent Keep All overlay; favorites and eggs always kept |
 | Virtual Go Plus | Nearby wild catches with red balls, nearby stop spins, optional notifications, target marker and activity status |
 | Eggs | Unlimited incubator only; shortest- or longest-distance priority |
 | LivePokeMap | Remote Pokémon, stops, gyms, raids, and stations; requires a LivePokeMap subscription |
@@ -38,9 +38,11 @@ The Android package identity stays compatible with the game. An official-store i
 
 **Quick menu:** Map, speed presets (0, 9.3, 16, 30 km/h), Autowalk, Feeds, Favorites, Teleport, and Settings. Favorites shares the map's saved places. Autowalk builds a route through up to 50 nearby loaded stops and gyms, with optional looping. Routes use direct segments between locations. Zero speed pauses travel; selecting another speed resumes the current route. Backgrounding stops routes rather than resuming movement automatically.
 
+**Transfer protection:** Open **Transfer on catch > Custom Keep List** to keep selected species (including all forms) from manual and VGP catches. Enable the transfer overlay for a quick **Keep All** toggle. Turning Keep All off restores your existing rules; it does not enable auto-transfer if its main setting is off. The list and toggle state are saved across restarts.
+
 **Auto incubation:** Uses only the unlimited incubator, with shortest- or longest-distance egg priority. Checks while on the game map and starts another egg after the incubator becomes free. Limited-use, Super, and timed incubators are not used.
 
-**Overlay positions:** Drag the cooldown timer or VGP icon to reposition it. Positions are saved; the VGP status label follows its icon. A tap still opens cooldown history or toggles VGP.
+**Overlay positions:** Drag the cooldown timer, VGP icon, or Keep All icon to reposition it. Positions are saved; the VGP status label follows its icon. A tap opens cooldown history or toggles the corresponding feature.
 
 **VGP:** the settings switch shows or hides its overlay. Tap the connected/disconnected device icon to start or stop VGP; ON/OFF labels show its state. VGP starts off and switches off when the app leaves the foreground. Optional **Stop on cooldown (estimated)** also switches it off until you manually restart it. Catch and item automation follow their existing settings and protection rules.
 

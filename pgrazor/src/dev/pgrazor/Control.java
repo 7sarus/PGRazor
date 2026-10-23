@@ -56,6 +56,11 @@ public final class Control {
     private static volatile boolean autoTransferEnabled, autoTransferReady;
     private static volatile int transferProtect=63;
     private static volatile String transferStatus="Waiting for transfer support";
+    // Custom keep list (canonical, sorted/de-duplicated positive dex IDs) plus the persistent Keep All
+    // overlay. Keep All holds every catch regardless of the other rules; the keep list protects the
+    // listed species. Both persist; Keep All active state is a normal saved preference (unlike VGP).
+    private static volatile String transferKeepSpecies="";
+    private static volatile boolean transferKeepAll, transferOverlayEnabled;
     private static volatile String quickSummaryStatus="";
     private static final Object quickBallLock=new Object();
     private static volatile boolean quickBallConfigured, quickBallReady, quickBallEnabled;
@@ -361,7 +366,55 @@ public final class Control {
     public static void setTransferProtect(int mask){transferProtect=mask>=0&&mask<=63?mask:63;saveSettings();event("auto-transfer-protection",String.valueOf(transferProtect));}
     public static void setAutoTransferReady(boolean ready,String status){autoTransferReady=ready&&quickSummaryReady();transferStatus=status==null?"":status;}
     public static void transferResult(String status){transferStatus=status==null?"":status;}
-    public static boolean autoTransferAllowed(){return autoTransferEnabled&&autoTransferReady()&&foreground&&backendReady&&connected();}
+    public static boolean autoTransferAllowed(){return autoTransferEnabled&&!transferKeepAll&&autoTransferReady()&&foreground&&backendReady&&connected();}
+    /** Canonical keep list: sorted, de-duplicated positive dex IDs (1..2000), comma-separated; empty when none. */
+    public static String transferKeepSpecies(){return transferKeepSpecies;}
+    public static void setTransferKeepSpecies(String value){
+        boolean[] damaged={false};
+        String canonical=normalizeKeepSpecies(value,damaged);
+        if(damaged[0]){event("transfer-keep-list","Invalid selection ignored; existing keep list preserved");return;}
+        if(canonical.equals(transferKeepSpecies))return;
+        transferKeepSpecies=canonical;saveSettings();
+        event("transfer-keep-species",(canonical.isEmpty()?0:canonical.split(",").length)+" species kept");
+    }
+    /** Keep All holds every catch regardless of the other rules; persisted and toggled by the overlay. */
+    public static boolean transferKeepAll(){return transferKeepAll;}
+    public static void setTransferKeepAll(boolean value){
+        if(value==transferKeepAll)return;
+        // Keep All never enables the auto-transfer master; turning it off only resumes the saved rules.
+        transferKeepAll=value;invalidateQuickBallOutcome();saveSettings();
+        event("transfer-keep-all",value?"ON; auto transfer held":"OFF; transfer rules resume; master unchanged");
+    }
+    public static boolean transferOverlayEnabled(){return transferOverlayEnabled;}
+    public static void setTransferOverlayEnabled(boolean value){
+        if(value==transferOverlayEnabled)return;
+        transferOverlayEnabled=value;saveSettings();event("transfer-overlay",value?"ON":"OFF");
+    }
+    public static boolean transferOverlayVisible(){return transferOverlayEnabled&&foreground&&backendReady&&connected();}
+    /**
+     * Canonical keep-species string from arbitrary input: positive dex IDs 1..2000, de-duplicated and
+     * sorted, bounded to 2000 entries and 10000 characters. Invalid or out-of-range tokens are dropped;
+     * when {@code damaged} is supplied, {@code damaged[0]} is set true if any token was rejected or a
+     * bound was exceeded, so a loader can fail safe rather than trust a partially valid list.
+     */
+    private static String normalizeKeepSpecies(String raw,boolean[] damaged){
+        boolean bad=false;
+        if(raw==null){bad=true;raw="";}
+        if(raw.length()>10000){bad=true;raw=raw.substring(0,10000);}
+        java.util.TreeSet<Integer> ids=new java.util.TreeSet<>();
+        for(String token:raw.isEmpty()?new String[0]:raw.split(",",-1)){
+            if(!token.matches("[1-9][0-9]{0,3}")){bad=true;continue;}
+            int id;
+            try{id=Integer.parseInt(token);}catch(NumberFormatException invalid){bad=true;continue;}
+            if(id<1||id>2000){bad=true;continue;}
+            if(ids.size()>=2000){bad=true;break;}
+            if(!ids.add(id))bad=true;
+        }
+        StringBuilder out=new StringBuilder();
+        for(int id:ids){if(out.length()>0)out.append(',');out.append(id);}
+        if(damaged!=null)damaged[0]=bad;
+        return out.toString();
+    }
     // IV/level overlay preferences. The stored choice is surfaced to the UI and the
     // agent; the agent itself fails closed when owned-details metadata is absent.
     public static boolean ivCatchEnabled(){return ivCatchEnabled;}
@@ -838,6 +891,13 @@ public final class Control {
                 quickSpinEnabled=Boolean.parseBoolean(p.getProperty("quickSpin","false"));
                 autoTransferEnabled=Boolean.parseBoolean(p.getProperty("autoTransfer","false"));
                 try { transferProtect=Integer.parseInt(p.getProperty("transferProtect","63")); if(transferProtect<0||transferProtect>63)transferProtect=63; } catch(NumberFormatException e){transferProtect=63;}
+                transferKeepAll=Boolean.parseBoolean(p.getProperty("transferKeepAll","false"));
+                transferOverlayEnabled=Boolean.parseBoolean(p.getProperty("transferOverlay","false"));
+                boolean[] keepDamaged=new boolean[1];
+                transferKeepSpecies=normalizeKeepSpecies(p.getProperty("transferKeepSpecies",""),keepDamaged);
+                // Fail safe: a corrupt keep list must not let auto transfer drop a species the user meant
+                // to keep. Disable the master even with Keep All on, so toggling it off stays safe.
+                if(keepDamaged[0])autoTransferEnabled=false;
                 ivCatchEnabled=Boolean.parseBoolean(p.getProperty("ivCatch","true"));
                 ivOwnedEnabled=Boolean.parseBoolean(p.getProperty("ivOwned","false"));
                 // Migrate the former independent animation preference to Quick Catch.
@@ -899,6 +959,7 @@ public final class Control {
                 p.setProperty("itemTransfer",String.valueOf(itemTransferEnabled));p.setProperty("itemRules",itemRules);p.setProperty("itemLimits",itemLimits);p.setProperty("itemCatalog",itemCatalog);
                 p.setProperty("quickSpin",String.valueOf(quickSpinEnabled));
                 p.setProperty("autoTransfer",String.valueOf(autoTransferEnabled)); p.setProperty("transferProtect",String.valueOf(transferProtect));
+                p.setProperty("transferKeepAll",String.valueOf(transferKeepAll)); p.setProperty("transferOverlay",String.valueOf(transferOverlayEnabled)); p.setProperty("transferKeepSpecies",transferKeepSpecies);
                 p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled));
                 p.setProperty("autoDismiss",String.valueOf(quickSummaryEnabled)); p.setProperty("fastBall",String.valueOf(quickBallEnabled));
                 p.setProperty("throwAr",String.valueOf(throwAr)); p.setProperty("curve",String.valueOf(throwCurve)); p.setProperty("grade",String.valueOf(throwGrade));

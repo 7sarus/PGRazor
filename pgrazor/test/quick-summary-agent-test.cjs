@@ -31,6 +31,10 @@ function fixture(faults={}) {
         };
         control[name]=wrapper;
     }
+    for(const n of ['setTransferKeepAll','setAutoTransferEnabled','setTransferKeepSpecies','setTransferProtect']) {
+        const method={implementation:null,call(){}};
+        control[n]={overload:()=>method};
+    }
     for(const n of ['getLatitude','getLongitude','getSpeed','getBearing'])methods[n]={implementation:null,call:()=>1};
     const location=Object.fromEntries(Object.keys(methods).map(n=>[n,{overload:()=>methods[n]}]));
     const java={perform:f=>f(),performNow:f=>f(),scheduleOnMainThread:f=>f(),use:n=>n==='dev.pgrazor.Control'?control:location};
