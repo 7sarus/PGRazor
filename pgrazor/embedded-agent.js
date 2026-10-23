@@ -71,7 +71,109 @@ function bootLog(text) {
         }
     } catch (_) {}
 }
+// Game-facing fixes do not depend on Android delivering a GPS update.
+let locationDelivery = null;
+function installLocationDelivery() {
+    control.event('location-delivery', 'Initializing game location adapter on main thread');
+    const Manager = Java.use('com.nianticlabs.nia.location.NianticLocationManager');
+    const Service = Java.use('com.nianticlabs.nia.contextservice.ContextService');
+    const Status = Java.use('com.nianticlabs.nia.contextservice.ServiceStatus');
+    const Location = Java.use('android.location.Location');
+    const System = Java.use('java.lang.System');
+    const Clock = Java.use('android.os.SystemClock');
+    const handler = Service.getServiceHandler();
+    const notify = Manager.notifyLocationUpdate.overload('java.lang.String', 'android.location.Location', 'com.nianticlabs.nia.contextservice.ServiceStatus');
+    const installed = [];
+    let manager = null, paused = false, stopped = false, runnable = null, first = true;
+    function same(object) { return manager !== null && manager.$isSameObject(object); }
+    function release() {
+        if (runnable !== null) handler.removeCallbacks(runnable);
+        const old = manager; manager = null;
+        if (old !== null) old.$dispose();
+    }
+    function permitted(object) {
+        return object.getContext().checkSelfPermission('android.permission.ACCESS_FINE_LOCATION') === 0;
+    }
+    function enabled(object) {
+        return !stopped && !disposed && !paused && same(object) && control.active() && permitted(object);
+    }
+    function capture(object) {
+        if (stopped || disposed) return;
+        if (!same(object)) { release(); manager = Java.retain(object); first = true; }
+        paused = false;
+        handler.removeCallbacks(runnable);
+        handler.post(runnable);
+    }
+    function tick() {
+        if (stopped || disposed || manager === null || paused) return;
+        const current = manager;
+        try {
+            if (enabled(current)) {
+                // Match resetNativeClassPointer's lock so teardown cannot race delivery.
+                Java.synchronized(current.callbackLock.value, () => {
+                    if (!enabled(current) || String(current.nativeClassPointer.value) === '0') return;
+                    const fix = Location.$new('fused');
+                    try {
+                        fix.setLatitude(control.latitude()); fix.setLongitude(control.longitude());
+                        fix.setSpeed(control.speed()); fix.setBearing(control.bearing());
+                        fix.setAltitude(10); fix.setAccuracy(5);
+                        fix.setTime(System.currentTimeMillis());
+                        fix.setElapsedRealtimeNanos(Clock.elapsedRealtimeNanos());
+                        notify.call(current, 'fused', fix, Status.RUNNING.value);
+                        if (first) { first = false; control.event('location-delivery', 'Synthetic location updates active'); }
+                    } finally { fix.$dispose(); }
+                });
+            }
+        } catch (error) {
+            if (first) { first = false; bootLog('location-delivery-error: ' + error); }
+        } finally {
+            if (!stopped && !disposed && manager === current && !paused) handler.postDelayed(runnable, 1000);
+        }
+    }
+    function hook(method, implementation) {
+        installed.push(method); method.implementation = implementation;
+    }
+    function stop() {
+        stopped = true;
+        release();
+        for (const method of installed) method.implementation = null;
+        installed.length = 0;
+    }
+    try {
+        const Runner = Java.registerClass({name: 'dev.pgrazor.LocationDeliveryTick',
+            implements: [Java.use('java.lang.Runnable')], methods: {run: tick}});
+        runnable = Runner.$new();
+        // Hook the private JNI lifecycle dispatchers, not virtual onStart/onStop.
+        // ART 17 can crash dispatching a replaced virtual lifecycle override.
+        const start = Service.invokeOnStart.overload(), end = Service.invokeOnStop.overload();
+        const pause = Service.invokeOnPause.overload(), resume = Service.invokeOnResume.overload();
+        function locationManager(object) { return Manager.class.isInstance(object); }
+        hook(start, function () {
+            const result = start.call(this);
+            if (locationManager(this)) capture(Java.cast(this, Manager));
+            return result;
+        });
+        hook(end, function () { if (same(this)) release(); return end.call(this); });
+        hook(pause, function () {
+            if (same(this)) { paused = true; handler.removeCallbacks(runnable); }
+            return pause.call(this);
+        });
+        hook(resume, function () { const result = resume.call(this); if (locationManager(this)) capture(Java.cast(this, Manager)); return result; });
+        hook(notify, function (provider, fix, status) {
+            // A disabled physical provider must not invalidate the synthetic provider.
+            // Permission failures and all real-location behavior still pass through.
+            if (fix === null && enabled(this) && String(status.name()) !== 'PERMISSION_DENIED') return;
+            return notify.call(this, provider, fix, status);
+        });
+        locationDelivery = {stop};
+        control.event('location-delivery', 'Game location adapter installed');
+    } catch (error) {
+        stop();
+        throw error;
+    }
+}
 function rollback() {
+    if (locationDelivery !== null) { locationDelivery.stop(); locationDelivery = null; }
     for (const method of hooks) method.implementation = null;
     hooks.length = 0;
 }
@@ -594,6 +696,16 @@ function start() {
                     hooks.push(method);
                 }
                 control.connect();
+                // Game service class initialization can wait on the main thread.
+                // Do not initialize it from the Gadget Java.perform worker during startup.
+                Java.scheduleOnMainThread(() => {
+                    if (disposed) return;
+                    try { installLocationDelivery(); }
+                    catch (error) {
+                        control.event('location-delivery-error', String(error));
+                        bootLog('location-delivery-unavailable: ' + error);
+                    }
+                });
                 if (bootParameters.cameraSample === true) control.configureCameraDiagnostics(true);
                 if (bootParameters.cameraSteering === true) control.configureCameraSteering(true);
                 if (bootParameters.interactionProbe === true && bootParameters.interactionProbePath) control.configureInteractionDiagnostics(true);
