@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Allow VGP to run while other in-game screens are open; exclude the current manual encounter target and keep world markers map-only.
+
 ## v0.1.1
 
 [Full release notes](docs/releases/v0.1.1.md)

@@ -502,7 +502,8 @@ function heartbeat() {
                 if(quickSummary.setRocketOptions)quickSummary.setRocketOptions(control.rocketOptions(),control.rocketAllowed());
                 if(quickSummary.setBattleOptions)quickSummary.setBattleOptions(control.battleOptions(),control.battlesAllowed());
                 if(quickSummary.setMapPoiAllowed)quickSummary.setMapPoiAllowed(control.mapPoiAllowed());
-                if(quickSummary.setVgpOptions)quickSummary.setVgpOptions(control.vgpEnabled()?control.vgpOptions():0,control.vgpAllowed(),control.latitude(),control.longitude());
+                if(quickSummary.setVgpManualReady&&(quickBallNativeReady||bootParameters.quickBall!==true))quickSummary.setVgpManualReady();
+                if(quickSummary.setVgpOptions)quickSummary.setVgpOptions(control.vgpEnabled()?control.vgpOptions():0,control.vgpAllowed(),control.latitude(),control.longitude(),control.vgpMapVisible());
                 if(quickSummary.setBuddyOptions)quickSummary.setBuddyOptions(control.buddyBerry(),control.buddyAllowed());
                 if(quickSummary.setIncubatorOptions)quickSummary.setIncubatorOptions(control.autoIncubate(),control.incubateLongest(),control.incubatorAllowed());
                 if(quickSummary.setGiftOptions)quickSummary.setGiftOptions(control.giftOptions(),control.giftsAllowed());

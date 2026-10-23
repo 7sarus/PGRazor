@@ -74,6 +74,7 @@ const ITEMCODE={"GetItemCount":[167765300,"fe0f1df8f65701a9f44f02a9748602b0f3030
 
 const ROCKET='Niantic.Holoholo.Combat.Contexts.InvasionCombatState',RUI='Niantic.Holoholo.Combat.UI.CombatUI',RDIR='Niantic.Holoholo.Combat.CombatDirectorV2',RCHARGE='Niantic.Holoholo.Combat.UI.CombatChargeAttackDisplay',RSHIELD='Niantic.Holoholo.Combat.InputChallenge.ShieldModalGuiController';
 
+const VGP_NAMEPLATE='Niantic.Holoholo.Encounter.EncounterNameplate';
 const BERRY='Niantic.Holoholo.Encounter.EncounterInteractionState',BERRYGUI='Niantic.Holoholo.Encounter.EncounterItemUseGuiController',FEEDGUI='Niantic.Holoholo.UI.Items.FeedItemGuiBase';
 
 const BERRY_CODE={"get_CanUseBerry":[181361316,"081842b91f010071e0179f1ac0035fd600b04a39c0035fd6"],"get_IsInPhotoMode":[181361364,"fe57bea9f44f01a9d41e02d0f30300aa88d2593908010037"],"get_PokeballInPlay":[181361500,"fe57bea9f44f01a9d41e02d0f30300aa88065c3908010037"],"SelectBerry":[181379392,"fe0f1bf8fa6701a9f85f02a9f65703a9f44f04a9b41e02b0"],"EnterState":[181381832,"fe0f1cf8f85f01a9f65702a9f44f03a9b41e02b0f30300aa"],"ExitState":[181396348,"fe67bca9f85f01a9f65702a9f44f03a9941e02b0f30300aa"],"ClickConfirm":[162887612,"fe67bca9f85f01a9f65702a9f44f03a994ab02d0f30300aa"]};
@@ -252,7 +253,7 @@ function prepare(module,api,domain){
 
   if(total.compare(0)===0)return null;if(total.compare(LIMITS.assemblies)>0||list.isNull())throw Error('assembly-limit');
 
-  const required=[GUI,SGUI,SSTATE,RESP,OBJ,SYNC,BOOL],names=required.concat(['Niantic.Holoholo.NUI.GuiLayerService','Niantic.Holoholo.UI.Pokemon.PokemonInfoGuiService','Niantic.Zeppelin.GameStates.GameState'],Object.values(VGP),['System.Collections.IEnumerable','Niantic.Holoholo.Items.IncubatorService','Niantic.Holoholo.Items.IIncubatorService','Holoholo.Rpc.EggIncubatorProto','Niantic.Holoholo.Gym.MapGym','Holoholo.Rpc.RaidInfoProto','Holoholo.Rpc.GymDisplayProto','Holoholo.Rpc.PokemonProto','Holoholo.Rpc.CharacterSize','System.Collections.IEnumerator','System.IDisposable','Holoholo.Rpc.GiftBoxProto',GIFT_OPEN_SEQUENCE,'Holoholo.Rpc.OpenGiftOutProto','Holoholo.Rpc.SendGiftOutProto'],Object.values(BUDDY_TYPES),['Niantic.Holoholo.Buddy.IBuddyStatsService','Holoholo.Rpc.BuddyObservedData','Holoholo.Rpc.BuddyFeedingOutProto','Holoholo.Rpc.BuddyPokemonProto'],Object.values(GIFT_TYPES),['Niantic.Platform.Internal.Protos.FriendDetailsProto','Niantic.Platform.Internal.Protos.PlayerSummaryProto','Holoholo.Rpc.GiftBoxDetailsProto','Holoholo.Rpc.StickerProto'],['Niantic.Holoholo.Encounter.Pokeball','Niantic.Holoholo.Encounter.PokeballThrow',SPAWN,BERRY,BERRYGUI,FEEDGUI],Object.values(BATTLE_TYPES),['UnityEngine.Behaviour','UnityEngine.UI.Button',RMINI,RMINIBASE,'UnityEngine.Component','UnityEngine.Transform','UnityEngine.GameObject','UnityEngine.Vector3',RVUI,RVGEST,RVBASE,RVCHARGE,ROCKET,RUI,RDIR,RCHARGE,RSHIELD,'UnityEngine.UI.Selectable','Niantic.Holoholo.UI.Items.ItemInventoryGuiService','Niantic.Holoholo.UI.Items.IItemInventoryGuiService','Niantic.Holoholo.MapSceneContext','Zenject.SceneContext','Zenject.DiContainer','Niantic.Holoholo.UI.Items.IItemInventoryService',IBAG,ISERVICE,IRESPONSE,ITEM,APPROACH,RESOLVE,SPLINE,SPINSTATE,SPINGUI,GESTURE,SPINNER,SPINBASE,SPINRESULT,RELEASE,BAG,DISPLAY,DGUI,DATA,VIEW,PK,INT,DELEGATE,ACTION]),classes={};
+  const required=[GUI,SGUI,SSTATE,RESP,OBJ,SYNC,BOOL],names=required.concat(['Niantic.Holoholo.NUI.GuiLayerService','Niantic.Holoholo.UI.Pokemon.PokemonInfoGuiService','Niantic.Zeppelin.GameStates.GameState'],Object.values(VGP),[VGP_NAMEPLATE,'System.Collections.IEnumerable','Niantic.Holoholo.Items.IncubatorService','Niantic.Holoholo.Items.IIncubatorService','Holoholo.Rpc.EggIncubatorProto','Niantic.Holoholo.Gym.MapGym','Holoholo.Rpc.RaidInfoProto','Holoholo.Rpc.GymDisplayProto','Holoholo.Rpc.PokemonProto','Holoholo.Rpc.CharacterSize','System.Collections.IEnumerator','System.IDisposable','Holoholo.Rpc.GiftBoxProto',GIFT_OPEN_SEQUENCE,'Holoholo.Rpc.OpenGiftOutProto','Holoholo.Rpc.SendGiftOutProto'],Object.values(BUDDY_TYPES),['Niantic.Holoholo.Buddy.IBuddyStatsService','Holoholo.Rpc.BuddyObservedData','Holoholo.Rpc.BuddyFeedingOutProto','Holoholo.Rpc.BuddyPokemonProto'],Object.values(GIFT_TYPES),['Niantic.Platform.Internal.Protos.FriendDetailsProto','Niantic.Platform.Internal.Protos.PlayerSummaryProto','Holoholo.Rpc.GiftBoxDetailsProto','Holoholo.Rpc.StickerProto'],['Niantic.Holoholo.Encounter.Pokeball','Niantic.Holoholo.Encounter.PokeballThrow',SPAWN,BERRY,BERRYGUI,FEEDGUI],Object.values(BATTLE_TYPES),['UnityEngine.Behaviour','UnityEngine.UI.Button',RMINI,RMINIBASE,'UnityEngine.Component','UnityEngine.Transform','UnityEngine.GameObject','UnityEngine.Vector3',RVUI,RVGEST,RVBASE,RVCHARGE,ROCKET,RUI,RDIR,RCHARGE,RSHIELD,'UnityEngine.UI.Selectable','Niantic.Holoholo.UI.Items.ItemInventoryGuiService','Niantic.Holoholo.UI.Items.IItemInventoryGuiService','Niantic.Holoholo.MapSceneContext','Zenject.SceneContext','Zenject.DiContainer','Niantic.Holoholo.UI.Items.IItemInventoryService',IBAG,ISERVICE,IRESPONSE,ITEM,APPROACH,RESOLVE,SPLINE,SPINSTATE,SPINGUI,GESTURE,SPINNER,SPINBASE,SPINRESULT,RELEASE,BAG,DISPLAY,DGUI,DATA,VIEW,PK,INT,DELEGATE,ACTION]),classes={};
 
   const inputs=names.map(n=>{const i=n.lastIndexOf('.');return[n,Memory.allocUtf8String(n.slice(0,i)),Memory.allocUtf8String(n.slice(i+1))];});
 
@@ -912,6 +913,7 @@ function prepare(module,api,domain){
    const vm=(key,owner,name,ret,args=[])=>m[key]=method(owner,name,ret,args,false,null);
    vm('encounter',k('wild'),'SendEncounterRequest',n=>n.includes('<Niantic.Holoholo.Map.PokemonEncounterResponse>'));
    vm('capture',k('pokemon'),'TryCapture',n=>n.includes('<Holoholo.Rpc.CatchPokemonOutProto>'),['Niantic.Holoholo.Encounter.PokeballThrow','Holoholo.Rpc.ARPlusEncounterValuesProto']);
+   m.manualUI=method(classes[VGP_NAMEPLATE],'SetPokemonUI','System.Void',['Niantic.Holoholo.Map.IMapPokemon','Niantic.Rpc.GameplayWeatherProto.Types.WeatherCondition'],false,[0xad84364,'ff8303d1fd7b08a9fc6f09a9fa670aa9f85f0ba9f6570ca9f44f0da9541a02f0']);
    vm('location',k('pokemon'),'get_Location','Niantic.LatLng');vm('id',k('wild'),'get_EncounterId','System.UInt64');vm('visible',k('wild'),'get_VisibleOnMap',BOOL);
    vm('maxItems',k('player'),'get_MaxItems',INT);vm('maxPokemon',k('player'),'get_MaxPokemon',INT);
    vm('itemCount',classes[IBAG],'GetItemCount',INT,[ITEM]);vm('totalItems',classes[IBAG],'GetTotalItems',INT);vm('pokemonCount',classes[BAG],'get_Count',INT);
@@ -2339,7 +2341,18 @@ function install(s,p){
 
 
  // VGP serializes ordinary map RPCs. Unknown outcomes never cause a repeated throw.
- const vgpState={transfer:null,markerAt:0,pending:null,next:0,seen:new Map(),status:'',scanAt:0,turn:0,blocked:false,rpcMethod:null,reflection:null};
+ const vgpState={manualTarget:null,manualAt:0,transfer:null,markerAt:0,pending:null,next:0,seen:new Map(),status:'',scanAt:0,turn:0,blocked:false,rpcMethod:null,reflection:null};
+ // The nameplate receives the manual encounter's actual map model. Keep one
+ // rooted exclusion until the map returns (also covers catch animations
+ // and details after the interaction state has exited).
+ // IV metadata must validate the original instruction bytes before we attach.
+ if(p.vgp)s.installVgpManual=()=>s.listeners.push(Interceptor.attach(p.vgp.m.manualUI.address,{onEnter(a){
+  if(!unity(this.threadId)||s.stopping||!exact(a[0],classes[VGP_NAMEPLATE]))return;
+  try{freeHandle(vgpState.manualTarget);vgpState.manualTarget=null;vgpState.manualAt=s.now();
+   if(exact(a[1],classes[VGP.wild]))vgpState.manualTarget=hold(a[1]);
+  }catch(e){event(s,'vgp-error',{reason:'manual-target:'+String(e)});s.vgpLease=0;}
+ }}));
+ function vgpManualTarget(o){return !!vgpState.manualTarget&&target(vgpState.manualTarget).equals(o);}
  function vgpStatus(message){if(message!==vgpState.status){vgpState.status=message;event(s,'vgp-status',{message});}}
  // Keep terminal targets suppressed; retry known non-terminal results without moving.
  function vgpRetry(q,now,delay){if(q&&q.key&&q.phase!=='spin')vgpState.seen.set(q.key,now+delay);}
@@ -2435,7 +2448,9 @@ function install(s,p){
   finally{for(const h of roots)freeHandle(h);}
  }
  function vgpTick(now){const t=p.vgp,r=vgpState;if(!t)return;
-  if(s.stopping){vgpDrop();if(r.transfer){releaseRecord(r.transfer);r.transfer=null;}freeHandle(r.reflection);r.reflection=null;r.rpcMethod=null;return;}
+  if(s.stopping){freeHandle(r.manualTarget);r.manualTarget=null;vgpDrop();if(r.transfer){releaseRecord(r.transfer);r.transfer=null;}freeHandle(r.reflection);r.reflection=null;r.rpcMethod=null;return;}
+  if(s.installVgpManual){if(!s.vgpManualReady){vgpStatus('Initializing encounter support');return;}const install=s.installVgpManual;install();s.installVgpManual=null;}
+  if(r.manualTarget&&s.vgpMapVisible&&now-r.manualAt>2000){freeHandle(r.manualTarget);r.manualTarget=null;}
   const allowed=()=>s.vgpMask&&now<s.vgpLease;
   const roots=[],root=o=>{roots.push(hold(o));return o;};
   try{
@@ -2444,7 +2459,7 @@ function install(s,p){
     if(state.error||state.value.isNull()){vgpRetry(q,now,30000);vgpDrop();r.next=now+3000;vgpStatus('Request rejected');return;}
     root(state.value);
     if(q.phase==='encounter'){
-     if(!allowed()||!(s.vgpMask&1)||!alive(target(q.target))){vgpRetry(q,now,5000);vgpDrop();return;}
+     if(!allowed()||!(s.vgpMask&1)||!alive(target(q.target))||vgpManualTarget(target(q.target))){vgpRetry(q,now,5000);vgpDrop();return;}
      const bag=root(readPtr(target(itemState.service),p.items.fields.bag));if(itemInt(t.m.itemCount,bag,itemArgs([itemNumber(1)]))<1){vgpRetry(q,now,5000);vgpDrop();vgpStatus('Out of red Poke Balls');return;}
      const ball=Memory.alloc(12);ball.writeByteArray(new Uint8Array(12));ball.writeS32(1);ball.add(4).writeFloat(1); // ordinary straight throw, no grade bonus
      const promise=invoke(t.m.capture.method,target(q.target),itemArgs([ball,ptr(0)]));freeHandle(q.promise);q.promise=hold(promise);q.phase='catch';q.deadline=now+20000;event(s,'vgp-request',{action:'catch'});event(s,'cooldown-action',{action:'VGP ball throw'});return;
@@ -2455,7 +2470,7 @@ function install(s,p){
     if(q.phase==='spin'&&success&&alive(target(q.target))){const until=Memory.alloc(8);api.field_get_value(state.value,t.f.until,until);vgpVirtual(t.m.cooldown,target(q.target),itemArgs([until]));}
     const action=q.phase;if(success&&action==='catch')vgpQueueTransfer(state.value,target(q.bag),now);vgpDrop();r.next=now+2500;itemState.next=0;if(s.itemEnabled)itemState.vgpCleanupUntil=now+20000;vgpStatus(success?(action==='catch'?'Pokemon caught':'PokeStop spun'):(action==='catch'?'Pokemon not caught':'Spin unsuccessful'));event(s,'vgp-result',{action,success,status:catchStatus,retryMs:action==='catch'&&!success?vgpCatchDelay(catchStatus):null});return;
    }
-   if(!s.vgpMask){r.blocked=false;vgpStatus('Off');return;}if(!allowed()){vgpStatus('Waiting for the map');return;}if(r.blocked||now<r.next)return;if(s.itemEnabled&&now<itemState.vgpCleanupUntil){vgpStatus('Cleaning inventory');return;}r.next=now+2500;
+   if(!s.vgpMask){r.blocked=false;vgpStatus('Off');return;}if(!allowed()){vgpStatus('Waiting for game readiness');return;}if(r.blocked||now<r.next)return;if(s.itemEnabled&&now<itemState.vgpCleanupUntil){vgpStatus('Cleaning inventory');return;}r.next=now+2500;
    if(!itemState.service){vgpStatus('Waiting for inventory');return;}
    const l=p.items.lookup,map=root(invoke(l.find.method,ptr(0),itemArgs([l.typeObject(api.class_get_type(l.map))]))),container=root(invoke(l.container.method,map));
    const resolve=key=>root(invoke(l.resolve.method,container,itemArgs([l.typeObject(api.class_get_type(classes[VGP[key]]))])));
@@ -2470,7 +2485,7 @@ function install(s,p){
    const order=(r.turn++%2)?['spin','catch']:['catch','spin'];
    for(const action of order){if(action==='catch'?!canCatch:!canSpin)continue;const klass=classes[VGP[action==='catch'?'wild':'stop']],array=root(invoke(t.m.findAll.method,ptr(0),itemArgs([l.typeObject(api.class_get_type(klass))]))),count=array.add(24).readU64().toNumber();if(count>2048)throw Error('vgp-map-count');
     for(let i=0;i<count;i++){const o=array.add(32+i*8).readPointer();if(action==='catch')scan.total++;if(!exact(o,klass)||!alive(o)){if(action==='catch')scan.invalid++;continue;}let key,fort=null;
-     if(action==='catch'){if(!vgpBool(t.m.visible,o)){scan.hidden++;continue;}const loc=root(invoke(t.m.location.method,o)),v=api.object_unbox(loc);const distance=vgpDistance(v.readDouble(),v.add(8).readDouble());if(!Number.isFinite(distance)||distance>40){scan.outOfRange++;continue;}const id=root(invoke(t.m.id.method,o));key='p'+api.object_unbox(id).readU64().toString();}
+     if(action==='catch'){if(vgpManualTarget(o)){scan.manual=(scan.manual||0)+1;continue;}if(!vgpBool(t.m.visible,o)){scan.hidden++;continue;}const loc=root(invoke(t.m.location.method,o)),v=api.object_unbox(loc);const distance=vgpDistance(v.readDouble(),v.add(8).readDouble());if(!Number.isFinite(distance)||distance>40){scan.outOfRange++;continue;}const id=root(invoke(t.m.id.method,o));key='p'+api.object_unbox(id).readU64().toString();}
      else{if(!vgpBool(t.m.active,o)||!vgpBool(t.m.range,o)||vgpBool(t.m.closed,o)||vgpBool(t.m.cooling,o))continue;fort=root(vgpVirtual(t.m.fort,o));if(!exact(fort,classes[VGP.fort]))continue;const id=readPtr(fort,t.f.fortId);if(id.isNull())continue;key='s'+id.add(20).readUtf16String(Math.min(256,id.add(16).readS32()));}
      if(r.seen.has(key)){if(action==='catch')scan.recent++;continue;}r.seen.set(key,now+(action==='catch'?30000:300000));r.pending={key,target:hold(o),bag:hold(pokemonBag),promise:null,phase:action==='catch'?'encounter':'spin',deadline:now+20000};
      let promise;
@@ -2858,7 +2873,8 @@ function setSpinAllowed(value){const s=running;if(!s||!s.active||!s.ready||s.sto
 function setSpawnOptions(enabled,allowed){const s=running;if(!s||!s.ready||s.stopping)return false;s.spawnEnabled=enabled===true;s.spawnLease=allowed===true?s.now()+LIMITS.leaseMs:0;return s.spawnEnabled;}
 
 function setMapPoiAllowed(allowed){const s=running;if(!s||!s.active||s.stopping)return false;s.mapPoiLease=allowed===true?s.now()+2500:0;return true;}
-function setVgpOptions(mask,allowed,lat,lon){const s=running;if(!s||!s.active||s.stopping)return false;s.vgpMask=(mask|0)&3;s.vgpLat=lat;s.vgpLon=lon;s.vgpLease=allowed===true&&Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180?s.now()+2500:0;return true;}
+function setVgpManualReady(){const s=running;if(s&&!s.stopping)s.vgpManualReady=true;}
+function setVgpOptions(mask,allowed,lat,lon,mapVisible){const s=running;if(!s||!s.active||s.stopping)return false;s.vgpMask=(mask|0)&3;s.vgpLat=lat;s.vgpLon=lon;s.vgpMapVisible=mapVisible===true;s.vgpLease=allowed===true&&Number.isFinite(lat)&&Number.isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180?s.now()+2500:0;return true;}
 
 function setIncubatorOptions(enabled,longest,allowed){const s=running;if(!s||!s.active||s.stopping)return false;s.incubatorEnabled=enabled===true;s.incubatorLongest=longest===true;s.incubatorLease=allowed===true?s.now()+2500:0;return !!s.incubatorEnabled;}
 
@@ -2892,6 +2908,6 @@ function setTransferOptions(enabled,protect,dismiss){const s=running;if(!s||!s.a
 
  s.transferEnabled=next;s.protect=mask;s.dismissEnabled=dismiss===true;return true;}
 
-const api=Object.freeze({start,setIncubatorOptions,setMapPoiAllowed,setVgpOptions,setAllowed,setSpinAllowed,setTransferOptions,setItemOptions,setRocketOptions,setBattleOptions,setBerryOptions,setBerryImpactReady,setSpawnOptions,setGiftOptions,setBuddyOptions,transferDecision,stop});root.PGRazorQuickClose=api;return api;
+const api=Object.freeze({start,setIncubatorOptions,setMapPoiAllowed,setVgpOptions,setVgpManualReady,setAllowed,setSpinAllowed,setTransferOptions,setItemOptions,setRocketOptions,setBattleOptions,setBerryOptions,setBerryImpactReady,setSpawnOptions,setGiftOptions,setBuddyOptions,transferDecision,stop});root.PGRazorQuickClose=api;return api;
 
 })(globalThis);

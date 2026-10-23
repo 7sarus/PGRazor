@@ -170,12 +170,13 @@ public final class Control {
         if(!Double.isFinite(x)||!Double.isFinite(y)||x<0||x>1||y<0||y>1){vgpTargetAt=0;return;}
         vgpTargetX=(float)x;vgpTargetY=(float)y;vgpTargetSpin=spin;vgpTargetAt=SystemClock.elapsedRealtime();
     }
-    public static boolean vgpTargetVisible(){long age=SystemClock.elapsedRealtime()-vgpTargetAt;return vgpAllowed()&&vgpTargetAt>0&&age>=0&&age<1200;}
+    public static boolean vgpMapVisible(){long age=SystemClock.elapsedRealtime()-buddyMapSample;return buddyMapSample>0&&age>=0&&age<1500;}
+    public static boolean vgpTargetVisible(){long age=SystemClock.elapsedRealtime()-vgpTargetAt;return vgpAllowed()&&vgpMapVisible()&&vgpTargetAt>0&&age>=0&&age<1200;}
     public static float vgpTargetX(){return vgpTargetX;}
     public static float vgpTargetY(){return vgpTargetY;}
     public static boolean vgpTargetSpin(){return vgpTargetSpin;}
 
-    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();long age=SystemClock.elapsedRealtime()-buddyMapSample;return vgpEnabled&&vgpReady&&itemAccessAllowed()&&buddyMapSample>0&&age>=0&&age<1500;}
+    public static boolean vgpAllowed(){if(!locationKnown())return false;guardVgpCooldown();return vgpEnabled&&vgpReady&&itemAccessAllowed();}
     public static void vgpResult(String action,boolean success){
         if(success&&action.equals("spin"))cooldownAction("Pokestop spin");
         Application app=vgpApplication;if(!vgpEnabled||(vgpOptions&4)==0||app==null)return;
