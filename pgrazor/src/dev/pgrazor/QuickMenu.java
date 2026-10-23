@@ -94,6 +94,7 @@ public final class QuickMenu {
     }
 
     public void onRefresh() { if (isShowing()) updateWalk(); }
+    public void applyScale(float scale){card.setPivotX(0);card.setPivotY(0);card.setScaleX(scale);card.setScaleY(scale);if(isShowing())card.post(this::position);}
     public boolean isShowing() { return root.getVisibility() == View.VISIBLE; }
     public void toggle() { if (isShowing()) hide(); else show(); }
     public void hide() { root.setVisibility(View.GONE); }
@@ -103,9 +104,9 @@ public final class QuickMenu {
         card.post(this::position);
     }
     private void position() {
-        int cw = card.getWidth(), ch = card.getHeight(), pw = root.getWidth(), ph = root.getHeight();
+        int cw = OverlayDrag.visualWidth(card), ch = OverlayDrag.visualHeight(card), pw = root.getWidth(), ph = root.getHeight();
         if (pw <= 0 || ph <= 0) return;
-        float x = anchor.getX(), y = anchor.getY() + anchor.getHeight() + dp(8);
+        float x = anchor.getX(), y = anchor.getY() + OverlayDrag.visualHeight(anchor) + dp(8);
         if (x + cw > pw - dp(8)) x = pw - cw - dp(8);
         if (y + ch > ph - dp(8)) y = anchor.getY() - ch - dp(8);
         card.setX(Math.max(dp(8), x)); card.setY(Math.max(dp(8), y));

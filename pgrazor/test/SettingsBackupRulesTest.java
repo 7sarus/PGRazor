@@ -13,6 +13,8 @@ public class SettingsBackupRulesTest {
     }
     public static void main(String[] args)throws Exception{
         SettingsBackupRules.validate(valid());
+        for(int scale:new int[]{100,75,50,25}){JSONObject scaled=valid();scaled.getJSONObject("settings").put("uiScalePercent",String.valueOf(scale));SettingsBackupRules.validate(scaled);}
+        for(String scale:new String[]{"0","24","101","50.5","bad"}){JSONObject scaled=valid();scaled.getJSONObject("settings").put("uiScalePercent",scale);rejects(scaled);}
         String choices="";
         choices=BerryPriority.select(choices,707);choices=BerryPriority.select(choices,705);choices=BerryPriority.select(choices,701);
         if(!choices.equals("707,705,701"))throw new AssertionError("Selection order lost");

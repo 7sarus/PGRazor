@@ -23,6 +23,8 @@ public final class Pad {
     private VgpToggle vgpToggle;
     private Switch incubatorSwitch;
     private Button incubatorPriority;
+    private Button uiScale;
+    private int appliedUiScale;
     private TextView incubatorStatus;
     private LinearLayout joystickOverlay;
     private BerryOverlay encounterBerry;
@@ -117,7 +119,7 @@ public final class Pad {
     private void draggable(View handle,View target,boolean clickable){
         handle.setOnTouchListener(new View.OnTouchListener(){float downX,downY,originX,originY;boolean moved;
             public boolean onTouch(View v,MotionEvent e){int a=e.getActionMasked();if(a==MotionEvent.ACTION_DOWN){downX=e.getRawX();downY=e.getRawY();originX=target.getX();originY=target.getY();moved=false;return true;}
-                if(a==MotionEvent.ACTION_MOVE){float dx=e.getRawX()-downX,dy=e.getRawY()-downY;if(Math.hypot(dx,dy)>dp(6))moved=true;if(moved){target.setX(Math.max(0,Math.min(parent.getWidth()-target.getWidth(),originX+dx)));target.setY(Math.max(0,Math.min(parent.getHeight()-target.getHeight(),originY+dy)));}return true;}
+                if(a==MotionEvent.ACTION_MOVE){float dx=e.getRawX()-downX,dy=e.getRawY()-downY;if(Math.hypot(dx,dy)>dp(6))moved=true;if(moved){target.setX(Math.max(0,Math.min(parent.getWidth()-OverlayDrag.visualWidth(target),originX+dx)));target.setY(Math.max(0,Math.min(parent.getHeight()-OverlayDrag.visualHeight(target),originY+dy)));}return true;}
                 if(a==MotionEvent.ACTION_UP){if(!moved&&clickable)v.performClick();return true;}return true;}
         });
     }
@@ -235,6 +237,9 @@ public final class Pad {
         coords = text("", 16, ink()); coords.setPadding(dp(4), dp(6), dp(4), dp(10)); body.addView(coords);
         // ----- Location & overlays -----
         LinearLayout loc = section(body, "Location & overlays", true);
+        uiScale=button("UI scale: "+Control.uiScalePercent()+"%");loc.addView(uiScale);
+        uiScale.setOnClickListener(v->{final int[] values={100,75,50,25};String[] labels={"100%","75%","50%","25%"};int selected=0;for(int i=0;i<values.length;i++)if(values[i]==Control.uiScalePercent())selected=i;
+            new AlertDialog.Builder(dialogContext()).setTitle("Overlay scale").setSingleChoiceItems(labels,selected,(dialog,which)->{stick.release(true);Control.setUiScalePercent(values[which]);refresh();dialog.dismiss();}).setNegativeButton("Cancel",null).show();});
         locationSwitch=switchRow(loc,"Location spoofing");locationSwitch.setChecked(Control.desiredEnabled());
         locationSwitch.setOnCheckedChangeListener((v,checked)->{if(checked==Control.desiredEnabled())return;stick.release(true);Control.setLocationSpoofing(checked);refresh();});
         steeringStatus = caption(loc, "Joystick follows the camera");
@@ -421,7 +426,7 @@ public final class Pad {
         launcher.setOnClickListener(v->{if(quickMenu!=null)quickMenu.toggle();});draggable(launcher,launcher,true);
 
         panel.setVisibility(View.GONE);joystickOverlay.setVisibility(Control.joystickVisible()?View.VISIBLE:View.GONE);applyTheme();
-        refresh(); handler.post(tick);
+        refresh();parent.post(this::applyMapScale); handler.post(tick);
     }
     /** Decode a bundled map-icon once; returns null (never throws, never hits the network) if unavailable. */
     private Bitmap decodeMapIcon(String name){
@@ -485,12 +490,30 @@ public final class Pad {
         return "Transfer protection: "+state+". Tap to "+(keep?"use normal transfer rules":"keep every catch")+". Drag to reposition.";
     }
 
+    private void applyMapScale(){
+        if(launcher==null||launcher.getWidth()==0||parent.getWidth()==0)return;
+        int percent=Control.uiScalePercent();if(appliedUiScale==percent)return;
+        appliedUiScale=percent;float scale=percent/100f;
+        for(View view:new View[]{launcher,joystickOverlay,cooldownTimer,vgpToggle,vgpActivity,vgpMarker,transferToggle}){
+            if(view==null)continue;
+            float fx=view.getX()/Math.max(1,parent.getWidth()-OverlayDrag.visualWidth(view));
+            float fy=view.getY()/Math.max(1,parent.getHeight()-OverlayDrag.visualHeight(view));
+            view.setPivotX(0);view.setPivotY(0);view.setScaleX(scale);view.setScaleY(scale);
+            view.setX(Math.max(0,Math.min(1,fx))*Math.max(0,parent.getWidth()-OverlayDrag.visualWidth(view)));
+            view.setY(Math.max(0,Math.min(1,fy))*Math.max(0,parent.getHeight()-OverlayDrag.visualHeight(view)));
+        }
+        if(cooldownDrag!=null)cooldownDrag.refreshBounds();if(vgpDrag!=null)vgpDrag.refreshBounds();
+        if(transferDrag!=null)transferDrag.refreshBounds();
+        if(encounterBerry!=null)encounterBerry.applyUiScale(scale);
+        if(quickMenu!=null)quickMenu.applyScale(scale);
+    }
     private void refresh() {
+        applyMapScale();if(uiScale!=null)uiScale.setText("UI scale: "+Control.uiScalePercent()+"%");
         if(vgpToggle!=null){vgpToggle.setVisibility(Control.vgpOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpToggle.setContentDescription("Virtual Go Plus "+(Control.vgpEnabled()?"on; tap to turn off":"off; tap to turn on")+". "+Control.vgpStatus());vgpToggle.invalidate();}
 
         // Pair the status line with the toggle so the cooldown shutoff reason is visible even when VGP is off.
         if(vgpActivity!=null){vgpActivity.setVisibility(Control.vgpOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);vgpActivity.setText("VGP  |  "+Control.vgpStatus());vgpActivity.setTextColor(ink());vgpActivity.setBackground(rounded(surface(),10));}
-        if(vgpMarker!=null){boolean show=Control.vgpTargetVisible()&&panel.getVisibility()!=View.VISIBLE;vgpMarker.setVisibility(show?View.VISIBLE:View.GONE);if(show){vgpMarker.setX(Control.vgpTargetX()*parent.getWidth()-dp(19));vgpMarker.setY(Control.vgpTargetY()*parent.getHeight()-dp(82));vgpMarker.invalidate();}}
+        if(vgpMarker!=null){boolean show=Control.vgpTargetVisible()&&panel.getVisibility()!=View.VISIBLE;vgpMarker.setVisibility(show?View.VISIBLE:View.GONE);if(show){vgpMarker.setX(Control.vgpTargetX()*parent.getWidth()-dp(19)*vgpMarker.getScaleX());vgpMarker.setY(Control.vgpTargetY()*parent.getHeight()-dp(36)-dp(46)*vgpMarker.getScaleY());vgpMarker.invalidate();}}
         if(transferToggle!=null){transferToggle.setVisibility(Control.transferOverlayVisible()&&panel.getVisibility()!=View.VISIBLE&&!(quickMenu!=null&&quickMenu.isShowing())?View.VISIBLE:View.GONE);transferToggle.setContentDescription(transferToggleDescription());transferToggle.invalidate();}
 
         if(cooldownTimer!=null){cooldownTimer.setVisibility(Control.cooldownOverlay()?View.VISIBLE:View.GONE);cooldownTimer.setText("☰  "+Cooldown.label());cooldownTimer.setTextColor(Cooldown.remaining()>0?Color.rgb(255,186,95):accent());}

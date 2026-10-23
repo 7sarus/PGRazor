@@ -77,7 +77,7 @@ public final class OverlayDrag implements View.OnTouchListener {
     /** Pull the saved fraction back onto the current bounds; a no-op until the user first drags. */
     private void applySaved() {
         if (dragging || !prefs.contains(key + ".fx")) return;
-        int w = view.getWidth(), h = view.getHeight();
+        int w = visualWidth(view), h = visualHeight(view);
         if (w == 0 || h == 0 || parent.getWidth() == 0 || parent.getHeight() == 0) return;
         view.setX(clampX(Math.max(0, parent.getWidth() - w) * clampUnit(prefs.getFloat(key + ".fx", 0f))));
         view.setY(clampY(Math.max(0, parent.getHeight() - h) * clampUnit(prefs.getFloat(key + ".fy", 0f))));
@@ -85,7 +85,7 @@ public final class OverlayDrag implements View.OnTouchListener {
     }
 
     private void save() {
-        int trackW = parent.getWidth() - view.getWidth(), trackH = parent.getHeight() - view.getHeight();
+        int trackW = parent.getWidth() - visualWidth(view), trackH = parent.getHeight() - visualHeight(view);
         float fx = trackW > 0 ? clampUnit(view.getX() / trackW) : 0f;
         float fy = trackH > 0 ? clampUnit(view.getY() / trackH) : 0f;
         prefs.edit().putFloat(key + ".fx", fx).putFloat(key + ".fy", fy).apply();
@@ -94,21 +94,24 @@ public final class OverlayDrag implements View.OnTouchListener {
     /** Keep the status pill directly below the handle, clamped on-screen, flipped above when there is no room. */
     private void positionFollower() {
         if (follower == null) return;
-        int fw = follower.getWidth(), fh = follower.getHeight();
+        int fw = visualWidth(follower), fh = visualHeight(follower);
         if (fw == 0 || fh == 0) return; // hidden or not yet measured; its own layout listener will catch up
-        float x = view.getX(), y = view.getY() + view.getHeight() + gap;
+        float x = view.getX(), y = view.getY() + visualHeight(view) + gap * view.getScaleY();
         if (y + fh > parent.getHeight()) y = view.getY() - gap - fh;
         follower.setX(Math.max(0, Math.min(Math.max(0, parent.getWidth() - fw), x)));
         follower.setY(Math.max(0, Math.min(Math.max(0, parent.getHeight() - fh), y)));
     }
 
-    private float clampX(float x) { return Math.max(0, Math.min(Math.max(0, parent.getWidth() - view.getWidth()), x)); }
+    private float clampX(float x) { return Math.max(0, Math.min(Math.max(0, parent.getWidth() - visualWidth(view)), x)); }
     private float clampY(float y) {
         android.view.WindowInsets insets = parent.getRootWindowInsets();
         int top = insets == null ? 0 : insets.getSystemWindowInsetTop();
         int bottom = insets == null ? 0 : insets.getSystemWindowInsetBottom();
-        return Math.max(top, Math.min(Math.max(top, parent.getHeight() - view.getHeight() - bottom), y));
+        return Math.max(top, Math.min(Math.max(top, parent.getHeight() - visualHeight(view) - bottom), y));
     }
+    static int visualWidth(View view){return Math.round(view.getWidth()*view.getScaleX());}
+    static int visualHeight(View view){return Math.round(view.getHeight()*view.getScaleY());}
+    void refreshBounds(){applySaved();view.setX(clampX(view.getX()));view.setY(clampY(view.getY()));positionFollower();}
     private static float clampUnit(float f) { return Float.isFinite(f) ? Math.max(0f, Math.min(1f, f)) : 0f; }
 
     /** Drop the hierarchy listeners when the pad is torn down so the decor view keeps no stale references. */
