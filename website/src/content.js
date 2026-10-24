@@ -16,14 +16,13 @@ export const nav = [
 
 export const heroFacts = [
   { term: 'Platform', detail: 'Non-root ARM64 Android' },
-  { term: 'Tested on', detail: 'Pixel 8 & Pixel 11' },
   { term: 'License', detail: 'MIT (original source)' },
 ];
 
 export const features = [
   {
     title: 'No root, ARM64 Android',
-    body: 'Installs like a normal app on ARM64 phones — no root needed. Tested only on the Pixel 8 and Pixel 11; other devices are untested.',
+    body: 'Installs like a normal app on ARM64 phones — no root needed.',
   },
   {
     title: 'Quick Catch',
@@ -178,7 +177,7 @@ export const steps = [
 export const faqs = [
   {
     q: 'Which phones are supported?',
-    a: 'PGRazor installs on non-root ARM64 Android phones. It has only been tested on the Pixel 8 and Pixel 11 — treat any other device as untested rather than certified.',
+    a: 'PGRazor is built for ARM64 Android phones. No root is required.',
   },
   {
     q: 'Can I install it over the Play Store app?',
