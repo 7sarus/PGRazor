@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class CatchChanceJavaTests(unittest.TestCase):
     def test_overlay_text(self):
         compiler, runtime = java_tools()
-        sdk = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ['LOCALAPPDATA']) / 'Android/Sdk')))
+        sdk = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'Android/Sdk')))
         json_sources = sorted((sdk / 'sources').glob('android-*/org/json'), reverse=True)
         if not json_sources:
             self.skipTest('Android SDK JSON sources unavailable')

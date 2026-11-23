@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class GameRoutesJavaTests(unittest.TestCase):
     def test_controller(self):
-        sdk = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ['LOCALAPPDATA']) / 'Android/Sdk')))
+        sdk = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'Android/Sdk')))
         candidates = sorted((sdk / 'sources').glob('android-*/org/json'), reverse=True)
         if not candidates:
             self.skipTest('Android SDK JSON sources unavailable')
