@@ -151,7 +151,7 @@ def main():
                 out.write(p, p.relative_to(classes).as_posix())
         dex = work / 'dex'
         dex.mkdir()
-        run([build.TOOLS / 'd8.bat', '--min-api', '28', '--lib', build.ANDROID, '--output', dex, jar])
+        run([build.tool('d8'), '--min-api', '28', '--lib', build.ANDROID, '--output', dex, jar])
         original = work / 'original.apk'
         with zipfile.ZipFile(original, 'w') as out:
             out.write(dex / 'classes.dex', 'classes.dex')

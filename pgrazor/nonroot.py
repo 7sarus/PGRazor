@@ -292,7 +292,7 @@ def package(source, *,research_runtime=False,panel_only=False,download=False,pre
     for icon_name,icon_path in build.feed_icon_assets().items(): assets['assets/pgrazor/feed-icons/pokemon/'+icon_name]=icon_path
     certificates=[]
     for path,_ in rows:
-        verified=command(build.TOOLS/'apksigner.bat','verify','--print-certs',path,capture=True)
+        verified=command(build.tool('apksigner'),'verify','--print-certs',path,capture=True)
         digests=re.findall(r'Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)',verified.stdout)
         if not digests: raise RuntimeError('Could not verify input signing certificate: '+str(path))
         certificates.append(sorted(d.lower() for d in digests))
@@ -367,11 +367,11 @@ def package(source, *,research_runtime=False,panel_only=False,download=False,pre
         stem='base' if path==base else f'split-{index}'
         unsigned=folder/(stem+'-unsigned.apk'); aligned=folder/(stem+'-aligned.apk'); signed=folder/(stem+'.apk')
         rewrite_apk(path,unsigned,base=path==base,dex=dex,assets=assets,preview=preview,google_browser_login=google_browser_login,dex_replacements=dex_replacements)
-        command(build.TOOLS/'zipalign.exe','-f','-P','16','4',unsigned,aligned)
-        command(build.TOOLS/'apksigner.bat','sign',*build.signing_args(),'--out',signed,aligned)
-        verified=command(build.TOOLS/'apksigner.bat','verify','--print-certs',signed,capture=True)
+        command(build.tool('zipalign'),'-f','-P','16','4',unsigned,aligned)
+        command(build.tool('apksigner'),'sign',*build.signing_args(),'--out',signed,aligned)
+        verified=command(build.tool('apksigner'),'verify','--print-certs',signed,capture=True)
         (folder/(stem+'-certificate.txt')).write_text(verified.stdout,encoding='utf-8')
-        command(build.TOOLS/'zipalign.exe','-c','-P','16','4',signed)
+        command(build.tool('zipalign'),'-c','-P','16','4',signed)
         with zipfile.ZipFile(signed) as archive:
             if compiled_gameplay: assert_no_research_payload(archive.namelist())
             parsed=axml.inspect_manifest(archive.read('AndroidManifest.xml'))

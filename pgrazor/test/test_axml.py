@@ -189,7 +189,7 @@ class AxmlTests(unittest.TestCase):
 
     def test_real_apks_and_aapt(self):
         sdk=Path(os.environ.get('ANDROID_HOME',str(Path(os.environ.get('LOCALAPPDATA',''))/'Android/Sdk')))
-        aapt=sdk/'build-tools'/os.environ.get('PGRAZOR_BUILD_TOOLS','36.1.0')/'aapt.exe'
+        aapt=sdk/'build-tools'/os.environ.get('PGRAZOR_BUILD_TOOLS','36.1.0')/('aapt.exe' if os.name=='nt' else 'aapt')
         if not aapt.is_file(): self.skipTest('Installed Android aapt unavailable')
         folder=ROOT/'build/axml-tests'
         folder.mkdir(parents=True,exist_ok=True)

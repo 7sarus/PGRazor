@@ -22,8 +22,8 @@ jobs:
     # GitHub draft-release assets require push access; the input remains unpublished.
     permissions:
       contents: write
-    runs-on: windows-latest
-    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       tag: ${{ steps.version.outputs.tag }}
     defaults:
@@ -114,7 +114,9 @@ jobs:
       - run: python -B tools/check.py
       - name: Configure temporary signing path
         shell: pwsh
-        run: Add-Content -LiteralPath $env:GITHUB_ENV -Value "PGRAZOR_KEYSTORE=$env:RUNNER_TEMP\pgrazor-signing.jks"
+        run: |
+          $keyPath = Join-Path $env:RUNNER_TEMP 'pgrazor-signing.jks'
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value "PGRAZOR_KEYSTORE=$keyPath"
       - name: Prepare pinned input and signing key
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -143,7 +145,8 @@ jobs:
         run: |
           if (!$env:PGRAZOR_KEYSTORE) { exit 0 }
           $keyPath = [IO.Path]::GetFullPath($env:PGRAZOR_KEYSTORE)
-          $tempRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\') + '\'
+          $sep = [IO.Path]::DirectorySeparatorChar
+          $tempRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd($sep) + $sep
           if (!$keyPath.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'Key is outside runner temp' }
           if (Test-Path -LiteralPath $keyPath) { Remove-Item -LiteralPath $keyPath }
   release:

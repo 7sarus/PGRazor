@@ -192,7 +192,7 @@ def package(source, download=False, installer=True):
     if package_name != 'com.nianticlabs.pokemongo': raise ValueError('Expected the Pokémon GO package')
     if native_abis != {'arm64-v8a'}: raise ValueError('Expected an ARM64 game APK set; found ' + repr(native_abis))
     for path, _ in rows:
-        verified = nonroot.command(build.TOOLS / 'apksigner.bat', 'verify', '--print-certs', path, capture=True)
+        verified = nonroot.command(build.tool('apksigner'), 'verify', '--print-certs', path, capture=True)
         digests = sorted(d.lower() for d in re.findall(r'Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)', verified.stdout))
         nonroot.require_clean_game_certificate(digests)
     with zipfile.ZipFile(base) as archive:

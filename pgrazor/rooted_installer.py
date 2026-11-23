@@ -126,13 +126,13 @@ def build_installer(module_zip, target, version, folder):
             out.write(path, path.relative_to(classes).as_posix())
     dex_dir = folder / 'installer-dex'
     dex_dir.mkdir(exist_ok=True)
-    build.run(build.TOOLS / 'd8.bat', '--min-api', '28', '--lib', build.ANDROID, '--output', dex_dir, jar)
+    build.run(build.tool('d8'), '--min-api', '28', '--lib', build.ANDROID, '--output', dex_dir, jar)
 
     manifest_path = folder / 'installer-manifest' / 'AndroidManifest.xml'
     manifest_path.parent.mkdir(exist_ok=True)
     manifest_path.write_text(_manifest(version), encoding='utf-8')
     unsigned = folder / 'installer-unsigned.apk'
-    build.run(build.TOOLS / 'aapt.exe', 'package', '-f', '-M', manifest_path,
+    build.run(build.tool('aapt'), 'package', '-f', '-M', manifest_path,
               '-S', INSTALLER_DIR / 'res', '-I', build.ANDROID, '-F', unsigned)
     with zipfile.ZipFile(unsigned, 'a', zipfile.ZIP_DEFLATED) as out:
         out.write(dex_dir / 'classes.dex', 'classes.dex')
@@ -140,10 +140,10 @@ def build_installer(module_zip, target, version, folder):
         out.write(module_zip, 'assets/' + module_zip.name, compress_type=zipfile.ZIP_STORED)
 
     aligned = folder / 'installer-aligned.apk'
-    build.run(build.TOOLS / 'zipalign.exe', '-f', '4', unsigned, aligned)
+    build.run(build.tool('zipalign'), '-f', '4', unsigned, aligned)
     apk = folder / ('PGRazor-Root-' + version + '.apk')
-    build.run(build.TOOLS / 'apksigner.bat', 'sign', *build.signing_args(), '--out', apk, aligned)
-    build.run(build.TOOLS / 'apksigner.bat', 'verify', apk)
+    build.run(build.tool('apksigner'), 'sign', *build.signing_args(), '--out', apk, aligned)
+    build.run(build.tool('apksigner'), 'verify', apk)
     print('Installer APK:', apk, flush=True)
     return apk
 
