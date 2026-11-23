@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### New features
+
+- **Joystick lock:** Hold the joystick outward to pop out a lock badge. Drag onto it or tap it to keep the character walking in that direction. Tap the joystick to unlock.
+
+### Improvements & fixes
+
 - Fixed a Root startup crash when Vector replaces an ARM64 runtime hook during launch.
 
 ## v0.3.6
