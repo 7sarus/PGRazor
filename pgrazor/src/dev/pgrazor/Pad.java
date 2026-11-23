@@ -390,7 +390,7 @@ public final class Pad {
             stick.applyMotion(now);
             boolean wasWalking = Control.engine.walking;
             MotionEngine.RouteProgress before=Control.engine.routeProgress();
-            Control.stepMotion((now-lastTick)/1000.0,stick.pointer>=0); lastTick = now;
+            Control.stepMotion((now-lastTick)/1000.0,stick.pointer>=0||stick.isLocked); lastTick = now;
             Control.tickGameRoutes();
             MotionEngine.RouteProgress after=Control.engine.routeProgress();
             if (before.total>1 && after.total==before.total && after.visited>before.visited)
@@ -647,6 +647,7 @@ public final class Pad {
             pointer = -1;
             cameraGesture = -1;
             updateDescription();
+            Control.engine.input(0, 0);
             if (!preserveWalk || !Control.engine.walking) Control.engine.stop();
             Control.saveState();
             invalidate();
@@ -776,7 +777,12 @@ public final class Pad {
                 holdingOut = false;
                 lockPopped = false;
             }
-            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL ||
+            if (action == MotionEvent.ACTION_CANCEL) {
+                getParent().requestDisallowInterceptTouchEvent(false);
+                release(true);
+                return true;
+            }
+            if (action == MotionEvent.ACTION_UP ||
                 (action == MotionEvent.ACTION_POINTER_UP && e.getPointerId(e.getActionIndex()) == pointer)) {
                 getParent().requestDisallowInterceptTouchEvent(false);
                 removeCallbacks(popLockRunnable);
