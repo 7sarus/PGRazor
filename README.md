@@ -1,77 +1,66 @@
-<p align="center"><img src="pgrazor/branding/pgrazor.svg" width="88" alt="PGRazor logo"></p>
-<h1 align="center">PGRazor</h1>
-<p align="center">A compact Android interface for location controls and Pokémon GO automation.</p>
+# PGRazor (Fork)
 
-PGRazor adds an in-game menu, an independent joystick, encounter controls, and optional automation to Pokémon GO. Settings persist across restarts, with light and dark themes.
+An opinionated fork of [PGRazor](https://github.com/jpitty03/PGRazor) focused on root-based location overlays, directional joystick gestures, and clean integration.
 
-The settings panel is grouped into Play, Automation and App cards, with an instant search field at the top. Search matches names, descriptions, categories and common synonyms (for example "fake gps" or "light mode"), and tapping a result opens the page, expands any collapsed section, and scrolls straight to that row.
+This fork maintains the Zygisk root module and companion installer app. Non-root packaging is currently disabled.
 
-<p align="center"><img src="website/public/images/main-menu.png" width="320" alt="PGRazor dark-theme main settings menu with feature sections and Discord footer"></p>
+## Overview
 
-## Features and guides
+The mod adds on-screen overlays to the target application:
+- Joystick with directional hold-to-lock and continuous steering
+- Location spoofing with customizable speeds and route playback
+- In-game settings panel with dark and light themes
+- Coordinate bookmarking and search
 
-The feature list and how-to guides live on the website, so there is one place to keep them current:
+## Installation (Root)
 
-- **[PGRazor website](https://jpitty03.github.io/PGRazor/)**: overview, screenshots, and the cooldown chart.
-- **[Feature guides](https://jpitty03.github.io/PGRazor/?guide=all)**: where each feature is in the app and how to use it.
-- **[Changelog](CHANGELOG.md)** and [release notes](https://github.com/jpitty03/PGRazor/releases): what each version added.
+This build requires a rooted Android device running KernelSU, APatch, or Magisk with a Zygisk implementation.
 
-## Install
+1. Download `PGRazor-Root.apk` and `PGRazor-Root-module.zip` from [Releases](../../releases).
+2. Install the module through your root manager:
+   - KernelSU: flash the ZIP in the Modules tab, or run `ksud module install PGRazor-Root-module.zip`.
+   - Magisk: install the ZIP in the Magisk app and reboot.
+3. Install `PGRazor-Root.apk` to manage service status and account switching.
+4. Launch the target app. The overlay appears once the module binds to the game process.
 
-There are two builds. Each release lists the Pokémon GO version it supports; native features are built for that exact version.
+## Building
 
-**PGRazor (no root).** One APK for ARM64 Android phones and the MuMu emulator.
+### Prerequisites
 
-1. Open [Releases](https://github.com/jpitty03/PGRazor/releases/latest) and download **PGRazor.apk**, not a source archive.
-2. Open the APK on your device and allow installation from your file manager.
-3. Launch **Pokémon GO** and tap the small **R** icon for the quick menu. Choose **Settings** for the full controls.
+- Android SDK (platform android-36, build-tools 36.0.0, platforms;android-36)
+- JDK 17
+- Python 3.12+
+- Pinned Android NDKs (27.3.13750724 and 29.0.14206865)
+- CMake 4.4.4 and Ninja
 
-A Play Store install is signed with a different certificate, so PGRazor cannot update it in place; it replaces that copy.
+### Build commands
 
-**PGRazor Root (experimental).** For rooted devices using the official game. It installs a Zygisk module through Magisk 27+, KernelSU, or APatch and leaves the game's APK untouched. Download **PGRazor-Root.apk** from the same release and follow [the Root guide](docs/ROOTED.md).
-
-Each release includes a changelog, SHA-256 checksums, and build information. See [installation and builds](docs/BUILDING.md) for details.
-
-## Good to know
-
-These are experimental client modifications. Server outcomes are not guaranteed, the cooldown timer is a local estimate, and nothing here prevents account action by the game's publisher.
-
-## Community
-
-Join the [PGRazor Discord](https://discord.gg/9QqfkDSQX3), also linked from the settings footer. If you enjoy PGRazor, you can support development on [Ko-fi](https://ko-fi.com/pgrazor). Donations are optional.
-
-## Build and contribute
-
-- [Build, signing, release CI, and installation](docs/BUILDING.md)
-- [Architecture and compatibility](docs/ARCHITECTURE.md)
-- [PGRazor Root](docs/ROOTED.md)
-- [Native migration verification and history](docs/NATIVE_MIGRATION.md)
-- [Maintainability review and refactoring priorities](docs/MAINTAINABILITY.md)
-- [Contributing and checks](CONTRIBUTING.md)
-- [Third-party notices](THIRD_PARTY.md)
-
-```powershell
+Run regression and schema tests:
+```bash
 python -B tools/check.py
 ```
 
-Source CI runs device-free checks and compiles both the Android controls and the Root installer. Its downloadable artifact contains source and tools only, not a playable APK. Playable releases come from the manually triggered **Android release (non-root and rooted)** workflow. Signing keys, original build inputs, and investigation logs are kept out of Git.
+Build the root module and companion installer:
+```bash
+python -B pgrazor/rooted.py <path-to-target-apkm>
+```
+
+Output files are written to `pgrazor/build/rooted/<timestamp>/`.
 
 ## Repository layout
 
 ```text
-.github/workflows/    Source CI, release, and website workflows
-docs/                 Build, architecture, and release notes
-pgrazor/src/          Android UI and control bridge
-pgrazor/native/       Compiled gameplay runtime and native tests
-pgrazor/art/          Compiled Android runtime bridges
-pgrazor/zygisk/       PGRazor Root loader
-pgrazor/root-installer/  PGRazor Root installer app
-pgrazor/test/         Regression tests
-pgrazor/vendor/       Pinned dependencies, provenance, and licenses
-tools/                Checks, source packaging, release CI setup
-website/              React site and feature guides, deployed to GitHub Pages
+.github/workflows/    CI and build automation
+docs/                 Technical notes and release logs
+pgrazor/src/          Java controls and overlay views
+pgrazor/native/       Core C++ runtime and hooks
+pgrazor/art/          ART bridge routines
+pgrazor/zygisk/       Zygisk injection loader
+pgrazor/root-installer/ Companion root installer APK
+pgrazor/test/         Unit and integration test suites
+tools/                Build, verification, and packaging tools
 ```
 
 ## License
 
-Original PGRazor source is available under the [MIT License](LICENSE). Third-party components retain their own licenses. Pokémon GO and its assets are not covered by this license. PGRazor is an independent project and is not affiliated with the game publisher.
+Available under the [MIT License](LICENSE). Third-party dependencies retain their own licenses. This project is an independent modification and has no affiliation with any application developer or publisher.

@@ -7,6 +7,7 @@ import zipfile
 
 
 DOWNLOADS = ('PGRazor.apk', 'PGRazor-Root.apk', 'PGRazor-Root-module.zip')
+ROOT_DOWNLOADS = ('PGRazor-Root.apk', 'PGRazor-Root-module.zip')
 
 
 def digest(path):
@@ -16,7 +17,11 @@ def digest(path):
 
 def verify(folder, tag):
     folder = Path(folder)
-    for name in (*DOWNLOADS, 'build-info.json', 'root-build-info.json', 'SHA256SUMS.txt'):
+    has_nonroot = (folder / 'PGRazor.apk').is_file()
+    downloads = DOWNLOADS if has_nonroot else ROOT_DOWNLOADS
+    receipt_files = ('build-info.json', 'root-build-info.json', 'SHA256SUMS.txt') if has_nonroot else ('root-build-info.json', 'SHA256SUMS.txt')
+
+    for name in (*downloads, *receipt_files):
         if not (folder / name).is_file() or not (folder / name).stat().st_size:
             raise ValueError('Missing or empty release file: ' + name)
     checksums = {}
@@ -25,35 +30,40 @@ def verify(folder, tag):
         if name in checksums:
             raise ValueError('Duplicate checksum: ' + name)
         checksums[name] = checksum
-    actual = {name: digest(folder / name) for name in DOWNLOADS}
+    actual = {name: digest(folder / name) for name in downloads}
     if checksums != actual:
-        raise ValueError('Release checksums do not match the three downloads')
-    normal = json.loads((folder / 'build-info.json').read_text(encoding='utf-8'))
+        raise ValueError('Release checksums do not match the downloads')
+
     root = json.loads((folder / 'root-build-info.json').read_text(encoding='utf-8'))
-    if (normal['apk_sha256'] != actual[DOWNLOADS[0]] or
-            root['installer_sha256'] != actual[DOWNLOADS[1]] or
-            root['module_sha256'] != actual[DOWNLOADS[2]]):
+    if (root['installer_sha256'] != actual['PGRazor-Root.apk'] or
+            root['module_sha256'] != actual['PGRazor-Root-module.zip']):
         raise ValueError('Build receipts do not match the downloads')
-    if (normal['game_version'] != root['target']['versionName'] or
-            normal['game_version_code'] != root['target']['versionCode']):
-        raise ValueError('Rooted and non-rooted game targets differ')
     if root['version'] != tag:
         raise ValueError('Rooted build version differs from release tag')
-    with zipfile.ZipFile(folder / DOWNLOADS[0]) as apk:
-        mode = json.loads(apk.read('assets/pgrazor/mode.json'))
-        if mode.get('pgrazorVersion') != tag:
-            raise ValueError('Non-rooted build version differs from release tag')
-    with zipfile.ZipFile(folder / DOWNLOADS[2]) as module:
+
+    if has_nonroot:
+        normal = json.loads((folder / 'build-info.json').read_text(encoding='utf-8'))
+        if normal['apk_sha256'] != actual['PGRazor.apk']:
+            raise ValueError('Build receipts do not match the downloads')
+        if (normal['game_version'] != root['target']['versionName'] or
+                normal['game_version_code'] != root['target']['versionCode']):
+            raise ValueError('Rooted and non-rooted game targets differ')
+        with zipfile.ZipFile(folder / 'PGRazor.apk') as apk:
+            mode = json.loads(apk.read('assets/pgrazor/mode.json'))
+            if mode.get('pgrazorVersion') != tag:
+                raise ValueError('Non-rooted build version differs from release tag')
+
+    with zipfile.ZipFile(folder / 'PGRazor-Root-module.zip') as module:
         props = dict(line.split('=', 1) for line in module.read('module.prop').decode().splitlines()
                      if '=' in line)
         if props.get('id') != 'pgrazor' or props.get('version') != tag:
             raise ValueError('Module identity/version differs from release tag')
-    with zipfile.ZipFile(folder / DOWNLOADS[1]) as installer:
+    with zipfile.ZipFile(folder / 'PGRazor-Root.apk') as installer:
         embedded = [name for name in installer.namelist() if name.startswith('assets/') and name.endswith('.zip')]
         if len(embedded) != 1:
             raise ValueError('Installer must contain exactly one module ZIP')
         with installer.open(embedded[0]) as stream:
-            if hashlib.file_digest(stream, 'sha256').hexdigest() != actual[DOWNLOADS[2]]:
+            if hashlib.file_digest(stream, 'sha256').hexdigest() != actual['PGRazor-Root-module.zip']:
                 raise ValueError('Installer embeds a different module from the published ZIP')
     return actual
 

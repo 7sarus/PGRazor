@@ -77,6 +77,13 @@ class ReleaseBundleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Rooted build version'):
             verify_release.verify(self.folder, 'v0.2.7')
 
+    def test_root_only_bundle(self):
+        (self.folder / 'PGRazor.apk').unlink()
+        (self.folder / 'build-info.json').unlink()
+        hashes = {name: verify_release.digest(self.folder / name) for name in verify_release.ROOT_DOWNLOADS}
+        (self.folder / 'SHA256SUMS.txt').write_text(''.join(h + '  ' + n + '\n' for n, h in hashes.items()))
+        self.assertEqual(set(verify_release.verify(self.folder, self.tag)), set(verify_release.ROOT_DOWNLOADS))
+
 
 if __name__ == '__main__':
     unittest.main()

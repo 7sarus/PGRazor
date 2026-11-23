@@ -16,6 +16,7 @@ import zipfile
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 import axml
+import build
 import nonroot
 import runtime_assets
 
@@ -248,6 +249,38 @@ class CleanupIntegrationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'build failed'):
                 nonroot.main(['--apk','game.apk','--skip-build'])
         cleanup.assert_not_called()
+
+
+class ReleaseVersionTests(unittest.TestCase):
+    def test_explicit_env_version_overrides_git_and_file(self):
+        with patch.dict(build.os.environ, {'PGRAZOR_VERSION': 'v1.2.3-custom'}):
+            self.assertEqual(build.release_version(ROOT), 'v1.2.3-custom')
+
+    def test_feature_branch_stamps_feature_and_sha(self):
+        def git_mock(cmd, **kwargs):
+            if cmd[1:3] == ['rev-parse', '--abbrev-ref']:
+                return 'feature/new-joystick\n'
+            if cmd[1:3] == ['rev-parse', '--short']:
+                return 'abc1234\n'
+            raise ValueError('unexpected cmd')
+
+        with patch.dict(build.os.environ, {}, clear=True), patch.object(build.subprocess, 'check_output', side_effect=git_mock):
+            ver = build.release_version(ROOT)
+            self.assertTrue(ver.startswith('v0.1.8-new-joystick-abc1234'))
+
+    def test_main_branch_uses_clean_version(self):
+        def git_mock(cmd, **kwargs):
+            if cmd[1:3] == ['rev-parse', '--abbrev-ref']:
+                return 'main\n'
+            raise ValueError('unexpected cmd')
+
+        with patch.dict(build.os.environ, {}, clear=True), patch.object(build.subprocess, 'check_output', side_effect=git_mock):
+            self.assertEqual(build.release_version(ROOT), 'v0.1.8')
+
+    def test_invalid_version_raises(self):
+        with patch.dict(build.os.environ, {'PGRAZOR_VERSION': 'invalid!!'}):
+            with self.assertRaises(ValueError):
+                build.release_version(ROOT)
 
 
 if __name__=='__main__': unittest.main()

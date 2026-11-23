@@ -17,7 +17,28 @@ def source_fingerprints(root):
     return {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
 
 def release_version(root):
-    version = os.environ.get('PGRAZOR_VERSION', (root/'VERSION').read_text(encoding='utf-8').strip())
+    version = os.environ.get('PGRAZOR_VERSION')
+    if not version:
+        base = (root/'VERSION').read_text(encoding='utf-8').strip()
+        if root == ROOT:
+            try:
+                branch = subprocess.check_output(
+                    ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                    cwd=root, stderr=subprocess.DEVNULL, text=True
+                ).strip()
+                if branch.startswith(('feature/', 'pr/')):
+                    feature = re.sub(r'[^A-Za-z0-9.-]', '-', branch.split('/', 1)[1])
+                    sha = subprocess.check_output(
+                        ['git', 'rev-parse', '--short', 'HEAD'],
+                        cwd=root, stderr=subprocess.DEVNULL, text=True
+                    ).strip()
+                    version = f"{base}-{feature}-{sha}"
+                else:
+                    version = base
+            except Exception:
+                version = base
+        else:
+            version = base
     if not re.fullmatch(r'v?[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?', version):
         raise ValueError('Invalid PGRazor version')
     return 'v' + version.removeprefix('v')

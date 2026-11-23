@@ -1,15 +1,20 @@
-name: Android release (non-root and rooted)
+name: Android release (Root only)
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag (for example v0.1.0)
-        required: true
+        description: Release tag (for example v0.1.0; optional on feature branches)
+        required: false
         type: string
+        default: ''
       publish:
         description: Publish a full GitHub release
         type: boolean
         default: false
+  push:
+    branches:
+      - 'feature/**'
+      - 'pr/**'
 permissions:
   contents: read
 jobs:
@@ -19,6 +24,8 @@ jobs:
       contents: write
     runs-on: windows-latest
     timeout-minutes: 60
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
     defaults:
       run:
         shell: pwsh
@@ -73,13 +80,35 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -B pgrazor/art_build.py --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Determine version tag
+        id: version
+        shell: pwsh
+        run: |
+          $branch = if ($env:GITHUB_HEAD_REF) { $env:GITHUB_HEAD_REF } else { $env:GITHUB_REF_NAME }
+          $sha = $env:GITHUB_SHA.Substring(0, 7)
+          $baseVer = (Get-Content -Path pgrazor/VERSION -Raw).Trim()
+          $inputTag = "${{ inputs.tag }}"
+
+          if ($inputTag) {
+            $tag = $inputTag
+          } elseif ($branch -match '^(?:feature|pr)/(.+)$') {
+            $feature = $Matches[1] -replace '[^A-Za-z0-9.-]', '-'
+            $tag = "v$baseVer-$feature-$sha"
+          } else {
+            $tag = "v$baseVer-$sha"
+          }
+          Write-Output "Resolved version tag: $tag"
+          Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Value "RELEASE_TAG=$tag"
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8 -Value "tag=$tag"
       - name: Validate release tag
         shell: pwsh
         env:
-          RELEASE_TAG: ${{ inputs.tag }}
+          IS_PUBLISH: ${{ inputs.publish == true }}
         run: |
-          if ($env:RELEASE_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$') { throw 'Use a version tag such as v0.1.0' }
-          if (!(Test-Path -LiteralPath "docs/releases/$env:RELEASE_TAG.md")) { throw "Add release notes in docs/releases/$env:RELEASE_TAG.md" }
+          if ($env:RELEASE_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$') { throw "Invalid release tag format: $env:RELEASE_TAG" }
+          if ($env:IS_PUBLISH -eq 'True') {
+            if (!(Test-Path -LiteralPath "docs/releases/$env:RELEASE_TAG.md")) { throw "Add release notes in docs/releases/$env:RELEASE_TAG.md before publishing" }
+          }
       - name: Prepare pinned DEX test dependencies
         run: python -c "import sys; sys.path.insert(0, 'pgrazor'); import dex_bridges; dex_bridges.dependencies(download=True)"
       - run: python -B tools/check.py
@@ -92,39 +121,20 @@ jobs:
           PGRAZOR_INPUT_URL: ${{ secrets.PGRAZOR_INPUT_URL }}
           PGRAZOR_KEYSTORE_BASE64: ${{ secrets.PGRAZOR_KEYSTORE_BASE64 }}
         run: python -B tools/private_input.py
-      - name: Build playable package
-        env:
-          PGRAZOR_VERSION: ${{ inputs.tag }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python -B pgrazor/nonroot.py --apk pgrazor/input/game.apkm --google-browser-login
-      - name: Produce single installable APK
-        shell: pwsh
-        env:
-          PGRAZOR_VERSION: ${{ inputs.tag }}
-        run: |
-          $candidate = Get-ChildItem -LiteralPath pgrazor/build/nonroot -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          if (!$candidate) { throw 'Non-root package run is missing' }
-          python -B pgrazor/release_apk.py --run $candidate.FullName --output dist/release
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build rooted installer and manual module
-        # Keep this after release_apk.py: rooted.py appends both Root checksums.
         env:
-          PGRAZOR_VERSION: ${{ inputs.tag }}
-        run: python -B pgrazor/rooted.py pgrazor/input/game.apkm --skip-build --download --output dist/release
-      - name: Verify all three release downloads
-        env:
-          RELEASE_TAG: ${{ inputs.tag }}
+          PGRAZOR_VERSION: ${{ env.RELEASE_TAG }}
+        run: python -B pgrazor/rooted.py pgrazor/input/game.apkm --download --output dist/release
+      - name: Verify release downloads
         run: python -B tools/verify_release.py dist/release --tag $env:RELEASE_TAG
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: PGRazor-android
           path: |
-            dist/release/PGRazor.apk
             dist/release/PGRazor-Root.apk
             dist/release/PGRazor-Root-module.zip
             dist/release/root-build-info.json
             dist/release/SHA256SUMS.txt
-            dist/release/build-info.json
           if-no-files-found: error
           retention-days: 3
       - name: Remove signing key
@@ -153,17 +163,17 @@ jobs:
           python-version: '3.12'
       - name: Verify downloaded release assets
         env:
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
         run: python -B tools/verify_release.py release --tag "$RELEASE_TAG"
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
           RELEASE_COMMIT: ${{ github.sha }}
         run: |
           cat "docs/releases/$RELEASE_TAG.md" docs/releases/footer.md > "$RUNNER_TEMP/release-notes.md"
-          assets=(release/PGRazor.apk release/PGRazor-Root.apk release/PGRazor-Root-module.zip release/SHA256SUMS.txt release/build-info.json release/root-build-info.json)
+          assets=(release/PGRazor-Root.apk release/PGRazor-Root-module.zip release/SHA256SUMS.txt release/root-build-info.json)
           highlight="docs/releases/$RELEASE_TAG-quick-menu.png"
           if [ -f "$highlight" ]; then
             cp "$highlight" release/release-highlight.png
@@ -171,9 +181,10 @@ jobs:
           fi
           gh release create "$RELEASE_TAG" "${assets[@]}" --target "$RELEASE_COMMIT" --title "PGRazor $RELEASE_TAG" --latest --notes-file "$RUNNER_TEMP/release-notes.md"
   discord:
-    needs: release
+    needs: [build, release]
+    if: inputs.publish == true
     uses: ./.github/workflows/discord-release.yml
     with:
-      tag: ${{ inputs.tag }}
+      tag: ${{ needs.build.outputs.tag }}
     secrets:
       DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
