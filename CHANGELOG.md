@@ -8,6 +8,7 @@
 
 ### Improvements & fixes
 
+- Updated to latest game version (0.439.0)
 - Fixed a Root startup crash when Vector replaces an ARM64 runtime hook during launch.
 
 ## v0.3.6
