@@ -127,6 +127,8 @@ def main():
     run('java','-cp',BUILD/'tests','dev.pgrazor.ShundoPacingTest')
     run('javac','-encoding','UTF-8','-d',BUILD/'tests',ROOT/'src/dev/pgrazor/FeedSpots.java',ROOT/'test/FeedSpotsTest.java')
     run('java','-cp',BUILD/'tests','dev.pgrazor.FeedSpotsTest')
+    run('javac','-encoding','UTF-8','-d',BUILD/'tests',ROOT/'src/dev/pgrazor/PokemonDump.java',ROOT/'test/PokemonDumpTest.java')
+    run('java','-cp',BUILD/'tests','dev.pgrazor.PokemonDumpTest')
     if args.test_only: return
     version = release_version(ROOT)
     # Fresh outputs prevent a failed compiler from silently reusing old classes.

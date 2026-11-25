@@ -43,6 +43,7 @@ def control_shell():
     specs.append(('transferKeepIvConfig', '', 'String'))
     specs.append(('autoBoostConfig', '', 'String'))
     specs.append(('concealUsernameConfig', '', 'String'))
+    specs.append(('pokemonDumpConfig', '', 'String'))
     methods = []
     for name, params, expected_result in specs:
         actual = re.search(r'public static\s+(?:synchronized\s+)?([\w\[\]]+)\s+' + name + r'\(([^)]*)\)', source)

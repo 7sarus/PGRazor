@@ -43,6 +43,7 @@
 #include "vgp_results.h"
 #include "gym_automation.h"
 #include "batch_evolution.h"
+#include "pokemon_dump.h"
 #include "evolve_transfer.h"
 #include "heal.h"
 #include "auto_boost.h"
@@ -2570,6 +2571,7 @@ static int api_tick(uint64_t proven_tid) {
     pgr_route_gift_tick(os_tid, &g_md);
   }
   pgr_storage_iv_tick(os_tid, &g_md);
+  pgr_pokemon_dump_tick(os_tid, &g_md);
   pgr_cutscene_skip_tick(os_tid, &g_md);
   pgr_rocket_swap_tick(os_tid);
   pgr_smart_battle_tick(os_tid, &g_md);

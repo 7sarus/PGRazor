@@ -649,6 +649,7 @@ final class SettingsPanel {
 
         LinearLayout tools = group(page, "Tools");
         launch(tools, "Mass Evolve", () -> BatchEvolutionSettings.show(activity));
+        launch(tools, "Export owned Pokemon", () -> PokemonDumpSettings.request(activity));
     }
 
     private void buildGoPlusPage() {

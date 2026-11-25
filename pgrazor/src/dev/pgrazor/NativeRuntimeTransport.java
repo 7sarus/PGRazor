@@ -33,7 +33,7 @@ public final class NativeRuntimeTransport {
     private static final int[] HEALTH_FIELDS={0,3,23,25,29,36,37,38,16};
 
     // Wire constants, compiled identically in runtime_transport.h.
-    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 25, FLAG_INERT = 1;
+    private static final int MAGIC_SNAPSHOT = 0x53524750, MAGIC_EVENTS = 0x45524750, FRAME_VERSION = 26, FLAG_INERT = 1;
     private static final int OFF_MAGIC = 0, OFF_VERSION = 4, OFF_FRAME_SIZE = 8, OFF_FLAGS = 12, OFF_SEQ = 16,
         OFF_WALL = 24, OFF_BOOLS = 32, OFF_INTS = 80, OFF_DOUBLES = 120, OFF_PULSES = 136, OFF_STRINGS = 160;
     private static final int EVENT_HEADER = 32, ACTION_COUNT = 60;
@@ -98,7 +98,7 @@ public final class NativeRuntimeTransport {
     private final Exchange exchange;
     private final Method[] boolReaders, intReaders, doubleReaders, stringReaders, pulseReaders, actions;
     private final Class<?>[][] actionParams;
-    private final Method snapshotReader, smartCatchReader, gymAutomationReader, buddyEmotionReader, buddyEmotionHistoryReader, batchEvolutionReader, automationReader, researchReader, storageIvReader, catchChanceReader, pvpKeepReader, cutsceneSkipReader, healReader, shundoReader, shinyScanReader, batteryReader, smartBattleReader, evolveTransferReader, routeGiftReader, transferKeepIvReader, autoBoostReader, concealUsernameReader, eventAction;
+    private final Method snapshotReader, smartCatchReader, gymAutomationReader, buddyEmotionReader, buddyEmotionHistoryReader, batchEvolutionReader, automationReader, researchReader, storageIvReader, catchChanceReader, pvpKeepReader, cutsceneSkipReader, healReader, shundoReader, shinyScanReader, batteryReader, smartBattleReader, evolveTransferReader, routeGiftReader, transferKeepIvReader, autoBoostReader, concealUsernameReader, pokemonDumpReader, eventAction;
     private final long[] pulseCounts = new long[PULSE_READERS.length];
     private ByteBuffer snapshotBuffer, eventBuffer;
     private long seq;
@@ -150,6 +150,7 @@ public final class NativeRuntimeTransport {
         transferKeepIvReader = reader("transferKeepIvConfig", String.class);
         autoBoostReader = reader("autoBoostConfig", String.class);
         concealUsernameReader = reader("concealUsernameConfig", String.class);
+        pokemonDumpReader = reader("pokemonDumpConfig", String.class);
         actions = new Method[ACTIONS.length];
         actionParams = new Class<?>[ACTIONS.length][];
         if (ACTIONS.length != ACTION_COUNT) throw invalid();
@@ -382,6 +383,7 @@ public final class NativeRuntimeTransport {
         putString(buffer, readSnapshot(transferKeepIvReader)); // slot 25
         putString(buffer, readSnapshot(autoBoostReader)); // slot 26
         putString(buffer, readSnapshot(concealUsernameReader)); // slot 27
+        putString(buffer, readSnapshot(pokemonDumpReader)); // slot 28
         int frameSize = buffer.position();
         buffer.putInt(OFF_MAGIC, MAGIC_SNAPSHOT);
         buffer.putInt(OFF_VERSION, FRAME_VERSION);

@@ -289,6 +289,7 @@ public final class Control {
     public static boolean automationPlanning(){return autoWalkPlanning||gameRoutesPlanning;}
     public static String oneShotAutomationConfig(){String raid=AutoRaid.config();if(raid!=null)return raid;String rocket=AutoRocket.config();if(rocket!=null)return rocket;String gift=GiftBatchSettings.config();return gift!=null?gift:OneShotAutomation.config();}
     public static String batchEvolutionConfig(){return BatchEvolutionSettings.config();}
+    public static String pokemonDumpConfig(){return PokemonDumpSettings.config();}
     public static String researchConfig(){return ResearchSettings.config();}
     public static String shundoConfig(){return ShundoSniper.config();}
     public static String shinyScanConfig(){return ShinyScanner.config();}
@@ -1578,6 +1579,7 @@ public final class Control {
         if("buddy-emotion".equals(kind))BuddyEmotionSettings.publish(detail);
         if("remote-gym".equals(kind)||"incense-bird".equals(kind)||"incense-session".equals(kind)||"incense-open".equals(kind))OneShotAutomation.publish(kind,detail);
         if("batch-evolution".equals(kind))BatchEvolutionSettings.publish(detail);
+        if("pokemon-dump".equals(kind))PokemonDumpSettings.publish(detail);
         if("gift-batch".equals(kind))GiftBatchSettings.publish(detail);
         if("research".equals(kind))ResearchSettings.publish(detail);
         if("session-stats".equals(kind))SessionStats.publish(detail);
