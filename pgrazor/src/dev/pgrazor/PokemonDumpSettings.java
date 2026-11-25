@@ -1,13 +1,20 @@
 package dev.pgrazor;
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.MediaStore;
 import android.util.AtomicFile;
 import android.widget.Toast;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,16 +67,13 @@ public final class PokemonDumpSettings {
                 return;
             }
             List<PokemonDump.Entry> rows = entries(event.getJSONArray("pokemon"), PokemonSpeciesDialog.readNames(app));
-            File dir = app.getExternalFilesDir("pgrazor-dumps");
-            if (dir == null) dir = new File(app.getFilesDir(), "pgrazor-dumps");
-            if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Cannot create export folder");
-            write(new File(dir, "pokemon-dump.json"), PokemonDump.json(rows));
-            write(new File(dir, "pokemon-pvpoke.csv"), PokemonDump.csv(rows));
+            String location = save(app, "pokemon-dump.json", "application/json", PokemonDump.json(rows));
+            save(app, "pokemon-pvpoke.csv", "text/csv", PokemonDump.csv(rows));
             int withoutLevel = 0;
             for (PokemonDump.Entry e : rows) if (e.levelHalf < 0) withoutLevel++;
             String notes = (withoutLevel > 0 ? " " + withoutLevel + " without a known level are left out of the CSV." : "")
                 + (event.optBoolean("named", true) ? "" : " Move names unavailable; move ids were written.");
-            toast(app, "Exported " + rows.size() + " Pokemon to " + dir.getAbsolutePath() + "." + notes);
+            toast(app, "Exported " + rows.size() + " Pokemon to " + location + "." + notes);
         } catch (Exception e) {
             if (app != null) toast(app, "Export failed: " + e.getMessage());
         }
@@ -90,6 +94,34 @@ public final class PokemonDumpSettings {
                 r.optString("nickname")));
         }
         return out;
+    }
+
+    /** Android 10+ writes to Downloads/PGRazor through MediaStore, which needs no storage permission for our own rows. */
+    private static String save(Context app, String name, String mime, String text) throws IOException {
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        if (Build.VERSION.SDK_INT < 29) {
+            File dir = app.getExternalFilesDir("pgrazor-dumps");
+            if (dir == null) dir = new File(app.getFilesDir(), "pgrazor-dumps");
+            if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Cannot create export folder");
+            write(new File(dir, name), text);
+            return dir.getAbsolutePath();
+        }
+        String path = Environment.DIRECTORY_DOWNLOADS + "/PGRazor/";
+        ContentResolver resolver = app.getContentResolver();
+        resolver.delete(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            MediaStore.MediaColumns.DISPLAY_NAME + "=? AND " + MediaStore.MediaColumns.RELATIVE_PATH + "=?",
+            new String[] {name, path});
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        values.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, path);
+        Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new IOException("Cannot create " + name);
+        try (OutputStream out = resolver.openOutputStream(uri)) {
+            if (out == null) throw new IOException("Cannot write " + name);
+            out.write(bytes);
+        }
+        return path;
     }
 
     private static void write(File file, String text) throws IOException {
