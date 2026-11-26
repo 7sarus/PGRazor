@@ -37,6 +37,13 @@ public final class PokemonDumpTest {
         expect(json.contains("\"level\":null"), "unknown level is JSON null");
         expect("\"a\\\"b\\\\c\\u0001\"".equals(PokemonDump.jsonString("a\"b\\c\u0001")), "JSON strings are escaped");
 
+        PokemonDump.Entry emptyMoves = new PokemonDump.Entry(1, "Bulbasaur", false, 100, 20, 1, 1, 1, "", "", "", "");
+        expect("bulbasaur,none,none,none,10,1,1,1".equals(PokemonDump.pvpokeRow(emptyMoves)), "missing moves become none");
+        expect("Exported 5 Pokemon to Download/PGRazor/.".equals(PokemonDump.summary(5, "Download/PGRazor/", 0, true)), "clean summary");
+        expect(("Exported 5 Pokemon to Download/PGRazor/. 2 without a known level are left out of the CSV."
+            + " Move names unavailable; move ids were written.").equals(PokemonDump.summary(5, "Download/PGRazor/", 2, false)),
+            "summary includes missing level and move id notes");
+
         System.out.println("PokemonDump tests passed");
     }
 }

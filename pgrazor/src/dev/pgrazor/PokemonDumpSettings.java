@@ -29,11 +29,22 @@ public final class PokemonDumpSettings {
     private static final long TIMEOUT_MS = 60000;
     private static long nextToken = System.currentTimeMillis();
     private static long token, startedAt;
+    private static int expectedIndex;
+    private static boolean allNamed = true;
+    private static final List<PokemonDump.Entry> accumulated = new ArrayList<>();
     private static Context context;
 
     /** Polled by the transport daemon: "D|token" while an export is armed, else empty. */
     public static String config() {
-        synchronized (LOCK) { return token == 0 ? "" : "D|" + token; }
+        long now = System.currentTimeMillis();
+        synchronized (LOCK) {
+            if (token != 0 && now - startedAt >= TIMEOUT_MS) clearLocked();
+            return token == 0 ? "" : "D|" + token;
+        }
+    }
+
+    public static void reset() {
+        synchronized (LOCK) { clearLocked(); }
     }
 
     public static void request(Context app) {
@@ -43,6 +54,7 @@ public final class PokemonDumpSettings {
                 toast(app, "An export is already running.");
                 return;
             }
+            clearLocked();
             context = app.getApplicationContext();
             token = ++nextToken;
             startedAt = now;
@@ -50,33 +62,66 @@ public final class PokemonDumpSettings {
         toast(app, "Exporting owned Pokemon. Keep the game open on the map or in storage.");
     }
 
-    /** Writes the files for the armed export. Any other token is ignored. */
+    /** Reassembles and writes the files for the armed export. Any other token is ignored. */
     public static void publish(String detail) {
         Context app = null;
+        long eventToken = 0;
         try {
             JSONObject event = new JSONObject(detail);
-            long eventToken = event.optLong("token");
+            eventToken = event.optLong("token");
+            String phase = event.optString("phase");
             synchronized (LOCK) {
                 if (token == 0 || eventToken != token) return;
-                token = 0;
                 app = context;
+                if ("error".equals(phase)) {
+                    clearLocked();
+                    if (app != null) toast(app, "Export failed: " + event.optString("message", "unknown error"));
+                    return;
+                }
+                if (!"part".equals(phase) && !"done".equals(phase)) {
+                    clearLocked();
+                    if (app != null) toast(app, "Export failed: " + event.optString("message", "unknown error"));
+                    return;
+                }
             }
             if (app == null) return;
-            if (!"done".equals(event.optString("phase"))) {
-                toast(app, "Export failed: " + event.optString("message", "unknown error"));
-                return;
+            int index = event.optInt("index", 0), count = event.optInt("count", 1);
+            List<PokemonDump.Entry> part = entries(event.getJSONArray("pokemon"), PokemonSpeciesDialog.readNames(app));
+            List<PokemonDump.Entry> finished = null;
+            boolean finalNamed = true;
+            synchronized (LOCK) {
+                if (token == 0 || eventToken != token) return;
+                if (count < 1 || index != expectedIndex || index >= count || ("done".equals(phase) && index + 1 != count)) {
+                    clearLocked();
+                    toast(app, "Export failed: incomplete export data.");
+                    return;
+                }
+                accumulated.addAll(part);
+                allNamed &= event.optBoolean("named", true);
+                startedAt = System.currentTimeMillis();
+                expectedIndex++;
+                if ("done".equals(phase)) {
+                    finished = new ArrayList<>(accumulated);
+                    finalNamed = allNamed;
+                    clearLocked();
+                }
             }
-            List<PokemonDump.Entry> rows = entries(event.getJSONArray("pokemon"), PokemonSpeciesDialog.readNames(app));
-            String location = save(app, "pokemon-dump.json", "application/json", PokemonDump.json(rows));
-            save(app, "pokemon-pvpoke.csv", "text/csv", PokemonDump.csv(rows));
+            if (finished == null) return;
+            String location = save(app, "pokemon-dump.json", "application/json", PokemonDump.json(finished));
+            save(app, "pokemon-pvpoke.csv", "text/csv", PokemonDump.csv(finished));
             int withoutLevel = 0;
-            for (PokemonDump.Entry e : rows) if (e.levelHalf < 0) withoutLevel++;
-            String notes = (withoutLevel > 0 ? " " + withoutLevel + " without a known level are left out of the CSV." : "")
-                + (event.optBoolean("named", true) ? "" : " Move names unavailable; move ids were written.");
-            toast(app, "Exported " + rows.size() + " Pokemon to " + location + "." + notes);
+            for (PokemonDump.Entry e : finished) if (e.levelHalf < 0) withoutLevel++;
+            toast(app, PokemonDump.summary(finished.size(), location, withoutLevel, finalNamed));
         } catch (Exception e) {
+            synchronized (LOCK) { if (token != 0 && eventToken == token) clearLocked(); }
             if (app != null) toast(app, "Export failed: " + e.getMessage());
         }
+    }
+
+    private static void clearLocked() {
+        token = 0; startedAt = 0; expectedIndex = 0; allNamed = true;
+        accumulated.clear();
+        context = null;
     }
 
     private static List<PokemonDump.Entry> entries(JSONArray rows, JSONObject names) {

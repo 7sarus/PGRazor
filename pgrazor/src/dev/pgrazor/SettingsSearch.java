@@ -179,6 +179,7 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Pokémon stats IV display", "Show IV details on the Pokémon stats screen.");
         put(DESCRIPTIONS, "Storage list IV display", "Show IV details in the Pokémon storage list.");
         put(DESCRIPTIONS, "Mass Evolve", "Evolve many Pokémon in one run.");
+        put(DESCRIPTIONS, "Export owned Pokemon", "Export owned Pokémon to JSON and PvPoke CSV.");
         put(DESCRIPTIONS, "VGP overlay", "Show the Virtual Go Plus button and status on the map.");
         put(DESCRIPTIONS, "VGP+ mode", "Extended Virtual Go Plus ball, berry and throw control.");
         put(DESCRIPTIONS, "VGP+ auto ball", "Pick a ball by catch chance for VGP+.");
@@ -291,6 +292,7 @@ final class SettingsSearch {
         put(SYNONYMS, "Low graphics quality", "graphics quality battery performance shadows");
         put(SYNONYMS, "Export / import settings", "backup restore settings");
         put(SYNONYMS, "Run log / export", "log txt diagnostics export");
+        put(SYNONYMS, "Export owned Pokemon", "dump storage pvpoke csv json backup");
         put(SYNONYMS, "Shiny Scanner (Experimental)", "shiny scan scanner notification");
         put(SYNONYMS, "Shundo Sniper (Experimental)", "shundo sniper teleport shiny");
     }

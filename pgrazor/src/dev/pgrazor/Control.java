@@ -1237,6 +1237,7 @@ public final class Control {
         AutoRocket.reset();
         GiftBatchSettings.reset();
         BatchEvolutionSettings.reset();
+        PokemonDumpSettings.reset();
         synchronized(stateLock) {
             if(settingsFile==null) {
                 // Create the destination and its writer once so the sink can close over a stable

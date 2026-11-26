@@ -87,6 +87,12 @@ public final class PokemonDump {
         return sorted;
     }
 
+    static String summary(int count, String location, int withoutLevel, boolean named) {
+        return "Exported " + count + " Pokemon to " + location + "."
+            + (withoutLevel > 0 ? " " + withoutLevel + " without a known level are left out of the CSV." : "")
+            + (named ? "" : " Move names unavailable; move ids were written.");
+    }
+
     private static String orNone(String move) {
         return move.isEmpty() ? "none" : move;
     }

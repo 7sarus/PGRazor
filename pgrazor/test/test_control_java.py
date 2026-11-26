@@ -129,7 +129,7 @@ public class AccountProfiles {
 public class Pad {public final android.app.Activity activity; public Pad(android.app.Activity a){activity=a;} public void close(){} public void confirmStopRoute(){} public void confirmMapTeleport(double lat,double lon,int mode,int epoch){}}''',
     'dev/pgrazor/LogActivity.java': 'package dev.pgrazor; public class LogActivity extends android.app.Activity {}',
     'dev/pgrazor/BatchEvolutionSettings.java': 'package dev.pgrazor; public final class BatchEvolutionSettings { public static String config(){return "1|0|0|Evolve";} public static boolean enabled(){return false;} public static void reset(){} public static void publish(String s){} }',
-    'dev/pgrazor/PokemonDumpSettings.java': 'package dev.pgrazor; public final class PokemonDumpSettings { public static String config(){return "";} public static void publish(String s){} }',
+    'dev/pgrazor/PokemonDumpSettings.java': 'package dev.pgrazor; public final class PokemonDumpSettings { public static String config(){return "";} public static void reset(){} public static void publish(String s){} }',
     'dev/pgrazor/OneShotAutomation.java': '''package dev.pgrazor;
 public final class OneShotAutomation {
  public static void reset(){} public static boolean enabled(){return false;}

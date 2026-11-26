@@ -7,10 +7,11 @@
 #include <dlfcn.h>
 #include <map>
 #include <string>
+#include <time.h>
 #include <unistd.h>
 #include <vector>
 // One-shot export of every owned Pokemon. Java arms a token in transport string slot 28 ("D|<token>");
-// the next game tick reads the live bag once and emits one "pokemon-dump" event. Read-only.
+// the next game tick reads the live bag once and streams bounded "pokemon-dump" chunks. Read-only.
 namespace {
 using namespace pgr_shared_meta;
 
@@ -18,10 +19,20 @@ struct Failure {const char *where;};
 void require(bool ok,const char *where){if(!ok)throw Failure{where};}
 
 constexpr int kSlot=28;
-constexpr size_t kMaxBytes=512*1024;  // leaves headroom under the transport's 1 MiB queue budget
+constexpr size_t kChunkBytes=192*1024;  // fits multiple times inside even a 512 KiB queue budget
+constexpr uint64_t kChunkGapMs=150;
 PgrBootBinding boot{};const PgrSharedMetadataOutput *md=nullptr;
 uint64_t last_token=0;
 std::vector<float> cpm;  // cpm[i] = CP multiplier at level i+1
+std::map<int,std::string> cached_moves;
+struct PendingStream {
+ std::vector<std::string> chunks;
+ size_t index=0;
+ uint64_t next_send_ms=0;
+ void clear(){chunks.clear();index=0;next_send_ms=0;}
+} pending;
+
+uint64_t now_ms(){timespec t{};clock_gettime(CLOCK_MONOTONIC,&t);return uint64_t(t.tv_sec)*1000+uint64_t(t.tv_nsec)/1000000;}
 
 template<class F>F fn(void *p){require(p,"missing runtime export");return reinterpret_cast<F>(p);}
 void *exp(const char *name){std::string n="il2cpp_";n+=name;void *p=dlsym(boot.handle,n.c_str());require(p,name);return p;}
@@ -91,6 +102,7 @@ std::vector<void*> owned(Root &hold){
 }
 
 void load_levels(void *gm){
+ if(!cpm.empty())return;
  require(unbox<bool>(call(gm,"get_IsReady")),"game master not ready");
  void *at_level=method(cls("Niantic.Holoholo","GameMasterDataExt_PlayerLevelSettings"),"CpMultiplierAtLevel",2);
  std::vector<float> table;
@@ -116,16 +128,18 @@ int level_half(float multiplier){
  return -1;
 }
 
+void *enum_class_of_field(void *owner_class,const char *field_name){
+ if(!owner_class)return nullptr;
+ void *f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(owner_class,field_name);
+ void *t=f?fn<void*(*)(void*)>(boot.meta.field_get_type)(f):nullptr;
+ void *ek=t?fn<void*(*)(void*)>(boot.meta.class_from_type)(t):nullptr;
+ return (ek&&fn<bool(*)(void*)>(boot.meta.class_is_enum)(ek))?ek:nullptr;
+}
+
 // Resolves move enum via PokemonProto.move1_ first, then Holoholo.Rpc.HoloPokemonMove / PokemonMove.
 void *move_enum_class(){
  try{
-  void *pk=cls("Holoholo.Rpc","PokemonProto");
-  void *f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(pk,"move1_");
-  if(f){
-   void *t=fn<void*(*)(void*)>(boot.meta.field_get_type)(f);
-   void *ek=t?fn<void*(*)(void*)>(boot.meta.class_from_type)(t):nullptr;
-   if(ek&&fn<bool(*)(void*)>(boot.meta.class_is_enum)(ek))return ek;
-  }
+  if(void *ek=enum_class_of_field(cls("Holoholo.Rpc","PokemonProto"),"move1_"))return ek;
  }catch(const Failure&){}
  const char *candidates[]={"HoloPokemonMove","PokemonMove"};
  for(const char *name:candidates){
@@ -135,8 +149,9 @@ void *move_enum_class(){
 }
 
 // Move names come from the game's HoloPokemonMove enum ("V0224MovePoisonJabFast" -> "POISON_JAB_FAST").
-// Returns false when no named literals are found, so the caller writes numeric ids instead.
-bool read_move_names(std::map<int,std::string> &names){
+// Cached per process; returns false when no named literals are found, so the caller writes numeric ids instead.
+bool read_move_names(){
+ if(!cached_moves.empty())return true;
  void *k=move_enum_class();
  if(!k)return false;
  auto next_field=fn<void*(*)(void*,void**)>(exp("class_get_fields"));auto name_of=fn<const char*(*)(void*)>(exp("field_get_name"));
@@ -145,14 +160,25 @@ bool read_move_names(std::map<int,std::string> &names){
   if((fn<int(*)(void*)>(boot.meta.field_get_flags)(f)&0x8050)!=0x8050)continue;  // static literal: one enum value
   int value=0;fn<void(*)(void*,void*)>(boot.runtime.field_static_get_value)(f,&value);
   std::string formatted=pgr_format_pokemon_move_name(name_of(f));
-  if(!formatted.empty())names.emplace(value,std::move(formatted));
+  if(!formatted.empty())cached_moves.emplace(value,std::move(formatted));
  }
- return !names.empty();
+ return !cached_moves.empty();
 }
-std::string move_name(int id,const std::map<int,std::string> &names){
+int shadow_alignment_value(void *display_class){
+ static int shadow_value=-2;  // -2 unresolved, -1 unavailable
+ if(shadow_value!=-2)return shadow_value;
+ void *ek=enum_class_of_field(display_class,"Alignment");
+ void *lit=ek?fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(ek,"Shadow"):nullptr;
+ if(lit&&(fn<int(*)(void*)>(boot.meta.field_get_flags)(lit)&0x8050)==0x8050){
+  int v=0;fn<void(*)(void*,void*)>(boot.runtime.field_static_get_value)(lit,&v);
+  if(v>0)return shadow_value=v;
+ }
+ return shadow_value=-1;
+}
+std::string move_name(int id,bool named){
  if(!id)return "";
- auto it=names.find(id);
- return it!=names.end()?it->second:std::to_string(id);
+ if(named){auto it=cached_moves.find(id);if(it!=cached_moves.end())return it->second;}
+ return std::to_string(id);
 }
 std::string json_string(const std::string &s){
  std::string out="\"";
@@ -160,32 +186,29 @@ std::string json_string(const std::string &s){
  return out+"\"";
 }
 
-std::string dump(uint64_t token){
+std::vector<std::string> dump(uint64_t token){
  Root gm=resolve("","IGameMasterData");require(bool(gm),"game master unavailable");
  load_levels(gm.get());
- std::map<int,std::string> names;const bool named=read_move_names(names);
- Root hold;std::string rows;int count=0;
+ const bool named=read_move_names();
+ Root hold;std::vector<std::string> rows;
  for(void *p:owned(hold)){
   if(get<bool>(p,"isEgg_"))continue;
   void *display=get<void*>(p,"pokemonDisplay_");
-  const bool shadow=display&&get<int>(display,"Alignment")==1;
+  const int shadow_val=display?shadow_alignment_value(klass(display)):-1;
+  const bool shadow=display&&shadow_val>0&&get<int>(display,"Alignment")==shadow_val;
   const float multiplier=get<float>(p,"cpMultiplier_")+get<float>(p,"additionalCpMultiplier_");
-  std::string row="{\"dex\":"+std::to_string(get<int>(p,"pokemonId_"))
+  rows.push_back("{\"dex\":"+std::to_string(get<int>(p,"pokemonId_"))
    +",\"shadow\":"+(shadow?"true":"false")
    +",\"cp\":"+std::to_string(get<int>(p,"cp_"))
    +",\"levelHalf\":"+std::to_string(level_half(multiplier))
    +",\"atk\":"+std::to_string(get<int>(p,"individualAttack_"))
    +",\"def\":"+std::to_string(get<int>(p,"individualDefense_"))
    +",\"hp\":"+std::to_string(get<int>(p,"individualStamina_"))
-   +",\"fast\":"+json_string(move_name(get<int>(p,"move1_"),names))
-   +",\"charged\":["+json_string(move_name(get<int>(p,"move2_"),names))+","+json_string(move_name(get<int>(p,"move3_"),names))+"]"
-   +",\"nickname\":"+json_string(string(get<void*>(p,"nickname_")))+"}";
-  if(count++)rows+=',';
-  rows+=row;
+   +",\"fast\":"+json_string(move_name(get<int>(p,"move1_"),named))
+   +",\"charged\":["+json_string(move_name(get<int>(p,"move2_"),named))+","+json_string(move_name(get<int>(p,"move3_"),named))+"]"
+   +",\"nickname\":"+json_string(string(get<void*>(p,"nickname_")))+"}");
  }
- std::string json="{\"token\":"+std::to_string(token)+",\"phase\":\"done\",\"named\":"+(named?"true":"false")+",\"pokemon\":["+rows+"]}";
- require(json.size()<=kMaxBytes,"too many Pokemon for one export");
- return json;
+ return pgr_build_pokemon_dump_chunks(token,named,rows,kChunkBytes);
 }
 
 uint64_t parse_token(const char *s,uint32_t len){
@@ -194,11 +217,10 @@ uint64_t parse_token(const char *s,uint32_t len){
  for(uint32_t i=2;i<len;i++){if(s[i]<'0'||s[i]>'9')return 0;v=v*10+uint64_t(s[i]-'0');}
  return v;
 }
-void publish(const std::string &json){
- const auto tr=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
+int publish(const PgrRuntimeTransportApi *tr,const std::string &json){
  const char kind[]="pokemon-dump";
  PgrRuntimeTransportString a[]={{kind,sizeof(kind)-1},{json.c_str(),uint32_t(json.size())}};
- if(tr)tr->emit(19,nullptr,0,a,2);
+ return tr?tr->emit(19,nullptr,0,a,2):PGR_TRANSPORT_ERR_NOT_INSTALLED;
 }
 } // namespace
 
@@ -207,19 +229,32 @@ void pgr_pokemon_dump_tick(uint64_t tid,const PgrSharedMetadataOutput *metadata)
  const auto tr=static_cast<const PgrRuntimeTransportApi*>(pgrazor_runtime_transport_api(1));
  if(!tr)return;
  char text[32]{};uint32_t len=0;
- if(tr->get_string(kSlot,text,sizeof(text),&len)!=PGR_TRANSPORT_OK)return;
- const uint64_t token=parse_token(text,len);
- if(!token||token==last_token)return;
- last_token=token;
- std::string json;
- try{
-  auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));
-  require(api&&api->snapshot(&boot)==0,"runtime bootstrap");md=metadata;require(md,"shared metadata");
-  json=dump(token);
- }catch(const Failure &e){
-  json="{\"token\":"+std::to_string(token)+",\"phase\":\"error\",\"message\":"+json_string(e.where)+"}";
- }catch(...){
-  json="{\"token\":"+std::to_string(token)+",\"phase\":\"error\",\"message\":\"Pokemon export stopped after an unexpected error\"}";
+ if(tr->get_string(kSlot,text,sizeof(text),&len)==PGR_TRANSPORT_OK){
+  const uint64_t token=parse_token(text,len);
+  if(token&&token!=last_token){
+   last_token=token;
+   pending.clear();
+   try{
+    auto api=static_cast<const PgrBootApi*>(pgrazor_runtime_bootstrap_api(1));
+    require(api&&api->snapshot(&boot)==0,"runtime bootstrap");md=metadata;require(md,"shared metadata");
+    pending.chunks=dump(token);
+   }catch(const Failure &e){
+    pending.chunks.push_back("{\"token\":"+std::to_string(token)+",\"phase\":\"error\",\"message\":"+json_string(e.where)+"}");
+   }catch(...){
+    pending.chunks.push_back("{\"token\":"+std::to_string(token)+",\"phase\":\"error\",\"message\":\"Pokemon export stopped after an unexpected error\"}");
+   }
+  }
  }
- publish(json);
+ if(pending.index>=pending.chunks.size())return;
+ const uint64_t now=now_ms();
+ if(now<pending.next_send_ms)return;
+ const int rc=publish(tr,pending.chunks[pending.index]);
+ if(rc==PGR_TRANSPORT_OK){
+  if(++pending.index>=pending.chunks.size())pending.clear();
+  else pending.next_send_ms=now+kChunkGapMs;
+ }else if(rc==PGR_TRANSPORT_STOPPED||rc==PGR_TRANSPORT_ERR_TOO_LARGE){
+  pending.clear();
+ }else{
+  pending.next_send_ms=now+kChunkGapMs;
+ }
 }
