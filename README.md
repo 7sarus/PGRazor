@@ -8,7 +8,6 @@ This fork builds and ships the Zygisk root module (`PGRazor-Root-module.zip`) an
 - Root and native builds ship only the `arm64-v8a` binary; the `x86_64` binary is omitted, so MuMu and other `x86_64` emulators are not supported.
 - CI and release jobs run on `ubuntu-latest` instead of `windows-latest`, and the Python build scripts locate Android SDK tools on both Linux and Windows without hardcoded `.bat` or `.exe` names.
 - Pushes to `feature/**` and `pr/**` trigger the release workflow and stamp the branch name and short commit SHA into the version string.
-- Tapping with three fingers toggles all overlays on and off, with a one-second debounce and suppression while Settings or the Quick Menu is open. The hide dialog adds a "Don't show this again" checkbox, which can be re-enabled under Settings > App > Display & Performance.
 - Community links in Settings and the release footer point to [Telegram](https://t.me/devvdump) instead of Discord.
 
 ## Root installation
