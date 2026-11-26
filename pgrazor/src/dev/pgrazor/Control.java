@@ -1173,10 +1173,6 @@ public final class Control {
         saveState();
     }
     private static boolean darkTheme=true, joystickVisible=true;
-    // Set false when the user ticks "Don't show this again" in the hide warning.
-    private static volatile boolean hideOverlaysWarning=true;
-    public static boolean hideOverlaysWarning(){return hideOverlaysWarning;}
-    public static void setHideOverlaysWarning(boolean value){hideOverlaysWarning=value;saveSettings();}
     // Visibility only. Bits are stable menu-entry IDs, independent of feature settings.
     private static volatile int quickMenuHidden;
     public static int quickMenuHidden(){return quickMenuHidden;}
@@ -1254,7 +1250,6 @@ public final class Control {
                 ShinyScanner.read(p);
                 desiredEnabled=Boolean.parseBoolean(p.getProperty("locationSpoofing","true"));
                 darkTheme=Boolean.parseBoolean(p.getProperty("darkTheme","true"));
-                hideOverlaysWarning=Boolean.parseBoolean(p.getProperty("hideOverlaysWarning","true"));
                 quickMenuHidden=boundedSetting(p,"quickMenuHidden",8191);
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
                 if(uiScalePercent!=25&&uiScalePercent!=50&&uiScalePercent!=75&&uiScalePercent!=100)uiScalePercent=100;
@@ -1423,7 +1418,6 @@ public final class Control {
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));
-        p.setProperty("hideOverlaysWarning",String.valueOf(hideOverlaysWarning));
         p.setProperty("quickMenuHidden",String.valueOf(quickMenuHidden));
         p.setProperty("idleWalking",String.valueOf(idleWalking));
         p.setProperty("spawnBooster",String.valueOf(spawnBooster));

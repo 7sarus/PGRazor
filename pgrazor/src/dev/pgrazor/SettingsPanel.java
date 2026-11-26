@@ -840,11 +840,6 @@ final class SettingsPanel {
             box.setChecked(Control.quickMenuVisible(bit));quickMenuChoices[i]=box;menu.addView(box);
             box.setOnClickListener(v->{Control.setQuickMenuVisible(bit,box.isChecked());host.refresh();});
         }
-        launch(menu, "Re-enable overlay hiding warnings", () -> {
-            if(Control.hideOverlaysWarning())return;
-            Control.setHideOverlaysWarning(true);
-            Toast.makeText(activity, "Overlay hiding warnings enabled", Toast.LENGTH_SHORT).show();
-        });
     }
 
     private void buildAccountsPage() {

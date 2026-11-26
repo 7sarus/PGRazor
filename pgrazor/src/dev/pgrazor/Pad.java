@@ -14,7 +14,8 @@ import java.util.Locale;
 public final class Pad {
     final Activity activity;
     private final FrameLayout parent;
-    // All overlays sit in this layer. "Hide overlay" hides them together; a three-finger tap toggles the layer.
+    // Every on-screen overlay lives in this full-screen layer so "Hide overlay" can hide them all at once;
+    // the three-finger watcher brings them back.
     private final FrameLayout overlays;
     private View unhideWatcher;
     private boolean overlaysHidden;
@@ -441,25 +442,17 @@ public final class Pad {
             } catch (IllegalArgumentException error) { speed.setError("Enter valid coordinates and speed (0.5–30)."); }
         })); dialog.show();styleTree(form);
     }
-    /** Ask before hiding, unless the user ticked "Don't show this again" in this dialog. */
+    /** "Hide overlay": confirm first, naming the three-finger tap that shows the overlays again. */
     void confirmHideOverlays() {
         if(closed||overlaysHidden||activity.isFinishing()||activity.isDestroyed()||hideOverlaysDialog!=null)return;
-        if(!Control.hideOverlaysWarning()){setOverlaysHidden(true);return;}
-        CheckBox dontShow=new CheckBox(dialogContext());
-        dontShow.setText("Don't show this again");
-        LinearLayout body=new LinearLayout(dialogContext());
-        body.setOrientation(LinearLayout.VERTICAL);
-        int pad=dp(16);body.setPadding(pad,pad,pad,pad);
-        body.addView(dontShow);
         AlertDialog dialog=new AlertDialog.Builder(dialogContext())
             .setTitle("Hide overlay?")
-            .setMessage("All PGRazor buttons, status bars, messages and in-game IV text will be hidden so the game looks stock. Tap the screen with three fingers at once to hide or show them again.")
-            .setView(body)
+            .setMessage("All PGRazor buttons, status bars, messages and in-game IV text will be hidden so the game looks stock. To show them again, tap the screen with three fingers at once.")
             .setNegativeButton("Cancel",null)
-            .setPositiveButton("Hide",(d,w)->{if(dontShow.isChecked())Control.setHideOverlaysWarning(false);setOverlaysHidden(true);}).create();
+            .setPositiveButton("Hide",(d,w)->setOverlaysHidden(true)).create();
         hideOverlaysDialog=dialog;
         DialogLifecycle.bind(activity,dialog,()->{if(hideOverlaysDialog==dialog)hideOverlaysDialog=null;});
-        dialog.setOnShowListener(d->{styleTree(body);MapTheme.styleButtons(dialog);});
+        dialog.setOnShowListener(d->MapTheme.styleButtons(dialog));
         dialog.show();
     }
     private void setOverlaysHidden(boolean hidden){
@@ -471,23 +464,20 @@ public final class Pad {
         if(!hidden){Toast.makeText(activity,"PGRazor overlay shown",Toast.LENGTH_SHORT).show();refresh();}
     }
     /**
-     * Watches down events on the decor view and consumes none, so the game still gets the touch.
-     * Android sends one down event per finger. Three within 250 ms and at least 24dp apart toggle
-     * the overlays.
+     * Sees every finger that touches down anywhere on screen and never takes the touch, so the game
+     * and the overlays behave as before. The decor view splits multi-finger touches, so each finger
+     * arrives here as its own down event. While the overlay is hidden, three fingers landing within
+     * 250 ms at least 24dp apart show it again; one finger tapping the same spot quickly does not.
      */
     private final class ThreeFingerWatcher extends View {
         private final long[] times=new long[3];
         private final float[] xs=new float[3],ys=new float[3];
         private int next;
-        private long lastToggle;
         ThreeFingerWatcher(Context context){super(context);setClickable(false);setFocusable(false);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
         @Override public boolean dispatchTouchEvent(MotionEvent e){
             int action=e.getActionMasked();
-            // Skip while settings or the quick menu is up; a hide there also dismisses that panel.
-            if(settings.isVisible()||(quickMenu!=null&&quickMenu.isShowing())||(action!=MotionEvent.ACTION_DOWN&&action!=MotionEvent.ACTION_POINTER_DOWN))return false;
-            // Debounce the rest of this multi-touch sequence so one tap toggles once.
-            if(SystemClock.uptimeMillis()-lastToggle<1000)return false;
-            // Keep the last three downs and test them as a group.
+            if(!overlaysHidden||(action!=MotionEvent.ACTION_DOWN&&action!=MotionEvent.ACTION_POINTER_DOWN))return false;
+            if(e.getPointerCount()>=3){unhide();return false;}
             int index=e.getActionIndex();
             times[next]=e.getEventTime();xs[next]=e.getX(index);ys[next]=e.getY(index);next=(next+1)%3;
             long newest=e.getEventTime();float apart=dp(24);
@@ -496,14 +486,10 @@ public final class Pad {
                 together=times[i]!=0&&newest-times[i]<=250;
                 for(int j=i+1;j<3&&together;j++)together=Math.hypot(xs[i]-xs[j],ys[i]-ys[j])>=apart;
             }
-            if(together)toggle();
+            if(together)unhide();
             return false;
         }
-        private void toggle(){
-            lastToggle=SystemClock.uptimeMillis();
-            java.util.Arrays.fill(times,0);
-            post(()->{if(overlaysHidden)setOverlaysHidden(false);else confirmHideOverlays();});
-        }
+        private void unhide(){java.util.Arrays.fill(times,0);post(()->setOverlaysHidden(false));}
     }
     /** A ground tap must never silently replace a planned route. */
     void confirmStopRoute() {
