@@ -7,9 +7,9 @@
 struct PgrSharedMetadataOutput;
 
 // Conceal username: while enabled, replaces the active account's trainer name in Unity text
-// setters and dialogue speech calls with "noneofyourbusiness", without altering IPlayerService
-// itself so account management and game requests keep working. Settings ride transport string
-// slot 27 ("U1|0" or "U1|1"). Unity owner thread only.
+// setters and dialogue speech calls with "noneofyourbusiness" or a custom alphanumeric string,
+// without altering IPlayerService itself so account management and game requests keep working.
+// Settings ride transport string slot 27 ("U2|<0|1>|<alnum>" or legacy "U1|<0|1>"). Unity owner thread only.
 void pgr_conceal_username_tick(uint64_t tid, const PgrSharedMetadataOutput *metadata);
 void pgr_conceal_username_stop(uint64_t tid);
 
@@ -18,19 +18,45 @@ namespace pgr_conceal_username {
 inline constexpr const char *kReplacement = "noneofyourbusiness";
 inline constexpr const char16_t kReplacementUtf16[] = u"noneofyourbusiness";
 inline constexpr size_t kReplacementLen = 18;
+inline constexpr size_t kMaxReplacementLen = 24;
 
 struct Config {
   bool valid = false;
   bool enabled = false;
+  std::string replacement;
+  std::u16string replacement_utf16;
 };
 
-// "U1|0" or "U1|1"; anything else is invalid (off).
+inline bool is_alnum_ascii(char c) {
+  return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+// "U2|<0|1>|<1..24 alphanumeric>" or legacy "U1|<0|1>"; anything else is invalid (off).
 inline Config parse(const char *s) {
   Config c;
+  if (!s) return c;
   int on = 0, end = 0;
-  if (!s || std::sscanf(s, "U1|%d%n", &on, &end) != 1 || s[end] || (on != 0 && on != 1)) return c;
+  if (std::sscanf(s, "U1|%d%n", &on, &end) == 1 && !s[end] && (on == 0 || on == 1)) {
+    c.valid = true;
+    c.enabled = (on == 1);
+    c.replacement = kReplacement;
+    c.replacement_utf16.assign(kReplacementUtf16, kReplacementUtf16 + kReplacementLen);
+    return c;
+  }
+  if (std::sscanf(s, "U2|%d|%n", &on, &end) != 1 || (on != 0 && on != 1)) return c;
+  const char *rep = s + end;
+  const size_t rep_len = std::strlen(rep);
+  if (rep_len == 0 || rep_len > kMaxReplacementLen) return c;
+  for (size_t i = 0; i < rep_len; ++i) {
+    if (!is_alnum_ascii(rep[i])) return c;
+  }
   c.valid = true;
   c.enabled = (on == 1);
+  c.replacement.assign(rep, rep_len);
+  c.replacement_utf16.reserve(rep_len);
+  for (size_t i = 0; i < rep_len; ++i) {
+    c.replacement_utf16.push_back(char16_t(static_cast<unsigned char>(rep[i])));
+  }
   return c;
 }
 
@@ -38,15 +64,16 @@ inline bool is_word_char(uint16_t c) {
   return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c >= 0x80;
 }
 
-// Replaces bounded occurrences of the trainer name with "noneofyourbusiness". Returns true only
-// when text changed; sets exact_replacement when text equals name verbatim so callers can reuse
-// a single pinned replacement string without allocating.
+// Replaces bounded occurrences of the trainer name with rep. Returns true only when text changed;
+// sets exact_replacement when text equals name verbatim so callers can reuse a single pinned
+// replacement string without allocating.
 inline bool replace_username_utf16(const uint16_t *text, int32_t len, const uint16_t *name,
-                                   int32_t name_len, std::u16string &out, bool &exact_replacement) {
+                                   int32_t name_len, const char16_t *rep, size_t rep_len,
+                                   std::u16string &out, bool &exact_replacement) {
   exact_replacement = false;
-  if (!text || !name || name_len < 2 || len < name_len) return false;
-  if (size_t(name_len) == kReplacementLen &&
-      std::memcmp(name, kReplacementUtf16, kReplacementLen * sizeof(uint16_t)) == 0) {
+  if (!text || !name || !rep || rep_len == 0 || name_len < 2 || len < name_len) return false;
+  if (size_t(name_len) == rep_len &&
+      std::memcmp(name, rep, rep_len * sizeof(uint16_t)) == 0) {
     return false;
   }
   if (len == name_len && std::memcmp(text, name, size_t(name_len) * sizeof(uint16_t)) == 0) {
@@ -61,9 +88,9 @@ inline bool replace_username_utf16(const uint16_t *text, int32_t len, const uint
     const bool before_ok = (i == 0) || !is_word_char(text[i - 1]);
     const bool after_ok = (i + name_len == len) || !is_word_char(text[i + name_len]);
     if (before_ok && after_ok && std::memcmp(text + i, name, size_t(name_len) * sizeof(uint16_t)) == 0) {
-      if (!changed) out.reserve(size_t(len) + kReplacementLen);
+      if (!changed) out.reserve(size_t(len) + rep_len);
       for (int32_t k = last; k < i; ++k) out.push_back(char16_t(text[k]));
-      out.append(kReplacementUtf16, kReplacementLen);
+      out.append(rep, rep_len);
       changed = true;
       i += name_len;
       last = i;
@@ -74,6 +101,11 @@ inline bool replace_username_utf16(const uint16_t *text, int32_t len, const uint
   if (!changed) return false;
   for (int32_t k = last; k < len; ++k) out.push_back(char16_t(text[k]));
   return true;
+}
+
+inline bool replace_username_utf16(const uint16_t *text, int32_t len, const uint16_t *name,
+                                   int32_t name_len, std::u16string &out, bool &exact_replacement) {
+  return replace_username_utf16(text, len, name, name_len, kReplacementUtf16, kReplacementLen, out, exact_replacement);
 }
 
 inline std::string utf16_to_utf8(const char16_t *data, size_t len) {

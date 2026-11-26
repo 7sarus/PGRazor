@@ -69,7 +69,7 @@ final class SettingsPanel {
     private Button uiScale;
     private TextView incubatorStatus;
     // Primary action and cycle/dialog rows.
-    private Button mapTap, throwGrade, throwVariety, storageIv, ivCatchMode, ivOwnedMode, itemSettings, cameraSample, interactionCapture, transferKeepList;
+    private Button mapTap, throwGrade, throwVariety, storageIv, ivCatchMode, ivOwnedMode, itemSettings, cameraSample, interactionCapture, transferKeepList, concealUsernameValue;
     // Evolve-before-transfer rows: enable switch, stages cycle, selection-mode cycle, selected-species picker.
     private Switch evolveTransferSwitch;
     private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
@@ -85,7 +85,7 @@ final class SettingsPanel {
     private EditText transferKeepIvField;
     private boolean transferKeepIvDragging;
     private BerryPriorityPicker berryPicker;
-    private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus, smartBattleStatus;
+    private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, concealUsernameHint, healStatus, smartBattleStatus;
     private Switch healSwitch, healReviveSwitch, smartBattleSwitch, gymRepeatSwitch;
     private Button healWhen, healThreshold, healItems;
     private final CheckBox[] vgpChoices=new CheckBox[3];
@@ -819,7 +819,9 @@ final class SettingsPanel {
         cutsceneStatus = caption(look, "");  // shown only when the native module reports an error
         concealUsernameSwitch = switchRow(look, "Conceal username"); concealUsernameSwitch.setChecked(Control.concealUsername());
         concealUsernameSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.concealUsername())return; Control.setConcealUsername(checked); host.refresh(); });
-        caption(look, "Replaces your trainer name on game screens with noneofyourbusiness.");
+        concealUsernameValue = button("Replacement name: " + Control.concealUsernameText()); look.addView(concealUsernameValue);
+        concealUsernameValue.setOnClickListener(v -> editConcealUsernameText());
+        concealUsernameHint = caption(look, "Replaces your trainer name on game screens with " + Control.concealUsernameText() + ".");
 
         LinearLayout battery = group(page, "Battery usage");
         caption(battery, "Lower graphics to save battery and keep the phone cooler. Each turns back to the game's own setting when switched off.");
@@ -1141,6 +1143,24 @@ final class SettingsPanel {
             Control.saveItemRules(enabled.isChecked(),rules.toString(),all.toString());dialog.dismiss();host.refresh();});
     }
 
+    private void editConcealUsernameText(){
+        LinearLayout form=new LinearLayout(activity);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(24),dp(8),dp(24),dp(8));
+        EditText field=new EditText(dialogContext());field.setSingleLine(true);field.setHint(Control.CONCEAL_USERNAME_DEFAULT);
+        field.setText(Control.concealUsernameText());field.setSelectAllOnFocus(true);
+        field.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+        field.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(Control.CONCEAL_USERNAME_MAX_LEN)});
+        form.addView(field);
+        AlertDialog dialog=new AlertDialog.Builder(dialogContext()).setTitle("Conceal username as").setView(form)
+            .setNeutralButton("Default",(d,w)->{Control.setConcealUsernameText(Control.CONCEAL_USERNAME_DEFAULT);host.refresh();})
+            .setNegativeButton("Cancel",null).setPositiveButton("Apply",null).create();
+        DialogLifecycle.bind(activity,dialog,null);
+        dialog.setOnShowListener(d->{MapTheme.styleButtons(dialog);dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            String entered=field.getText().toString().trim();
+            if(!Control.validConcealUsernameText(entered)){field.setError("Use 1-"+Control.CONCEAL_USERNAME_MAX_LEN+" letters or digits (A-Z, 0-9).");return;}
+            Control.setConcealUsernameText(entered);host.refresh();dialog.dismiss();
+        });});
+        dialog.show();styleTree(form);
+    }
     void refresh() {
         refreshHome();
         darkSwitch.setChecked(Control.darkTheme());
@@ -1161,6 +1181,8 @@ final class SettingsPanel {
         refreshThrows();
         skipCutscenesSwitch.setChecked(Control.skipCutscenes());
         concealUsernameSwitch.setChecked(Control.concealUsername());
+        if(concealUsernameValue!=null)set(concealUsernameValue,"Replacement name: "+Control.concealUsernameText());
+        if(concealUsernameHint!=null)set(concealUsernameHint,"Replaces your trainer name on game screens with "+Control.concealUsernameText()+".");
         routeGiftSwitch.setChecked(Control.routeGiftExchange());
         batteryResSwitch.setChecked(Control.batteryLowRes());batteryFpsSwitch.setChecked(Control.batteryFps20());batteryQualitySwitch.setChecked(Control.batteryLowQuality());
         status(cutsceneStatus,Control.cutsceneSkipStatus());

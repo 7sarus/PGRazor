@@ -31,8 +31,10 @@ constexpr int kMaxLiveTexts = 2048;
 
 void *string_class = nullptr;
 uintptr_t replacement_handle = 0;
-// Unity owner thread only: active real trainer name in UTF-16.
+// Unity owner thread only: active real trainer name in UTF-16 and active replacement string.
 std::vector<uint16_t> real_name;
+std::string active_rep = kReplacement;
+std::u16string active_rep_utf16(kReplacementUtf16, kReplacementUtf16 + kReplacementLen);
 
 void *exp(const char *name) {
   std::string n = "il2cpp_"; n += name;
@@ -125,7 +127,7 @@ void event(const std::string &message) {
 Config configured() {
   auto tr = transport();
   PgrRuntimeTransportSample a{};
-  char s[16]{};
+  char s[64]{};
   uint32_t n = 0;
   if (!tr || tr->sample(&a) || !a.snapshot_fresh || a.fault ||
       tr->get_string(27, s, sizeof(s) - 1, &n) || n >= sizeof(s)) {
@@ -183,14 +185,21 @@ void *find_speech_method(const void *k) {
   return nullptr;
 }
 
+void free_replacement_handle() {
+  if (replacement_handle) {
+    fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(replacement_handle);
+    replacement_handle = 0;
+  }
+}
+
 void *replacement_string() {
   if (replacement_handle) {
     void *existing = fn<void*(*)(uintptr_t)>(boot.runtime.gchandle_get_target)(replacement_handle);
     if (existing) return existing;
-    fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(replacement_handle);
-    replacement_handle = 0;
+    free_replacement_handle();
   }
-  void *s = fn<void*(*)(const char*)>(boot.runtime.string_new)(kReplacement);
+  const char *src = active_rep.empty() ? kReplacement : active_rep.c_str();
+  void *s = fn<void*(*)(const char*)>(boot.runtime.string_new)(src);
   if (s) replacement_handle = fn<uintptr_t(*)(void*, int)>(boot.runtime.gchandle_new)(s, 0);
   return s;
 }
@@ -198,7 +207,7 @@ void *replacement_string() {
 void *maybe_mask(void *str) {
   if (!active.load(std::memory_order_acquire) || !str) return str;
   if (uint64_t(gettid()) != owner.load(std::memory_order_relaxed)) return str;
-  if (real_name.size() < 2) return str;
+  if (real_name.size() < 2 || active_rep_utf16.empty()) return str;
   if (!string_class || fn<void*(*)(void*)>(boot.runtime.object_get_class)(str) != string_class) return str;
 
   thread_local bool in_mask = false;
@@ -212,7 +221,8 @@ void *maybe_mask(void *str) {
 
   std::u16string out;
   bool exact = false;
-  if (!replace_username_utf16(chars, len, real_name.data(), int32_t(real_name.size()), out, exact)) {
+  if (!replace_username_utf16(chars, len, real_name.data(), int32_t(real_name.size()),
+                              active_rep_utf16.data(), active_rep_utf16.size(), out, exact)) {
     return str;
   }
   if (exact) {
@@ -488,6 +498,13 @@ void pgr_conceal_username_tick(uint64_t tid, const PgrSharedMetadataOutput *meta
       event("Conceal username hooks installed (" + std::to_string(hooked) + ")");
     }
 
+    const bool rep_changed = (active_rep != c.replacement);
+    if (rep_changed) {
+      free_replacement_handle();
+      active_rep = c.replacement;
+      active_rep_utf16 = c.replacement_utf16;
+    }
+
     const bool turned_on = !was_active;
     active.store(true, std::memory_order_release);
 
@@ -497,7 +514,7 @@ void pgr_conceal_username_tick(uint64_t tid, const PgrSharedMetadataOutput *meta
       next_name_poll = now + kNamePollMs;
       refresh_player_name(name_changed);
     }
-    if ((turned_on || name_changed) && real_name.size() >= 2) {
+    if ((turned_on || name_changed || rep_changed) && real_name.size() >= 2) {
       mask_live_texts();
     }
   } catch (const Failure &f) {
@@ -516,8 +533,7 @@ void pgr_conceal_username_stop(uint64_t tid) {
   const uint64_t cur_owner = owner.load(std::memory_order_relaxed);
   if (!initialized || tid != cur_owner || tid != uint64_t(gettid())) return;
   real_name.clear();
-  if (replacement_handle) {
-    fn<void(*)(uintptr_t)>(boot.runtime.gchandle_free)(replacement_handle);
-    replacement_handle = 0;
-  }
+  active_rep = kReplacement;
+  active_rep_utf16.assign(kReplacementUtf16, kReplacementUtf16 + kReplacementLen);
+  free_replacement_handle();
 }

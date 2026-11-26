@@ -651,11 +651,21 @@ public final class Control {
     public static void setAutoStarPiece(boolean on){autoStarPiece=on;saveSettings();event("auto-star-piece",on?"ON":"OFF");}
     public static String autoBoostConfig(){return "B1|"+(autoLuckyEgg?1:0)+"|"+(autoStarPiece?1:0);}
     // Conceal username (off by default): replaces the active account's trainer name in game UI text
-    // with "noneofyourbusiness". Slot 27, "U1|enabled".
+    // with "noneofyourbusiness" or a custom 1..24 alphanumeric name. Slot 27, "U2|enabled|name".
+    static final String CONCEAL_USERNAME_DEFAULT="noneofyourbusiness";
+    static final int CONCEAL_USERNAME_MAX_LEN=24;
     private static volatile boolean concealUsername;
+    private static volatile String concealUsernameText=CONCEAL_USERNAME_DEFAULT;
+    public static boolean validConcealUsernameText(String value){
+        if(value==null||value.isEmpty()||value.length()>CONCEAL_USERNAME_MAX_LEN)return false;
+        for(int i=0;i<value.length();i++){char c=value.charAt(i);if(!((c>='0'&&c<='9')||(c>='A'&&c<='Z')||(c>='a'&&c<='z')))return false;}
+        return true;
+    }
     public static boolean concealUsername(){return concealUsername;}
-    public static void setConcealUsername(boolean on){concealUsername=on;saveSettings();event("conceal-username",on?"ON":"OFF");}
-    public static String concealUsernameConfig(){return "U1|"+(concealUsername?1:0);}
+    public static void setConcealUsername(boolean on){concealUsername=on;saveSettings();event("conceal-username",on?"ON ("+concealUsernameText+")":"OFF");}
+    public static String concealUsernameText(){return concealUsernameText;}
+    public static void setConcealUsernameText(String value){if(!validConcealUsernameText(value)||value.equals(concealUsernameText))return;concealUsernameText=value;saveSettings();event("conceal-username-text",value);}
+    public static String concealUsernameConfig(){return "U2|"+(concealUsername?1:0)+"|"+concealUsernameText;}
     public static boolean catchChanceShown(){return catchChanceShown;}
     public static void setCatchChanceShown(boolean shown){catchChanceShown=shown;saveSettings();event("catch-chance-overlay",shown?"ON":"OFF");}
     public static boolean autoBall(){return autoBall;}
@@ -1335,6 +1345,8 @@ public final class Control {
                 pvpKeepLeagues=p.getProperty("pvpKeepLeagues")==null?3:boundedSetting(p,"pvpKeepLeagues",7);
                 skipCutscenes=Boolean.parseBoolean(p.getProperty("skipCutscenes","false"));
                 concealUsername=Boolean.parseBoolean(p.getProperty("concealUsername","false"));
+                String savedConceal=p.getProperty("concealUsernameText",CONCEAL_USERNAME_DEFAULT);
+                concealUsernameText=validConcealUsernameText(savedConceal)?savedConceal:CONCEAL_USERNAME_DEFAULT;
                 routeGiftExchange=Boolean.parseBoolean(p.getProperty("routeGiftExchange","false"));
                 batteryLowRes=Boolean.parseBoolean(p.getProperty("batteryLowRes","false"));
                 batteryFps20=Boolean.parseBoolean(p.getProperty("batteryFps20","false"));
@@ -1447,7 +1459,7 @@ public final class Control {
         p.setProperty("evolveTransferEnabled",String.valueOf(evolveTransferEnabled)); p.setProperty("evolveTransferMode",String.valueOf(evolveTransferMode)); p.setProperty("evolveTransferStages",String.valueOf(evolveTransferStages)); p.setProperty("evolveTransferSpecies",evolveTransferSpecies);
         p.setProperty("ivCatch",String.valueOf(ivCatchEnabled)); p.setProperty("ivOwned",String.valueOf(ivOwnedEnabled)); p.setProperty("ivCatchFormat",String.valueOf(ivCatchFormat)); p.setProperty("ivOwnedFormat",String.valueOf(ivOwnedFormat)); p.setProperty("storageIv",String.valueOf(storageIvMode)); p.setProperty("storageIvFormat",String.valueOf(storageIvFormat));
         p.setProperty("catchChance",String.valueOf(catchChanceShown)); p.setProperty("catchPreview",String.valueOf(catchPreview)); p.setProperty("autoLuckyEgg",String.valueOf(autoLuckyEgg)); p.setProperty("autoStarPiece",String.valueOf(autoStarPiece)); p.setProperty("autoBall",String.valueOf(autoBall)); p.setProperty("autoBallTarget",String.valueOf(autoBallTarget)); p.setProperty("autoThrow",String.valueOf(autoThrow)); p.setProperty("autoThrowOnMap",String.valueOf(autoThrowOnMap));
-        p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes)); p.setProperty("concealUsername",String.valueOf(concealUsername)); p.setProperty("routeGiftExchange",String.valueOf(routeGiftExchange));
+        p.setProperty("pvpKeepLeagues",String.valueOf(pvpKeepLeagues)); p.setProperty("skipCutscenes",String.valueOf(skipCutscenes)); p.setProperty("concealUsername",String.valueOf(concealUsername)); p.setProperty("concealUsernameText",concealUsernameText); p.setProperty("routeGiftExchange",String.valueOf(routeGiftExchange));
         p.setProperty("batteryLowRes",String.valueOf(batteryLowRes)); p.setProperty("batteryFps20",String.valueOf(batteryFps20)); p.setProperty("batteryLowQuality",String.valueOf(batteryLowQuality));
         p.setProperty("smartBattle",String.valueOf(smartBattle));
         p.setProperty("smartHealEnabled",String.valueOf(healEnabled)); p.setProperty("smartHealRevive",String.valueOf(healRevive)); p.setProperty("smartHealFull",String.valueOf(healFull));

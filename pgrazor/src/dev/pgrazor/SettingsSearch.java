@@ -236,7 +236,8 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Dark theme", "Switch the whole interface between the dark and light palette.");
         put(DESCRIPTIONS, "UI scale", "Resize the joystick and map overlays.");
         put(DESCRIPTIONS, "Skip cutscenes", "Skip repeatable cutscenes and hatch animations, the daily Stay Aware screen, and the speed and weather warnings.");
-        put(DESCRIPTIONS, "Conceal username", "Show noneofyourbusiness instead of your trainer name on game screens.");
+        put(DESCRIPTIONS, "Conceal username", "Replace your trainer name on game screens with noneofyourbusiness or a custom alphanumeric name.");
+        put(DESCRIPTIONS, "Replacement name", "Custom 1 to 24 letter or digit name shown when Conceal username is on.");
         put(DESCRIPTIONS, "Lower resolution", "Draw the map and Pokémon at half resolution.");
         put(DESCRIPTIONS, "Limit to 20 FPS", "Cap the game at 20 frames per second.");
         put(DESCRIPTIONS, "Low graphics quality", "Turn off shadows, fog, reflections and other heavy effects.");
@@ -281,6 +282,7 @@ final class SettingsSearch {
         put(SYNONYMS, "Auto incubate", "egg incubator hatch");
         put(SYNONYMS, "Dark theme", "light mode appearance");
         put(SYNONYMS, "Conceal username", "hide trainer player name streamer incognito mask noneofyourbusiness");
+        put(SYNONYMS, "Replacement name", "conceal username custom alphanumeric trainer name");
         put(SYNONYMS, "UI scale", "size resize scale overlays");
         put(SYNONYMS, "Limit to 20 FPS", "fps frames battery performance");
         put(SYNONYMS, "Lower resolution", "resolution battery performance graphics");

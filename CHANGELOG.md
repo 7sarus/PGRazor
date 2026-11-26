@@ -4,7 +4,7 @@
 
 ### New features
 
-- **Conceal username:** Added an Interface switch to replace your trainer name on game screens with `noneofyourbusiness`.
+- **Conceal username:** Added an Interface switch to replace your trainer name on game screens with `noneofyourbusiness` or a custom alphanumeric name.
 
 ## v0.3.7
 

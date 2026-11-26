@@ -77,7 +77,7 @@ def control_shell():
         elif name == 'autoBoostConfig':
             body = 'reads++;return "B1|1|0";'
         elif name == 'concealUsernameConfig':
-            body = 'reads++;return "U1|1";'
+            body = 'reads++;return "U2|1|Player42";'
         elif name == 'routeGiftConfig':
             body = 'reads++;return "M1|1";'
         elif name == 'evolveTransferConfig':

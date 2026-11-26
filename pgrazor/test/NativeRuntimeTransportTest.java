@@ -146,8 +146,8 @@ public final class NativeRuntimeTransportTest {
         at += 4 + "K1|85".length(); // Transfer keep-IV cutoff slot 25.
         require(readString(snap, at).equals("B1|1|0"));
         at += 4 + "B1|1|0".length(); // Auto Lucky Egg / Star Piece slot 26.
-        require(readString(snap, at).equals("U1|1"));
-        at += 4 + "U1|1".length(); // Conceal username slot 27.
+        require(readString(snap, at).equals("U2|1|Player42"));
+        at += 4 + "U2|1|Player42".length(); // Conceal username slot 27.
         require(at == fake.lastSnapshot.length);
 
         // The new setting must reach native as true, then clear on the following snapshot.
