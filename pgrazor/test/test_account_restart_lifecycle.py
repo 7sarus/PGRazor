@@ -32,6 +32,7 @@ public static void setThreadPolicy(ThreadPolicy p){}}''',
 static android.app.Activity activity; static java.util.List<String> events=new java.util.ArrayList<>();
 static android.app.Activity accountActivity(){return activity;}
 static void event(String k,String d){events.add(k+":"+d);}
+static void retargetSettings(java.io.File f){}
 static void flushAccountWrites() throws java.io.IOException{}
 static void quiesceAccounts() throws java.io.IOException{}}''',
     'dev/pgrazor/AccountProfileStore.java': '''package dev.pgrazor; class AccountProfileStore {
@@ -43,7 +44,9 @@ Profile get(String id){return new Profile();} Profile observeIdentity(String id,
 void rename(String id,String name){} void selectVerified(String id){} void activatePending(){}
 void prepareSwitch(String id){} Profile add(String name){return new Profile();}
 java.io.File dataFile(String id,String name) throws java.io.IOException{return null;}
-String preferenceName(String id,String scope){return scope;}}''',
+String preferenceName(String id,String scope){return scope;}
+static final String DEFAULT_ID="default";boolean globalSettings(){return false;}String mainId(){return DEFAULT_ID;}
+String settingsOwner(String id){return id;}void setGlobalSettings(boolean on,String main){}}''',
     'dev/pgrazor/AccountSessions.java': '''package dev.pgrazor; class AccountSessions {
 static void deleteProfile(android.content.Context c,AccountProfileStore s,String id){}}''',
     'dev/pgrazor/AccountRestartActivity.java': '''package dev.pgrazor; class AccountRestartActivity {

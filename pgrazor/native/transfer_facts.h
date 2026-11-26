@@ -61,7 +61,12 @@ enum PgrTransferFactsFlag {
   PGR_TF_FLAG_XXL        = 1u << 5,
   PGR_TF_FLAG_FAVORITE   = 1u << 6,
   PGR_TF_FLAG_EGG        = 1u << 7,
-  PGR_TF_FLAG_COSTUME    = 1u << 8
+  PGR_TF_FLAG_COSTUME    = 1u << 8,
+  PGR_TF_FLAG_SHADOW     = 1u << 9,  // only once pgr_transfer_facts_set_shadow has run
+  PGR_TF_FLAG_SHADOW_KNOWN = 1u << 10, // set whenever the shadow fact was read
+  PGR_TF_FLAG_DYNAMAX    = 1u << 11,  // Dynamax (BreadModeEnum BreadMode)
+  PGR_TF_FLAG_GIGANTAMAX = 1u << 12,  // Gigantamax (BreadDoughMode, BreadDoughMode2, BreadSpecialMode)
+  PGR_TF_FLAG_MAX_KNOWN  = 1u << 13   // set whenever the Max fact was read
 };
 
 // inspect() returns 1 VALID (facts written), 0 REFUSED (window/owner/reentry -- NOT an authorization), or
@@ -182,6 +187,13 @@ static_assert(sizeof(PgrTransferFactsOut) == 40,
               "PgrTransferFactsOut must remain 40 bytes on LP64");
 
 // Fixed LP64 table: 8-byte header + 2 function pointers = 24 bytes.
+// Optional shadow fact, outside the fixed config: the display's Alignment field and its Shadow
+// value. Until this is set no Pokemon is reported as shadow. Set once, before or after install.
+extern "C" void pgr_transfer_facts_set_shadow(void *alignment_field, int32_t shadow_value);
+// Optional Max fact, likewise: the display's BreadModeEnum field, its Dynamax value and up to three
+// Gigantamax values (-1 for any the game lacks). Until set, no Pokemon is reported as Max.
+extern "C" void pgr_transfer_facts_set_max(void *bread_field, int32_t dynamax, int32_t gmax_a, int32_t gmax_b, int32_t gmax_c);
+
 struct PgrTransferFactsApi {
   uint32_t version;  // == PGR_TF_API_VERSION
   uint32_t size;     // == sizeof(PgrTransferFactsApi)

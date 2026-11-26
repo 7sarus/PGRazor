@@ -78,9 +78,38 @@ final class AccountProfiles {
         commands.clear();message="Reopening date-of-birth screen";diag("account-command","sign-in reset; reopening");
         io.execute(()->{try{flush();main.post(AccountProfiles::restart);}catch(IOException error){main.post(()->fail("Close and reopen the game to finish resetting sign-in."));}});
     });}
+    /** The PGRazor settings file: the main account's while global settings are on. */
+    static final String SETTINGS_FILE="pgrazor-settings-v1.properties";
     static File file(Context context,String name){
         if(store==null)return new File(context.getFilesDir(),name);
-        try{return store.dataFile(startupId,name);}catch(IOException error){throw new IllegalStateException("Cannot open account storage",error);}
+        try{return store.dataFile(SETTINGS_FILE.equals(name)?store.settingsOwner(startupId):startupId,name);}
+        catch(IOException error){throw new IllegalStateException("Cannot open account storage",error);}
+    }
+    static boolean globalSettings(){return store!=null&&store.globalSettings();}
+    static String mainId(){return store==null?AccountProfileStore.DEFAULT_ID:store.mainId();}
+    /** Whether turning global settings on/off or choosing main would change this session's settings file. */
+    static boolean settingsChangeNeedsRestart(boolean on,String mainProfile){
+        if(store==null)return false;
+        String now=store.settingsOwner(startupId),next=on?mainProfile:startupId;
+        return !now.equals(next);
+    }
+    /**
+     * Saves the global-settings choice (on/off and the main account). When it changes which settings
+     * file this session uses, current settings are flushed to the old file and the game restarts so
+     * the right ones load; each account's own file is never overwritten.
+     */
+    static void setGlobalSettings(boolean on,String mainProfile,Runnable saved){
+        if(store==null||!canSwitch())return;
+        final boolean restartNeeded=settingsChangeNeedsRestart(on,mainProfile);
+        if(restartNeeded)switching=true;
+        io.execute(()->{
+            try{
+                if(restartNeeded)flush();
+                store.setGlobalSettings(on,mainProfile);
+                diag("account-settings",(on?"global settings on":"global settings off")+(restartNeeded?"; restarting to load them":""));
+                main.post(()->{switching=false;saved.run();if(restartNeeded){message="Restarting to load settings...";restart();}});
+            }catch(Exception error){main.post(()->{switching=false;message="Could not save the global settings choice";diag("account-settings","save failed");});}
+        });
     }
     static SharedPreferences preferences(Context context,String scope){
         SharedPreferences prefs=context.getSharedPreferences(store==null?scope:store.preferenceName(startupId,scope),Context.MODE_PRIVATE);
@@ -184,14 +213,44 @@ final class AccountProfiles {
         try{store.rename(id,label);main.post(updated);}
         catch(Exception error){main.post(()->{message="Could not rename account";diag("account-command","rename account failed");});}
     });}
+    /** Whether deleting this account removes the settings file this session is using (the main, with global settings on). */
+    static boolean deleteTakesSettings(String id){return store!=null&&!startupId.equals(id)&&store.settingsOwner(startupId).equals(id);}
     static void delete(Activity activity,String id,Runnable removed){
         if(!canDelete(id))return;
         deleting=true;message="Deleting saved account...";
         Context context=activity.getApplicationContext();
+        final boolean takeSettings=deleteTakesSettings(id);
         io.execute(()->{
-            try{AccountSessions.deleteProfile(context,store,id);main.post(()->{deleting=false;message=store.selected().label;diag("account-command","account removed");removed.run();});}
-            catch(Exception error){main.post(()->{deleting=false;message="Could not finish deleting the account. Please retry.";diag("account-command","account delete failed");});}
+            byte[] previous=null;boolean moved=false;
+            try{
+                // The current account becomes main (store.remove), so it keeps the settings in use now.
+                if(takeSettings){
+                    File own=store.dataFile(startupId,SETTINGS_FILE);
+                    previous=own.isFile()?java.nio.file.Files.readAllBytes(own.toPath()):null;
+                    Control.retargetSettings(own);moved=true;
+                }
+                AccountSessions.deleteProfile(context,store,id);
+                final boolean kept=moved;
+                main.post(()->{deleting=false;message=store.selected().label;diag("account-command","account removed"+(kept?"; current account is main with the settings in use":""));removed.run();});
+            }
+            catch(Exception error){
+                if(moved)restoreSettings(id,previous);
+                main.post(()->{deleting=false;message="Could not finish deleting the account. Please retry.";diag("account-command","account delete failed");});
+            }
         });
+    }
+    // A failed delete leaves the main account in place: point settings back at it and put back this
+    // account's own settings file as it was.
+    private static void restoreSettings(String mainProfile,byte[] previous){
+        try{
+            File own=store.dataFile(startupId,SETTINGS_FILE);
+            Control.retargetSettings(store.dataFile(mainProfile,SETTINGS_FILE));
+            java.nio.file.Path path=own.toPath();
+            if(previous==null){java.nio.file.Files.deleteIfExists(path);return;}
+            java.nio.file.Path temp=path.resolveSibling(own.getName()+".restore");
+            java.nio.file.Files.write(temp,previous);
+            java.nio.file.Files.move(temp,path,java.nio.file.StandardCopyOption.REPLACE_EXISTING,java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        }catch(Exception error){diag("account-settings","could not restore settings after a failed delete");}
     }
     private static void fail(String value){verified=false;message=value;diag("account-state","blocked: "+value);}
     private static void restart() {

@@ -15,6 +15,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 STUBS = {
     "dev/pgrazor/AutoRaid.java": "package dev.pgrazor; public class AutoRaid { public static void travel(long s,long t,double a,double b){} public static void reset(){} public static void read(java.util.Properties p){} public static void write(java.util.Properties p){} public static String config(){return null;} public static void tick(boolean b){} public static boolean running(){return false;} public static void publish(String s){} }",
+    "dev/pgrazor/AutoRocket.java": "package dev.pgrazor; public class AutoRocket { public static void travel(long s,long t,double a,double b){} public static void reset(){} public static void read(java.util.Properties p){} public static void write(java.util.Properties p){} public static String config(){return null;} public static void tick(boolean b){} public static boolean running(){return false;} public static void publish(String s){} }",
     "dev/pgrazor/GiftBatchSettings.java": "package dev.pgrazor; public class GiftBatchSettings {public static void reset(){} public static String config(){return null;} public static void publish(String s){} public static boolean running(){return false;}}",
     'dev/pgrazor/events/EventSettings.java': 'package dev.pgrazor.events; public final class EventSettings {public static boolean vgpSafari, autoSafari; public static boolean wildVgpSafari(android.app.Application app){return vgpSafari;} public static boolean wildAutoBallSafari(android.app.Application app){return autoSafari;} public static boolean boxCollectorEnabled(android.app.Application app){return false;} public static void publishBoxCollectorCapability(boolean value){}}',
     'android/content/Context.java': 'package android.content; public class Context {public static final String NOTIFICATION_SERVICE="notification";}',
@@ -247,13 +248,13 @@ class ControlJavaTests(unittest.TestCase):
                 sources.append(source)
             sources.extend(ROOT / 'src/dev/pgrazor' / name for name in (
                 'Control.java', 'MapCatchStatus.java', 'MotionEngine.java', 'LocationState.java', 'GameRoutesController.java',
-                'CameraHeadingState.java', 'CameraSteering.java',
+                'CameraHeadingState.java', 'CameraSteering.java', 'JoystickVisibilityState.java',
                 'BerryPriority.java', 'MapTapSequence.java', 'CooldownState.java',
                 'VgpController.java', 'CatchOutcomeController.java', 'SettingsWriter.java', 'SmartCatchPreferences.java', 'GymAutomationPreferences.java', 'BuddyEmotionPreferences.java', 'ResearchPreferences.java'))
             sources.extend([ROOT / 'test/ControlWildEventTest.java', ROOT / 'test/ControlEggInventoryTest.java', ROOT / 'test/ControlAdventureSyncTest.java', ROOT / 'test/ControlLogRetentionTest.java', ROOT / 'test/ControlQuickSummaryTest.java',ROOT / 'test/ControlQuickBallTest.java',
                             ROOT / 'test/ControlQuickBallOutcomeTest.java',ROOT / 'test/ControlSettingsTest.java',
                             ROOT / 'test/VgpControllerTest.java',ROOT / 'test/CooldownTest.java',ROOT / 'test/ControlCooldownTest.java',
-                            ROOT / 'test/ControlSettingsReloadTest.java',ROOT / 'test/ControlItemCatalogTest.java',ROOT / 'test/ControlIdleWalkingTest.java'])
+                            ROOT / 'test/ControlSettingsReloadTest.java',ROOT / 'test/ControlItemCatalogTest.java',ROOT / 'test/ControlIdleWalkingTest.java',ROOT / 'test/ControlJoystickVisibilityTest.java'])
             classes = work / 'classes'
             sdk = Path(os.environ.get('ANDROID_HOME', str(Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'Android/Sdk')))
             json_sources = sorted((sdk / 'sources').glob('android-*/org/json'), reverse=True)
@@ -304,6 +305,8 @@ class ControlJavaTests(unittest.TestCase):
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
             tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlIdleWalkingTest'], capture_output=True, text=True, timeout=15)
+            self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
+            tested = subprocess.run([str(runtime), '-cp', str(classes), 'dev.pgrazor.ControlJoystickVisibilityTest'], capture_output=True, text=True, timeout=15)
             self.assertEqual(tested.returncode, 0, tested.stdout + tested.stderr)
             for phase in ('save','load'):
                 tested=subprocess.run([str(runtime),'-cp',str(classes),'dev.pgrazor.ControlSettingsTest',phase,str(work)],capture_output=True,text=True,timeout=15)

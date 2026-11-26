@@ -143,6 +143,7 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Game map tap", "Choose what a single or double tap on the game map does.");
         put(DESCRIPTIONS, "Spawn booster (80 m)", "Load nearby Pokémon sooner. Can cause lag in busy areas.");
         put(DESCRIPTIONS, "Cooldown overlay", "Show the estimated catch cooldown timer on the map.");
+        put(DESCRIPTIONS, "Skip teleport confirmation", "Teleport right away without the cooldown dialog.");
         put(DESCRIPTIONS, "Cooldown history", "Review recent cooldown actions and locations.");
         put(DESCRIPTIONS, "Show local time", "Show the wall-clock time at the spoofed coordinates.");
         put(DESCRIPTIONS, "Count encounters", "Count wild encounters for this account in a rolling 24 hours.");
@@ -155,6 +156,7 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Always hit", "Make automatic throws always land.");
         put(DESCRIPTIONS, "AR+ throw bonus", "Apply the AR+ throw bonus to automatic throws.");
         put(DESCRIPTIONS, "Show catch chance", "Show the catch chance during an encounter.");
+        put(DESCRIPTIONS, "Catch preview", "Show caught, broke free or fled as soon as the result is known.");
         put(DESCRIPTIONS, "Auto ball", "Pick the cheapest ball that reaches your target catch chance.");
         put(DESCRIPTIONS, "Auto ball target", "Catch chance target used by Auto ball.");
         put(DESCRIPTIONS, "Auto throw", "Throw automatically using your ball, berry and throw settings.");
@@ -195,6 +197,8 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Push notifications", "Notify when Virtual Go Plus acts.");
         put(DESCRIPTIONS, "Stop on cooldown (estimated)", "Pause Virtual Go Plus during the estimated cooldown.");
         put(DESCRIPTIONS, "Quick spin", "Spin PokéStops automatically.");
+        put(DESCRIPTIONS, "Auto Lucky Egg", "Use a Lucky Egg whenever none is active.");
+        put(DESCRIPTIONS, "Auto Star Piece", "Use a Star Piece whenever none is active.");
         put(DESCRIPTIONS, "Auto-transfer items", "Trim inventory items down to limits you choose.");
         put(DESCRIPTIONS, "Smart battling", "Fill teams with counters and swap to the best counter.");
         put(DESCRIPTIONS, "Smart healing", "Heal and revive automatically between battles.");
@@ -206,6 +210,7 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Battle until defeated", "Repeat a gym battle until the gym is defeated.");
         put(DESCRIPTIONS, "Remote Gym Feeding", "Feed the gyms you defend once with surplus berries.");
         put(DESCRIPTIONS, "Auto-Raid", "Find and complete nearby raids.");
+        put(DESCRIPTIONS, "Auto Rocket", "Walk to Team GO Rocket stops, battle and catch the shadow Pokémon.");
         put(DESCRIPTIONS, "Auto quick attack", "Use fast attacks automatically in battles.");
         put(DESCRIPTIONS, "Auto charged attack", "Use charged attacks automatically in battles.");
         put(DESCRIPTIONS, "Auto Max attack", "Use Max attacks automatically in Dynamax battles.");
@@ -230,7 +235,7 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Go Wild November 2026", "Event preferences for GO Wild Area 2026.");
         put(DESCRIPTIONS, "Dark theme", "Switch the whole interface between the dark and light palette.");
         put(DESCRIPTIONS, "UI scale", "Resize the joystick and map overlays.");
-        put(DESCRIPTIONS, "Skip cutscenes", "Skip repeatable cutscenes and hatch animations.");
+        put(DESCRIPTIONS, "Skip cutscenes", "Skip repeatable cutscenes and hatch animations, the daily Stay Aware screen, and the speed and weather warnings.");
         put(DESCRIPTIONS, "Lower resolution", "Draw the map and Pokémon at half resolution.");
         put(DESCRIPTIONS, "Limit to 20 FPS", "Cap the game at 20 frames per second.");
         put(DESCRIPTIONS, "Low graphics quality", "Turn off shadows, fog, reflections and other heavy effects.");
@@ -247,10 +252,14 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Keep XXL", "Never auto-transfer XXL Pokémon.");
         put(DESCRIPTIONS, "Keep 0% IV (0/0/0)", "Never auto-transfer a 0% IV Pokémon.");
         put(DESCRIPTIONS, "Keep costume Pokemon", "Never auto-transfer costume Pokémon.");
+        put(DESCRIPTIONS, "Keep shadow Pokemon", "Never auto-transfer shadow Pokémon.");
+        put(DESCRIPTIONS, "Keep Dynamax Pokemon", "Never auto-transfer Dynamax Pokémon.");
+        put(DESCRIPTIONS, "Keep Gigantamax Pokemon", "Never auto-transfer Gigantamax Pokémon.");
 
         put(SYNONYMS, "Location spoofing", "fake gps mock location teleport");
         put(SYNONYMS, "Coordinates & speed", "lat lon latitude longitude kmh walking speed");
         put(SYNONYMS, "World map", "map place search pin route");
+        put(SYNONYMS, "Auto Rocket", "team go rocket grunt leader shadow invasion battle");
         put(SYNONYMS, "Auto ball", "ball pokeball great ultra catch rate");
         put(SYNONYMS, "Auto throw", "throw catch automatic");
         put(SYNONYMS, "Transfer new catches", "transfer iv appraise candy auto");
@@ -264,6 +273,9 @@ final class SettingsSearch {
         put(SYNONYMS, "Storage list IV display", "iv overlay storage list");
         put(SYNONYMS, "VGP overlay", "go plus virtual vgp button");
         put(SYNONYMS, "Quick spin", "pokestop spin stop");
+        put(SYNONYMS, "Auto Lucky Egg", "xp boost double xp egg");
+        put(SYNONYMS, "Auto Star Piece", "stardust boost dust");
+        put(SYNONYMS, "Catch preview", "caught fled broke free result toast");
         put(SYNONYMS, "Smart healing", "heal potion revive");
         put(SYNONYMS, "Auto incubate", "egg incubator hatch");
         put(SYNONYMS, "Dark theme", "light mode appearance");

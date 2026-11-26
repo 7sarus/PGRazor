@@ -45,6 +45,8 @@ final class SettingsPanel {
     private View closeIcon, themeIcon, backIcon;
     private TextView title, versionLabel, discord;
     private SettingsUi.Dot homeDot;
+    private LinearLayout updateRow;
+    private TextView updateTitle, updateDetail;
     private Switch darkSwitch;
     // Settings search: the index is built once on first use, after every page has painted its labels.
     private SettingsSearch searchIndex;
@@ -74,8 +76,9 @@ final class SettingsPanel {
     private Switch evolveTransferSwitch;
     private Button evolveTransferStages, evolveTransferMode, evolveTransferList;
     // Boolean settings use proper switches.
+    private Switch skipTeleportSwitch;
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, encounterCounterSwitch, encounterOverlaySwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, catchPreviewSwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, routeGiftSwitch,
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, catchPreviewSwitch, luckyEggSwitch, starPieceSwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, routeGiftSwitch,
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
     private Button autoBallTarget, berryPriority;
     // Transfer keep-IV cutoff: a slider and a number field that mirror each other.
@@ -93,7 +96,7 @@ final class SettingsPanel {
     private TextView state, steeringStatus, spawnStatus, quickSummaryStatus, transferStatus, quickSpinStatus,
         buddyStatus, giftStatus, itemStatus, rocketStatus, battleStatus, quickBallStatus, ivStatus, cameraStatus, interactionStatus;
     // Multi-option groups keep checkboxes / radios.
-    private final CheckBox[] transferProtection=new CheckBox[8];
+    private final CheckBox[] transferProtection=new CheckBox[11];
     private final Switch[] pvpKeep=new Switch[3];
     private final Button[] pvpRank=new Button[3];
     private final CheckBox[] giftChoices=new CheckBox[3];
@@ -331,6 +334,7 @@ final class SettingsPanel {
 
         // Home screen: the live telemetry card, then grouped category cards.
         home = new LinearLayout(activity); home.setOrientation(LinearLayout.VERTICAL); body.addView(home);
+        buildUpdateRow();
         buildTelemetryCard();
         homeTarget=homeGroup("Play");
         buildLocationPage();
@@ -425,6 +429,8 @@ final class SettingsPanel {
         cooldownSwitch = switchRow(overlays, "Cooldown overlay"); cooldownSwitch.setChecked(Control.cooldownOverlay());
         cooldownSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.cooldownOverlay())return; Control.setCooldownOverlay(cooldownSwitch.isChecked()); host.refresh(); });
         launch(overlays, "Cooldown history", () -> Cooldown.show(activity));
+        skipTeleportSwitch = switchRow(overlays, "Skip teleport confirmation"); skipTeleportSwitch.setChecked(Control.skipTeleportConfirm());
+        skipTeleportSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.skipTeleportConfirm())return; Control.setSkipTeleportConfirm(checked); });
         localTimeSwitch = switchRow(overlays, "Show local time"); localTimeSwitch.setChecked(Control.localTimeOverlay());
         localTimeSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.localTimeOverlay())return; Control.setLocalTimeOverlay(localTimeSwitch.isChecked()); host.refresh(); });
         caption(overlays, "Time at your spoofed location.");
@@ -568,9 +574,9 @@ final class SettingsPanel {
         transferStatus = caption(txC, "");
 
         LinearLayout keepC = group(transfer, "Always keep");
-        // Indexed by protection bit; costume (bit 7) is listed next to event.
-        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event Pokemon","Keep background Pokemon","Keep XXS","Keep XXL","Keep 0% IV (0/0/0)","Keep costume Pokemon"};
-        for(int i:new int[]{0,1,2,7,3,4,5,6}){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;keepC.addView(box);
+        // Indexed by protection bit; costume (7), shadow (8), Dynamax (9) and Gigantamax (10) are listed next to event.
+        String[] protections={"Keep legendary / mythical / Ultra Beasts","Keep shiny Pokemon","Keep event Pokemon","Keep background Pokemon","Keep XXS","Keep XXL","Keep 0% IV (0/0/0)","Keep costume Pokemon","Keep shadow Pokemon","Keep Dynamax Pokemon","Keep Gigantamax Pokemon"};
+        for(int i:new int[]{0,1,2,7,8,9,10,3,4,5,6}){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(protections[i]);box.setChecked((Control.transferProtect()&bit)!=0);transferProtection[i]=box;keepC.addView(box);
             box.setOnClickListener(v->Control.setTransferProtect(box.isChecked()?Control.transferProtect()|bit:Control.transferProtect()&~bit));}
         transferKeepList = button("Custom keep list"); keepC.addView(transferKeepList);
         transferKeepList.setOnClickListener(v -> TransferKeepDialog.show(activity, host::refresh));
@@ -653,6 +659,13 @@ final class SettingsPanel {
         LinearLayout itemsC = group(page, "Items"); summaryGated.add((View)itemsC.getParent());
         itemSettings = button("Auto-transfer items"); itemsC.addView(itemSettings); itemSettings.setOnClickListener(v -> showItemSettings());
         itemStatus = caption(itemsC, "");
+
+        // ----- Boosts: use one whenever it is not running -----
+        LinearLayout boostC = group(page, "Boosts"); summaryGated.add((View)boostC.getParent());
+        luckyEggSwitch = switchRow(boostC, "Auto Lucky Egg"); luckyEggSwitch.setChecked(Control.autoLuckyEgg());
+        luckyEggSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoLuckyEgg())return; Control.setAutoLuckyEgg(checked); host.refresh(); });
+        starPieceSwitch = switchRow(boostC, "Auto Star Piece"); starPieceSwitch.setChecked(Control.autoStarPiece());
+        starPieceSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.autoStarPiece())return; Control.setAutoStarPiece(checked); host.refresh(); });
     }
 
     private void buildBattlesPage() {
@@ -666,10 +679,11 @@ final class SettingsPanel {
         // ----- Team Rocket -----
         LinearLayout rocketC = group(battleC, "Team Rocket");
         String[] rocketLabels={"Auto quick attack","Auto charged attack","Auto shield"};
-        for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(rocketLabels[i]);box.setChecked((Control.rocketOptions()&bit)!=0);rocketChoices[i]=box;rocketC.addView(box);
-            box.setOnClickListener(v->Control.setRocketOptions(box.isChecked()?Control.rocketOptions()|bit:Control.rocketOptions()&~bit));}
+        for(int i=0;i<3;i++){final int bit=1<<i;CheckBox box=new CheckBox(activity);box.setText(rocketLabels[i]);box.setChecked((Control.rocketOptionsSetting()&bit)!=0);rocketChoices[i]=box;rocketC.addView(box);
+            box.setOnClickListener(v->Control.setRocketOptions(box.isChecked()?Control.rocketOptionsSetting()|bit:Control.rocketOptionsSetting()&~bit));}
         caption(rocketC, "While any of these is on, the next Pokémon is picked automatically when one faints.");
         rocketStatus = caption(rocketC, "");
+        launch(rocketC, "Auto Rocket", () -> AutoRocketDialog.show(activity));
 
         LinearLayout gymC = group(battleC, "Gyms");
         launch(gymC, "Gym Slotter & Berry Feeder", () -> GymAutomationSettings.show(activity));
@@ -778,6 +792,7 @@ final class SettingsPanel {
         launch(tasks, "Shundo Sniper (Experimental)", () -> ShundoSniper.show(activity));
         launch(tasks, "Shiny Scanner (Experimental)", () -> ShinyScanner.show(activity));
         launch(tasks, "Auto-Raid", () -> AutoRaidDialog.show(activity));
+        launch(tasks, "Auto Rocket", () -> AutoRocketDialog.show(activity));
         launch(tasks, "Daily Incense Session", () -> AutomationPanel.showIncense(activity));
         launch(tasks, "Remote Gym Feeding", () -> AutomationPanel.showRemoteFeed(activity));
         launch(tasks, "Send & Open Gifts", () -> GiftBatchDialog.show(activity));
@@ -869,15 +884,36 @@ final class SettingsPanel {
         return out.length()==0?"All off":out.toString();
     }
     private void summary(int index,String value){TextView view=pageSummaries.get(index);if(!value.contentEquals(view.getText()))view.setText(value);}
+    /** First on the home screen and hidden until a newer release is found: one tap downloads and installs it. */
+    private void buildUpdateRow(){
+        updateRow=new LinearLayout(activity);updateRow.setOrientation(LinearLayout.VERTICAL);updateRow.setMinimumHeight(dp(64));
+        updateRow.setPadding(dp(14),dp(10),dp(14),dp(10));updateRow.setGravity(Gravity.CENTER_VERTICAL);
+        updateRow.setClickable(true);updateRow.setFocusable(true);updateRow.setVisibility(View.GONE);
+        updateRow.setBackground(SettingsUi.ripple(SettingsUi.rounded(activity,SettingsUi.accentSoft(),12)));
+        updateTitle=text("",14,accent());updateTitle.setTypeface(SettingsUi.medium());updateRow.addView(updateTitle);
+        updateDetail=text("",12,muted());updateDetail.setMaxLines(2);updateRow.addView(updateDetail);captions.add(updateDetail);
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.bottomMargin=dp(12);home.addView(updateRow,params);
+        updateRow.setOnClickListener(v->Updater.tap(activity));
+        Updater.listen(this::refreshUpdate);
+    }
+    private void refreshUpdate(){
+        if(updateRow==null)return;
+        boolean shown=Updater.visible();
+        updateRow.setVisibility(shown?View.VISIBLE:View.GONE);
+        if(!shown)return;
+        updateTitle.setTextColor(accent());updateTitle.setText(Updater.title());updateDetail.setText(Updater.detail());
+        updateRow.setContentDescription(Updater.title()+". "+Updater.detail());
+    }
     private void refreshHome(){
+        refreshUpdate();
         if(current>=0)return;
         summary(0,active("Spoofing",Control.desiredEnabled(),"Joystick",Control.joystickVisible(),"Idle walk",Control.idleWalking(),"Cooldown",Control.cooldownOverlay(),"Local time",Control.localTimeOverlay()));
         summary(1,active("Quick catch",Control.quickSummaryEnabled(),"Auto throw",Control.autoThrow(),"Auto ball",Control.autoBall(),"Curveball",Control.throwCurve(),"Always hit",Control.throwAlwaysHit(),"Berries",Control.encounterBerryEnabled()));
         summary(2,active("Auto-transfer",Control.autoTransferEnabled(),"Evolve first",Control.autoTransferEnabled()&&Control.evolveTransferEnabled(),"IVs shown",Control.ivCatchMode()!=0||Control.ivOwnedMode()!=0||Control.storageIvMode()!=0));
-        summary(3,active("Go Plus overlay",Control.vgpOverlay(),"Quick spin",Control.quickSpinEnabled(),"Item cleanup",Control.itemTransferEnabled()));
+        summary(3,active("Go Plus overlay",Control.vgpOverlay(),"Quick spin",Control.quickSpinEnabled(),"Item cleanup",Control.itemTransferEnabled(),"Lucky Egg",Control.autoLuckyEgg(),"Star Piece",Control.autoStarPiece()));
         summary(4,active("Smart battling",Control.smartBattle(),"Smart healing",Control.healEnabled(),"Auto attacks",Control.battleOptions()!=0||Control.rocketOptions()!=0,"Gym repeat",Control.gymRepeatEnabled()));
         summary(5,active("Buddy engine",BuddyEmotionSettings.enabled(),"Auto incubate",Control.autoIncubate(),"Open gifts",(Control.giftOptions()&1)!=0,"Send gifts",(Control.giftOptions()&2)!=0));
-        summary(6,AutoRaid.running()?"Auto-Raid running":ShundoSniper.active()?"Shundo Sniper running":ShinyScanner.enabled()?"Shiny Scanner on":"Shundo, shiny scan, raids, incense, gym feeding, gifts, evolve, research");
+        summary(6,AutoRaid.running()?"Auto-Raid running":AutoRocket.running()?"Auto Rocket running":ShundoSniper.active()?"Shundo Sniper running":ShinyScanner.enabled()?"Shiny Scanner on":"Shundo, shiny scan, raids, Rocket, incense, gym feeding, gifts, evolve, research");
         summary(7,"Halloween · Go Wild");
         summary(8,"UI "+Control.uiScalePercent()+"% · "+(Control.darkTheme()?"Dark":"Light")+" theme"+(Control.skipCutscenes()?" · Skip cutscenes":""));
         summary(9,"Accounts, export / import, run log, diagnostics");
@@ -1088,6 +1124,7 @@ final class SettingsPanel {
         if(versionLabel!=null)versionLabel.setTextColor(SettingsUi.faint());
         if(discord!=null)discord.setTextColor(accent());
         for(LinearLayout row:homeRows)row.setBackground(SettingsUi.ripple(SettingsUi.cardBackground(activity)));
+        if(updateRow!=null){updateRow.setBackground(SettingsUi.ripple(SettingsUi.rounded(activity,SettingsUi.accentSoft(),12)));refreshUpdate();}
         for(RowList rows:rowLists)rows.setDividerDrawable(SettingsUi.hairline(activity));
         for(TextView name:homeNames){name.setTextColor(ink());name.setTypeface(SettingsUi.medium());}
         for(TextView summary:pageSummaries)summary.setTextColor(muted());
@@ -1132,6 +1169,7 @@ final class SettingsPanel {
     }
 
     void refresh() {
+        Updater.check(activity);
         refreshHome();
         darkSwitch.setChecked(Control.darkTheme());
         refreshLocationStatus();
@@ -1256,7 +1294,7 @@ final class SettingsPanel {
     }
 
     private void refreshRocket() {
-        for(int i=0;i<3;i++)rocketChoices[i].setChecked((Control.rocketOptions()&(1<<i))!=0);status(rocketStatus,Control.rocketStatus());
+        for(int i=0;i<3;i++)rocketChoices[i].setChecked((Control.rocketOptionsSetting()&(1<<i))!=0);status(rocketStatus,Control.rocketStatus());
     }
 
     private void refreshItems() {
@@ -1268,6 +1306,7 @@ final class SettingsPanel {
         set(berryPriority,"Berry priority: "+BerryPriorityPicker.summary());
         berryPicker.refresh();
         quickSpinSwitch.setChecked(Control.quickSpinEnabled());status(quickSpinStatus,Control.quickSpinStatus());
+        luckyEggSwitch.setChecked(Control.autoLuckyEgg());starPieceSwitch.setChecked(Control.autoStarPiece());
         set(quickSummaryLabel,Control.quickSummaryAutoDismiss() ? "Quick catch" : "Faster catch summary");
         quickSummarySwitch.setChecked(Control.quickSummaryEnabled());
         quickSummarySwitch.setEnabled(Control.quickSummaryConfigured());
@@ -1283,6 +1322,7 @@ final class SettingsPanel {
         mapTap.setEnabled(Control.quickBallConfigured());
         spawnSwitch.setChecked(Control.spawnBooster());spawnSwitch.setEnabled(Control.spawnAllowed());status(spawnStatus,Control.spawnStatus());
         localTimeSwitch.setChecked(Control.localTimeOverlay());
+        skipTeleportSwitch.setChecked(Control.skipTeleportConfirm());
         encounterCounterSwitch.setChecked(Control.encounterCounter());encounterOverlaySwitch.setChecked(Control.encounterOverlay());
         SettingsUi.enabled(encounterOverlaySwitch,Control.encounterCounter());
         if(current<0)set(title,EncounterCounter.title());
