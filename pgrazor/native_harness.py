@@ -18,7 +18,7 @@ def main(argv=None):
     root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('tests', nargs='+', help='Native test stem, e.g. map_tap or buddy_feeding')
-    parser.add_argument('--abi', choices=native_build.DEFAULT_ABIS, default='x86_64')
+    parser.add_argument('--abi', choices=tuple(native_build.ELF_MACHINE), default='x86_64')
     parser.add_argument('--serial', help='Explicit device serial; omitted means compile only')
     parser.add_argument('--adb', default='adb')
     parser.add_argument('--library', type=Path, help='Reviewed core to test; defaults to native build output')

@@ -27,7 +27,7 @@ import nonroot
 import runtime_assets
 
 ROOT = Path(__file__).resolve().parent
-ABIS = ['arm64-v8a', 'x86_64']
+ABIS = ['arm64-v8a']
 TRIPLES = {'arm64-v8a': 'aarch64-linux-android28', 'x86_64': 'x86_64-linux-android28'}
 MODULE_ID = 'pgrazor'
 INSTALLER_PACKAGE = 'dev.pgrazor.root'

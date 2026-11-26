@@ -39,7 +39,7 @@ API_LEVEL = 28
 ANDROID_STL = 'c++_static'
 TARGET = 'pgrazor_core'
 OUTPUT_SONAME = 'libpgrazor-core.so'
-DEFAULT_ABIS = ('arm64-v8a', 'x86_64')
+DEFAULT_ABIS = ('arm64-v8a',)
 
 # EM_* machine ids keyed by ABI; both outputs must be ELFCLASS64.
 ELF_MACHINE = {'arm64-v8a': 183, 'x86_64': 62}

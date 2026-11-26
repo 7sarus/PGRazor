@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import native_build
 import rooted
 import rooted_installer
 
@@ -98,6 +99,10 @@ class ToggleCapabilityTests(unittest.TestCase):
         gate = source[check:dex]
         self.assertIn('target_ = false;', gate)
         self.assertIn('return;', gate)
+
+    def test_arm64_only_abis(self):
+        self.assertEqual(rooted.ABIS, ['arm64-v8a'])
+        self.assertEqual(native_build.DEFAULT_ABIS, ('arm64-v8a',))
 
 
 if __name__ == '__main__':
