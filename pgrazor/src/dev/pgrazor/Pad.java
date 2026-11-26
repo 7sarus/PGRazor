@@ -26,7 +26,7 @@ public final class Pad {
     private final SettingsPanel settings;
     private View launcher;
     private VgpToggle vgpToggle;
-    private int appliedUiScale;
+    private int appliedUiScale,appliedJoystickRadius;
     private int appliedWindowWidth,appliedWindowHeight;
     private final Rect appliedWindowBounds=new Rect();
     private LinearLayout joystickOverlay;
@@ -137,10 +137,11 @@ public final class Pad {
         });
 
         stick = new Stick(host);
+        int stickSize = stickSize();
         joystickOverlay = new LinearLayout(host); joystickOverlay.setOrientation(LinearLayout.VERTICAL);
         joystickOverlay.setClipChildren(false); joystickOverlay.setClipToPadding(false);
         TextView grip = text("•••", 10, SettingsUi.faint()); grip.setGravity(Gravity.CENTER); grip.setLetterSpacing(0.18f); joystickOverlay.addView(grip, new LinearLayout.LayoutParams(-1, dp(28)));
-        joystickOverlay.addView(stick, new LinearLayout.LayoutParams(dp(184), dp(184))); draggable(grip, joystickOverlay, false);
+        joystickOverlay.addView(stick, new LinearLayout.LayoutParams(stickSize, stickSize)); draggable(grip, joystickOverlay, false);
 
         // The settings panel is a full-screen modal; it consumes taps so the game behind it stays inert.
         parent.addView(settings.view(), new FrameLayout.LayoutParams(-1, -1));
@@ -151,7 +152,7 @@ public final class Pad {
         blackScreen.setOnClickListener(v->{ShundoSniper.setDark(false);refresh();});
         parent.addView(blackScreen,parent.indexOfChild(overlays),new FrameLayout.LayoutParams(-1,-1));
 
-        FrameLayout.LayoutParams joyLayout=new FrameLayout.LayoutParams(dp(184),-2,Gravity.LEFT|Gravity.BOTTOM);joyLayout.leftMargin=0;joyLayout.bottomMargin=dp(72);overlays.addView(joystickOverlay,joyLayout);
+        FrameLayout.LayoutParams joyLayout=new FrameLayout.LayoutParams(stickSize,-2,Gravity.LEFT|Gravity.BOTTOM);joyLayout.leftMargin=0;joyLayout.bottomMargin=dp(72);overlays.addView(joystickOverlay,joyLayout);
 
         // Compact catching-berry overlay; the popup chooses owned berries and Off.
         encounterBerry=new BerryOverlay(activity,this::refresh);
@@ -301,11 +302,24 @@ public final class Pad {
         return "Manual encounter transfer: "+state+". Tap to "+(keep?"use normal transfer rules":"keep manual catches")+". Drag to reposition.";
     }
 
+    private int stickSize(){
+        return Math.max(1,Math.round(dp(184)*(Control.joystickRadius()/(float)Control.JOYSTICK_RADIUS_DEFAULT)));
+    }
+    private void applyJoystickSize(){
+        int size=stickSize();
+        ViewGroup.LayoutParams sp=stick.getLayoutParams();
+        if(sp!=null&&(sp.width!=size||sp.height!=size)){sp.width=size;sp.height=size;stick.setLayoutParams(sp);}
+        ViewGroup.LayoutParams jp=joystickOverlay.getLayoutParams();
+        if(jp!=null&&jp.width!=size){jp.width=size;joystickOverlay.setLayoutParams(jp);}
+        stick.invalidate();
+    }
     private void applyMapScale(){
         if(launcher==null||launcher.getWidth()==0||parent.getWidth()==0)return;
         Rect safe=UiViewport.bounds(parent);
-        int percent=Control.uiScalePercent();
-        if(appliedUiScale==percent&&appliedWindowWidth==parent.getWidth()&&appliedWindowHeight==parent.getHeight()&&appliedWindowBounds.equals(safe))return;
+        int percent=Control.uiScalePercent(),radius=Control.joystickRadius();
+        if(appliedUiScale==percent&&appliedJoystickRadius==radius&&appliedWindowWidth==parent.getWidth()&&appliedWindowHeight==parent.getHeight()&&appliedWindowBounds.equals(safe))return;
+        boolean radiusChanged=appliedJoystickRadius!=radius;
+        if(radiusChanged){appliedJoystickRadius=radius;applyJoystickSize();}
         Rect previousSafe=appliedWindowBounds.isEmpty()?safe:new Rect(appliedWindowBounds);
         appliedWindowBounds.set(safe);appliedWindowWidth=parent.getWidth();appliedWindowHeight=parent.getHeight();
         appliedUiScale=percent;float scale=percent/100f;
@@ -318,6 +332,7 @@ public final class Pad {
             view.setX(UiViewportPolicy.resizePosition(x,previousSafe.left,previousSafe.right,oldWidth,safe.left,safe.right,OverlayDrag.visualWidth(view)));
             view.setY(UiViewportPolicy.resizePosition(y,previousSafe.top,previousSafe.bottom,oldHeight,safe.top,safe.bottom,OverlayDrag.visualHeight(view)));
         }
+        if(radiusChanged)joystickOverlay.post(()->{appliedWindowWidth=0;applyMapScale();});
         if(cooldownDrag!=null)cooldownDrag.refreshBounds();if(localTimeDrag!=null)localTimeDrag.refreshBounds();if(vgpDrag!=null)vgpDrag.refreshBounds();
         if(transferDrag!=null)transferDrag.refreshBounds();
         if(gameRoutesDrag!=null)gameRoutesDrag.refreshBounds();
@@ -678,8 +693,8 @@ public final class Pad {
         }
 
         private float discRadius(float cx, float cy) {
-            // Keep the 56dp disc inside the 184dp view with padding for the locked knob and unlock ring.
-            return Math.min(cx, cy) - dp(36);
+            // Keep 36/92 of the view half-width clear around the disc for the locked knob and unlock ring at any radius.
+            return Math.min(cx, cy) * (56f / 92f);
         }
 
         void applyMotion(long now) {
@@ -738,32 +753,32 @@ public final class Pad {
             paint.setStrokeCap(prevCap);
         }
         protected void onDraw(Canvas canvas) {
-            float cx=getWidth()/2f, cy=getHeight()/2f, radius=discRadius(cx, cy);
+            float cx=getWidth()/2f, cy=getHeight()/2f, radius=discRadius(cx, cy), unit=radius/56f;
             // A translucent instrument disc: the game stays visible through it, the chrome stays legible.
             paint.setStyle(Paint.Style.FILL);paint.setColor((surface()&0x00ffffff)|0xcc000000);canvas.drawCircle(cx,cy,radius,paint);
             paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Math.max(1,dp(1)));paint.setColor(SettingsUi.border());canvas.drawCircle(cx,cy,radius,paint);
             paint.setColor((muted()&0x00ffffff)|0x99000000);
-            canvas.drawLine(cx-radius+dp(10),cy,cx+radius-dp(10),cy,paint); canvas.drawLine(cx,cy-radius+dp(10),cx,cy+radius-dp(10),paint);
+            canvas.drawLine(cx-radius+10f*unit,cy,cx+radius-10f*unit,cy,paint); canvas.drawLine(cx,cy-radius+10f*unit,cx,cy+radius-10f*unit,paint);
             int knobColor = Control.engine.enabled ? accent() : SettingsUi.faint();
             paint.setStyle(Paint.Style.FILL);paint.setColor(knobColor);
             float kx=cx+x*radius*.65f, ky=cy+y*radius*.65f;
-            canvas.drawCircle(kx,ky,dp(20),paint);
+            canvas.drawCircle(kx,ky,20f*unit,paint);
             int contrast = Control.darkTheme() ? 0xff141b25 : 0xffffffff;
             if (lockState.isLocked) {
-                drawLockIcon(canvas, kx, ky, dp(15), contrast, knobColor, true);
+                drawLockIcon(canvas, kx, ky, 15f*unit, contrast, knobColor, true);
                 if (lockState.unlockHolding) {
                     paint.setStyle(Paint.Style.STROKE);
                     paint.setStrokeWidth(dp(2.5f));
                     paint.setColor(ink());
-                    canvas.drawCircle(kx, ky, dp(24), paint);
+                    canvas.drawCircle(kx, ky, 24f*unit, paint);
                     paint.setStyle(Paint.Style.FILL);
                 }
             } else if (lockState.centerArmed) {
-                drawLockIcon(canvas, kx, ky, dp(15), contrast, knobColor, false);
+                drawLockIcon(canvas, kx, ky, 15f*unit, contrast, knobColor, false);
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dp(2f));
                 paint.setColor(contrast);
-                canvas.drawCircle(kx, ky, dp(23), paint);
+                canvas.drawCircle(kx, ky, 23f*unit, paint);
                 paint.setStyle(Paint.Style.FILL);
             }
         }

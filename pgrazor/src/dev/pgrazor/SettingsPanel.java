@@ -84,6 +84,11 @@ final class SettingsPanel {
     private SeekBar transferKeepIvSlider;
     private EditText transferKeepIvField;
     private boolean transferKeepIvDragging;
+    // Joystick radius slider.
+    private LinearLayout joystickRadiusRow;
+    private SeekBar joystickRadiusSlider;
+    private TextView joystickRadiusValue;
+    private boolean joystickRadiusDragging;
     private BerryPriorityPicker berryPicker;
     private TextView quickSummaryLabel, vgpStatus, cutsceneStatus, healStatus, smartBattleStatus;
     private Switch healSwitch, healReviveSwitch, smartBattleSwitch, gymRepeatSwitch;
@@ -410,6 +415,28 @@ final class SettingsPanel {
         launch(core, "World map", host::openMap);
         joystickSwitch = switchRow(core, "Show joystick"); joystickSwitch.setChecked(Control.joystickVisible());
         joystickSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.joystickVisible())return; host.setJoystickVisible(checked); });
+        LinearLayout radiusRow=new LinearLayout(activity);radiusRow.setOrientation(LinearLayout.VERTICAL);radiusRow.setPadding(dp(10),dp(6),dp(6),dp(4));
+        radiusRow.setTag(SettingsUi.TAG_SEARCH_ROW,"Joystick radius");
+        LinearLayout radiusLine=new LinearLayout(activity);radiusLine.setOrientation(LinearLayout.HORIZONTAL);radiusLine.setGravity(Gravity.CENTER_VERTICAL);
+        radiusLine.addView(text("Joystick radius",14,ink()),new LinearLayout.LayoutParams(0,-2,1f));
+        joystickRadiusValue=text(Control.joystickRadius()+" dp",13,muted());joystickRadiusValue.setTypeface(SettingsUi.mono());
+        radiusLine.addView(joystickRadiusValue,new LinearLayout.LayoutParams(-2,-2));
+        radiusRow.addView(radiusLine);
+        joystickRadiusSlider=new SeekBar(activity);joystickRadiusSlider.setMax(Control.JOYSTICK_RADIUS_MAX-Control.JOYSTICK_RADIUS_MIN);
+        joystickRadiusSlider.setContentDescription("Joystick radius");
+        joystickRadiusSlider.setProgress(Control.joystickRadius()-Control.JOYSTICK_RADIUS_MIN);
+        LinearLayout.LayoutParams radiusBarParams=new LinearLayout.LayoutParams(-1,dp(40));radiusBarParams.topMargin=dp(2);
+        radiusRow.addView(joystickRadiusSlider,radiusBarParams);
+        joystickRadiusSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onProgressChanged(SeekBar bar,int progress,boolean fromUser){
+                int value=Control.JOYSTICK_RADIUS_MIN+progress;
+                if(joystickRadiusValue!=null)set(joystickRadiusValue,value+" dp");
+                if(fromUser&&!joystickRadiusDragging){host.releaseJoystick(true);Control.setJoystickRadius(value);host.refresh();}
+            }
+            public void onStartTrackingTouch(SeekBar bar){joystickRadiusDragging=true;}
+            public void onStopTrackingTouch(SeekBar bar){joystickRadiusDragging=false;host.releaseJoystick(true);Control.setJoystickRadius(Control.JOYSTICK_RADIUS_MIN+bar.getProgress());host.refresh();}
+        });
+        joystickRadiusRow=radiusRow;core.addView(radiusRow);
         idleWalkSwitch = switchRow(core, "Idle walking");idleWalkSwitch.setChecked(Control.idleWalking());
         idleWalkSwitch.setOnCheckedChangeListener((v,checked)->{if(checked!=Control.idleWalking())Control.setIdleWalking(checked);});
         caption(core, "When idle, start walking in a circle. Speed 0 pauses it.");
@@ -1182,6 +1209,7 @@ final class SettingsPanel {
         SettingsUi.enabled(incubatorPriority,Control.autoIncubate()&&Control.incubatorAvailable());
         SettingsUi.enabled(giftChoices[2],(Control.giftOptions()&2)!=0);
         SettingsUi.enabled((View)joystickSwitch.getParent(),Control.desiredEnabled());
+        if(joystickRadiusRow!=null)SettingsUi.enabled(joystickRadiusRow,Control.desiredEnabled()&&Control.joystickVisible());
         SettingsUi.enabled(mapTap,Control.desiredEnabled()&&Control.quickBallConfigured());
     }
 
@@ -1286,6 +1314,11 @@ final class SettingsPanel {
 
     private void refreshLocationOptions() {
         for(int i=0;i<quickMenuChoices.length;i++)quickMenuChoices[i].setChecked(Control.quickMenuVisible(1<<i));
+        if(joystickRadiusSlider!=null&&!joystickRadiusDragging){
+            int progress=Control.joystickRadius()-Control.JOYSTICK_RADIUS_MIN;
+            if(joystickRadiusSlider.getProgress()!=progress)joystickRadiusSlider.setProgress(progress);
+            set(joystickRadiusValue,Control.joystickRadius()+" dp");
+        }
         idleWalkSwitch.setChecked(Control.idleWalking());idleWalkSwitch.setEnabled(Control.desiredEnabled());idleWalkSwitch.setAlpha(Control.desiredEnabled()?1f:.45f);
         set(mapTap,"Game map tap: "+new String[]{"Do nothing","Walk","Teleport","Walk / double tap teleport"}[Control.mapTapMode()]);
         mapTap.setEnabled(Control.quickBallConfigured());

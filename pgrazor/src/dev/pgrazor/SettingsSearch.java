@@ -139,6 +139,7 @@ final class SettingsSearch {
         put(DESCRIPTIONS, "Coordinates & speed", "Set the latitude, longitude and walking speed.");
         put(DESCRIPTIONS, "World map", "Pick a destination, walk route or nearby point on the map.");
         put(DESCRIPTIONS, "Show joystick", "Show the on-screen movement joystick.");
+        put(DESCRIPTIONS, "Joystick radius", "Resize the movement joystick disc from 32 dp to 96 dp.");
         put(DESCRIPTIONS, "Idle walking", "Walk in a circle when the joystick is idle. Speed 0 pauses it.");
         put(DESCRIPTIONS, "Game map tap", "Choose what a single or double tap on the game map does.");
         put(DESCRIPTIONS, "Spawn booster (80 m)", "Load nearby Pokémon sooner. Can cause lag in busy areas.");
@@ -280,6 +281,7 @@ final class SettingsSearch {
         put(SYNONYMS, "Auto incubate", "egg incubator hatch");
         put(SYNONYMS, "Dark theme", "light mode appearance");
         put(SYNONYMS, "UI scale", "size resize scale overlays");
+        put(SYNONYMS, "Joystick radius", "joystick size diameter scale larger smaller");
         put(SYNONYMS, "Limit to 20 FPS", "fps frames battery performance");
         put(SYNONYMS, "Lower resolution", "resolution battery performance graphics");
         put(SYNONYMS, "Low graphics quality", "graphics quality battery performance shadows");

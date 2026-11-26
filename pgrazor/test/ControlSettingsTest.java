@@ -27,6 +27,8 @@ public final class ControlSettingsTest {
             Control.setQuickBallEnabled(true); Control.setQuickSummaryEnabled(true);
             Control.setIvCatchEnabled(false); Control.setIvOwnedEnabled(true); Control.setStorageIvMode(3); Control.setStorageIvFormat(2); Control.setStorageIvEnabled(false); Control.setIvOwnedMode(3); Control.setIvCatchMode(1); Control.setIvCatchMode(0); Control.setCatchChanceShown(false); if(!Control.catchPreview())throw new AssertionError("Catch preview must default on"); Control.setCatchPreview(false); if(Control.autoLuckyEgg()||Control.autoStarPiece()||!Control.autoBoostConfig().equals("B1|0|0"))throw new AssertionError("Auto boosts must default off"); Control.setAutoLuckyEgg(true); Control.setAutoBall(true); Control.setAutoThrow(true); Control.setAutoThrowOnMap(true); Control.setAutoBallTarget(85); Control.setPvpKeep(0,false); Control.setPvpKeep(2,true); Control.setPvpRank(1,25);
             Control.setThrowGrade(3); Control.setThrowCurve(true); Control.setMapTapMode(2);
+            if(Control.joystickRadius()!=56)throw new AssertionError("Joystick radius must default to 56");
+            Control.setJoystickRadius(76); Control.setJoystickRadius(10); Control.setJoystickRadius(120);
             Control.setQuickBallReady(false,"Loading"); Control.setQuickSummaryReady(false,"Loading");
         }
         if(!Control.itemTransferEnabled()||!Control.itemRules().equals("1:100;101:0;")||!Control.itemLimits().equals("1:100;101:0;2:250;")||!Control.itemCatalog().contains("Poke Ball"))throw new AssertionError("Item limits not persisted");
@@ -51,6 +53,7 @@ public final class ControlSettingsTest {
         if(Control.ivCatchEnabled()||!Control.ivOwnedEnabled()||Control.ivCatchMode()!=0||Control.ivOwnedMode()!=3||Control.nextIvMode(0)!=4||Control.nextIvMode(4)!=3||Control.nextIvMode(1)!=0)throw new AssertionError("IV display preferences lost across process restart");
         if(Control.storageIvEnabled()||Control.storageIvFormat()!=2||!Control.storageIvConfig().equals("S2|0|1|3"))throw new AssertionError("Storage IV setting lost across process restart");
         if(!Control.autoLuckyEgg()||Control.autoStarPiece()||!Control.autoBoostConfig().equals("B1|1|0"))throw new AssertionError("Auto boost settings lost across process restart");
+        if(Control.joystickRadius()!=76)throw new AssertionError("Joystick radius lost across process restart");
         if(!Control.autoThrow()||!Control.autoThrowOnMap()||Control.catchChanceShown()||Control.catchPreview()||!Control.autoBall()||Control.autoBallTarget()!=85||!Control.catchChanceConfig().startsWith("C5|0|1|85|")&&!Control.catchChanceConfig().endsWith("|1"))throw new AssertionError("Catch chance settings lost across process restart");
         if(Control.pvpKeep(0)||!Control.pvpKeep(1)||Control.pvpRank(0)!=50||Control.pvpRank(1)!=25||!Control.pvpKeepConfig().equals("P2|0|25|10|150"))throw new AssertionError("PvP keep settings lost across process restart");
         // Pending off-thread writes must reach disk before this process exits, or the restart cannot see them.

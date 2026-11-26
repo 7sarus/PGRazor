@@ -1185,6 +1185,11 @@ public final class Control {
     private static volatile int uiScalePercent=100;
     public static int uiScalePercent(){return uiScalePercent;}
     public static void setUiScalePercent(int value){if(value!=25&&value!=50&&value!=75&&value!=100)return;uiScalePercent=value;saveSettings();}
+    static final int JOYSTICK_RADIUS_MIN=32, JOYSTICK_RADIUS_MAX=96, JOYSTICK_RADIUS_DEFAULT=56;
+    private static volatile int joystickRadius=JOYSTICK_RADIUS_DEFAULT;
+    public static boolean validJoystickRadius(int dp){return dp>=JOYSTICK_RADIUS_MIN&&dp<=JOYSTICK_RADIUS_MAX;}
+    public static int joystickRadius(){return joystickRadius;}
+    public static void setJoystickRadius(int dp){if(!validJoystickRadius(dp)||dp==joystickRadius)return;joystickRadius=dp;saveSettings();event("joystick-radius",dp+"dp");}
     public static boolean darkTheme(){return darkTheme;}
     private static volatile boolean idleWalking;
     public static boolean idleWalking(){return idleWalking;}
@@ -1253,6 +1258,8 @@ public final class Control {
                 quickMenuHidden=boundedSetting(p,"quickMenuHidden",8191);
                 try{uiScalePercent=Integer.parseInt(p.getProperty("uiScalePercent","100"));}catch(NumberFormatException invalid){uiScalePercent=100;}
                 if(uiScalePercent!=25&&uiScalePercent!=50&&uiScalePercent!=75&&uiScalePercent!=100)uiScalePercent=100;
+                try{joystickRadius=Integer.parseInt(p.getProperty("joystickRadius",String.valueOf(JOYSTICK_RADIUS_DEFAULT)));}catch(NumberFormatException invalid){joystickRadius=JOYSTICK_RADIUS_DEFAULT;}
+                if(!validJoystickRadius(joystickRadius))joystickRadius=JOYSTICK_RADIUS_DEFAULT;
                 joystickVisible=Boolean.parseBoolean(p.getProperty("joystickVisible","true"));
                 idleWalking=Boolean.parseBoolean(p.getProperty("idleWalking","false"));engine.setIdleWalking(idleWalking);
                 cooldownOverlay=Boolean.parseBoolean(p.getProperty("cooldownOverlay","false"));
@@ -1417,6 +1424,7 @@ public final class Control {
         ShinyScanner.write(p);
         p.setProperty("locationSpoofing",String.valueOf(desiredEnabled));
         p.setProperty("darkTheme",String.valueOf(darkTheme));p.setProperty("uiScalePercent",String.valueOf(uiScalePercent));
+        p.setProperty("joystickRadius",String.valueOf(joystickRadius));
         p.setProperty("joystickVisible",String.valueOf(joystickVisible));
         p.setProperty("quickMenuHidden",String.valueOf(quickMenuHidden));
         p.setProperty("idleWalking",String.valueOf(idleWalking));
