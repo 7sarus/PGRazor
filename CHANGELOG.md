@@ -2,12 +2,6 @@
 
 ## Unreleased
 
-### New features
-
-- **Joystick lock:** Hold the joystick outward to pop out a lock badge. Drag onto it or tap it to keep the character walking in that direction. Tap the joystick to unlock.
-
-### Improvements & fixes
-
 - Updated to latest game version (0.439.0)
 - **Catch preview:** The Caught / broke free / fled message after a throw now has its own switch in Catching settings (on by default) and works without Quick catch.
 - Fixed a Root startup crash when Vector replaces an ARM64 runtime hook during launch.
