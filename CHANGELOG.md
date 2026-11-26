@@ -10,7 +10,6 @@
 - **Keep shadow, Dynamax and Gigantamax Pokémon:** New keep options in the transfer settings, each on by default.
 - **Global settings:** In Switch account, turn on Global settings and mark one account as Main; every account then uses the Main account's settings. Each account's own settings are kept and come back when Global settings is turned off. Location, favorites and routes stay per account. Deleting the main account makes the current account main with the settings in use.
 - **Auto Lucky Egg and Auto Star Piece:** Two switches under Go Plus, Stops & Items → Boosts.
-- **In-app updates:** When a newer release is out, an update row appears at the top of the settings menu. Tap it to download the right file for your build; the non-root app then installs it, and PGRazor Root saves its installer to Downloads for you to open. You won't need to goto a certain YouTube video and scroll down to the comments to download (lmao) 🤡.
 
 ### Improvements & fixes
 
