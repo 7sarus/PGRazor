@@ -116,17 +116,36 @@ int level_half(float multiplier){
  return -1;
 }
 
-// Move names are the field names of the game's PokemonMove enum, which are already UPPER_SNAKE.
-// Returns false when the enum is not in the game, so the caller writes numeric ids instead.
+// Resolves move enum via PokemonProto.move1_ first, then Holoholo.Rpc.HoloPokemonMove / PokemonMove.
+void *move_enum_class(){
+ try{
+  void *pk=cls("Holoholo.Rpc","PokemonProto");
+  void *f=fn<void*(*)(void*,const char*)>(boot.meta.class_get_field_from_name)(pk,"move1_");
+  if(f){
+   void *t=fn<void*(*)(void*)>(boot.meta.field_get_type)(f);
+   void *ek=t?fn<void*(*)(void*)>(boot.meta.class_from_type)(t):nullptr;
+   if(ek&&fn<bool(*)(void*)>(boot.meta.class_is_enum)(ek))return ek;
+  }
+ }catch(const Failure&){}
+ const char *candidates[]={"HoloPokemonMove","PokemonMove"};
+ for(const char *name:candidates){
+  try{return cls("Holoholo.Rpc",name);}catch(const Failure&){}
+ }
+ return nullptr;
+}
+
+// Move names come from the game's HoloPokemonMove enum ("V0224MovePoisonJabFast" -> "POISON_JAB_FAST").
+// Returns false when no named literals are found, so the caller writes numeric ids instead.
 bool read_move_names(std::map<int,std::string> &names){
- void *k=nullptr;
- try{k=cls("Holoholo.Rpc","PokemonMove");}catch(const Failure&){return false;}
+ void *k=move_enum_class();
+ if(!k)return false;
  auto next_field=fn<void*(*)(void*,void**)>(exp("class_get_fields"));auto name_of=fn<const char*(*)(void*)>(exp("field_get_name"));
  void *iter=nullptr;
  while(void *f=next_field(k,&iter)){
   if((fn<int(*)(void*)>(boot.meta.field_get_flags)(f)&0x8050)!=0x8050)continue;  // static literal: one enum value
   int value=0;fn<void(*)(void*,void*)>(boot.runtime.field_static_get_value)(f,&value);
-  names.emplace(value,name_of(f));
+  std::string formatted=pgr_format_pokemon_move_name(name_of(f));
+  if(!formatted.empty())names.emplace(value,std::move(formatted));
  }
  return !names.empty();
 }
