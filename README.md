@@ -1,6 +1,6 @@
 # PGRazor (Fork)
 
-An opinionated fork of [PGRazor](https://github.com/jpitty03/PGRazor) focused on root-based location overlays, directional joystick gestures, and clean integration.
+An opinionated fork focused on root-based location overlays, directional joystick gestures, and clean integration.
 
 This fork maintains the Zygisk root module and companion installer app. Non-root packaging is currently disabled.
 

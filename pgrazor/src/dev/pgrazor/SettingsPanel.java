@@ -43,7 +43,7 @@ final class SettingsPanel {
     private final ScrollView bodyScroll;
     private TextView coords, speedReadout, homeStatus;
     private View closeIcon, themeIcon, backIcon;
-    private TextView title, versionLabel, discord;
+    private TextView title, versionLabel, telegram;
     private SettingsUi.Dot homeDot;
     private LinearLayout updateRow;
     private TextView updateTitle, updateDetail;
@@ -319,16 +319,16 @@ final class SettingsPanel {
         bodyScroll.addView(body, new ScrollView.LayoutParams(-1,-2));
         content.addView(bodyScroll, new LinearLayout.LayoutParams(-1,0,1));
 
-        discord = text("Join our Discord", 12, accent());
-        discord.setGravity(Gravity.CENTER); discord.setMinimumHeight(dp(44));
-        discord.setContentDescription("Join the PGRazor Discord community");
-        discord.setClickable(true); discord.setFocusable(true);
-        discord.setBackground(SettingsUi.pressable(activity));
-        content.addView(discord, new LinearLayout.LayoutParams(-1,dp(44)));
-        discord.setOnClickListener(v -> {
-            try { activity.startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://discord.gg/9QqfkDSQX3"))); }
+        telegram = text("Join our Telegram", 12, accent());
+        telegram.setGravity(Gravity.CENTER); telegram.setMinimumHeight(dp(44));
+        telegram.setContentDescription("Join our Telegram group");
+        telegram.setClickable(true); telegram.setFocusable(true);
+        telegram.setBackground(SettingsUi.pressable(activity));
+        content.addView(telegram, new LinearLayout.LayoutParams(-1,dp(44)));
+        telegram.setOnClickListener(v -> {
+            try { activity.startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/devvdump"))); }
             catch (android.content.ActivityNotFoundException unavailable) {
-                android.widget.Toast.makeText(activity, "No app available to open Discord links", android.widget.Toast.LENGTH_SHORT).show();
+                android.widget.Toast.makeText(activity, "No app available to open Telegram links", android.widget.Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -1122,7 +1122,7 @@ final class SettingsPanel {
         if(homeStatus!=null)homeStatus.setTextColor(muted());
         if(title!=null)title.setTextColor(ink());
         if(versionLabel!=null)versionLabel.setTextColor(SettingsUi.faint());
-        if(discord!=null)discord.setTextColor(accent());
+        if(telegram!=null)telegram.setTextColor(accent());
         for(LinearLayout row:homeRows)row.setBackground(SettingsUi.ripple(SettingsUi.cardBackground(activity)));
         if(updateRow!=null){updateRow.setBackground(SettingsUi.ripple(SettingsUi.rounded(activity,SettingsUi.accentSoft(),12)));refreshUpdate();}
         for(RowList rows:rowLists)rows.setDividerDrawable(SettingsUi.hairline(activity));

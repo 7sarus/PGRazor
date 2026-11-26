@@ -43,9 +43,6 @@ def message(release, role_id=''):
         asset = next((a for a in assets if a.get('name') == filename), None)
         if asset:
             fields.append({'name': label, 'value': '[' + filename + '](' + asset['browser_download_url'] + ')'})
-    # Keep the support link visible even when long release notes are truncated.
-    if 'https://ko-fi.com/pgrazor' not in notes:
-        fields.append({'name': 'Support development', 'value': '[Ko-fi](https://ko-fi.com/pgrazor) (optional)'})
     embed = {'title': (release.get('name') or release['tag_name'])[:256],
              'url': release['html_url'], 'description': notes,
              'color': 0x35DAB4, 'fields': fields,
