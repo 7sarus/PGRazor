@@ -76,7 +76,7 @@ final class SettingsPanel {
     // Boolean settings use proper switches.
     private Switch skipTeleportSwitch;
     private Switch idleWalkSwitch, locationSwitch, vgpSwitch, joystickSwitch, cooldownSwitch, localTimeSwitch, encounterCounterSwitch, encounterOverlaySwitch, spawnSwitch, autoTransferSwitch,
-        quickSpinSwitch, berrySwitch, quickSummarySwitch, catchPreviewSwitch, luckyEggSwitch, starPieceSwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, routeGiftSwitch,
+        quickSpinSwitch, berrySwitch, quickSummarySwitch, catchPreviewSwitch, luckyEggSwitch, starPieceSwitch, curveSwitch, alwaysHitSwitch, arSwitch, transferOverlaySwitch, catchChanceSwitch, autoBallSwitch, autoThrowSwitch, autoThrowMapSwitch, skipCutscenesSwitch, concealUsernameSwitch, routeGiftSwitch,
         batteryResSwitch, batteryFpsSwitch, batteryQualitySwitch;
     private Button autoBallTarget, berryPriority;
     // Transfer keep-IV cutoff: a slider and a number field that mirror each other.
@@ -817,6 +817,9 @@ final class SettingsPanel {
         skipCutscenesSwitch = switchRow(look, "Skip cutscenes"); skipCutscenesSwitch.setChecked(Control.skipCutscenes());
         skipCutscenesSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.skipCutscenes())return; Control.setSkipCutscenes(checked); });
         cutsceneStatus = caption(look, "");  // shown only when the native module reports an error
+        concealUsernameSwitch = switchRow(look, "Conceal username"); concealUsernameSwitch.setChecked(Control.concealUsername());
+        concealUsernameSwitch.setOnCheckedChangeListener((v,checked) -> { if(checked==Control.concealUsername())return; Control.setConcealUsername(checked); host.refresh(); });
+        caption(look, "Replaces your trainer name on game screens with noneofyourbusiness.");
 
         LinearLayout battery = group(page, "Battery usage");
         caption(battery, "Lower graphics to save battery and keep the phone cooler. Each turns back to the game's own setting when switched off.");
@@ -886,7 +889,7 @@ final class SettingsPanel {
         summary(5,active("Buddy engine",BuddyEmotionSettings.enabled(),"Auto incubate",Control.autoIncubate(),"Open gifts",(Control.giftOptions()&1)!=0,"Send gifts",(Control.giftOptions()&2)!=0));
         summary(6,AutoRaid.running()?"Auto-Raid running":AutoRocket.running()?"Auto Rocket running":ShundoSniper.active()?"Shundo Sniper running":ShinyScanner.enabled()?"Shiny Scanner on":"Shundo, shiny scan, raids, Rocket, incense, gym feeding, gifts, evolve, research");
         summary(7,"Halloween · Go Wild");
-        summary(8,"UI "+Control.uiScalePercent()+"% · "+(Control.darkTheme()?"Dark":"Light")+" theme"+(Control.skipCutscenes()?" · Skip cutscenes":""));
+        summary(8,"UI "+Control.uiScalePercent()+"% · "+(Control.darkTheme()?"Dark":"Light")+" theme"+(Control.skipCutscenes()?" · Skip cutscenes":"")+(Control.concealUsername()?" · Conceal username":""));
         summary(9,"Accounts, export / import, run log, diagnostics");
     }
 
@@ -1157,6 +1160,7 @@ final class SettingsPanel {
         refreshLocationOptions();
         refreshThrows();
         skipCutscenesSwitch.setChecked(Control.skipCutscenes());
+        concealUsernameSwitch.setChecked(Control.concealUsername());
         routeGiftSwitch.setChecked(Control.routeGiftExchange());
         batteryResSwitch.setChecked(Control.batteryLowRes());batteryFpsSwitch.setChecked(Control.batteryFps20());batteryQualitySwitch.setChecked(Control.batteryLowQuality());
         status(cutsceneStatus,Control.cutsceneSkipStatus());

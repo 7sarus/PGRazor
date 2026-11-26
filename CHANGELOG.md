@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New features
+
+- **Conceal username:** Added an Interface switch to replace your trainer name on game screens with `noneofyourbusiness`.
+
 ## v0.3.7
 
 [Full release notes](docs/releases/v0.3.7.md)
