@@ -5,6 +5,7 @@
 ### New features
 
 - **Joystick lock:** Long-press the joystick centre for 1.5s and drag in a direction to lock steering with haptic feedback. Long-press the padlock icon to unlock.
+- **Conceal username:** Added an Interface switch to replace your trainer name on game screens with `noneofyourbusiness` or a custom alphanumeric name.
 
 ## v0.3.7
 

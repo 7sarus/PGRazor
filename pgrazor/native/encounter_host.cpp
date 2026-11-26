@@ -49,6 +49,7 @@
 #include "shundo.h"
 #include "shiny_scan.h"
 #include "battery.h"
+#include "conceal_username.h"
 #include "remote_gym.h"
 #include "gift_batch.h"
 #include "auto_raid.h"
@@ -2591,6 +2592,7 @@ static int api_tick(uint64_t proven_tid) {
     pgr_shiny_scan_tick(os_tid, &g_md);
   }
   pgr_battery_tick(os_tid, &g_md);
+  pgr_conceal_username_tick(os_tid, &g_md);
   if(!raid_block)pgr_buddy_emotion_tick(os_tid, &g_md);
 
 
@@ -2636,6 +2638,7 @@ static int api_stop(uint64_t proven_tid) {
       pgr_shundo_stop(tid);
       pgr_shiny_scan_stop(tid);
       pgr_battery_stop(tid);
+      pgr_conceal_username_stop(tid);
       pgr_buddy_emotion_stop(tid);
       g_vgc->stop(tid);
       notify_vgp_target(0, 0.0, 0.0, 0);
