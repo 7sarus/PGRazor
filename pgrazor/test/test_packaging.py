@@ -260,22 +260,25 @@ class ReleaseVersionTests(unittest.TestCase):
         def git_mock(cmd, **kwargs):
             if cmd[1:3] == ['rev-parse', '--abbrev-ref']:
                 return 'feature/new-joystick\n'
+            if cmd[1:3] == ['rev-list', '--count']:
+                return '270\n'
             if cmd[1:3] == ['rev-parse', '--short']:
                 return 'abc1234\n'
             raise ValueError('unexpected cmd')
 
         with patch.dict(build.os.environ, {}, clear=True), patch.object(build.subprocess, 'check_output', side_effect=git_mock):
-            ver = build.release_version(ROOT)
-            self.assertTrue(ver.startswith('v0.1.8-new-joystick-abc1234'))
+            self.assertEqual(build.release_version(ROOT), 'v0.1.8-new-joystick-abc1234-b.270')
 
-    def test_main_branch_uses_clean_version(self):
+    def test_main_branch_stamps_commit_count(self):
         def git_mock(cmd, **kwargs):
             if cmd[1:3] == ['rev-parse', '--abbrev-ref']:
                 return 'main\n'
+            if cmd[1:3] == ['rev-list', '--count']:
+                return '270\n'
             raise ValueError('unexpected cmd')
 
         with patch.dict(build.os.environ, {}, clear=True), patch.object(build.subprocess, 'check_output', side_effect=git_mock):
-            self.assertEqual(build.release_version(ROOT), 'v0.1.8')
+            self.assertEqual(build.release_version(ROOT), 'v0.1.8-b.270')
 
     def test_invalid_version_raises(self):
         with patch.dict(build.os.environ, {'PGRAZOR_VERSION': 'invalid!!'}):

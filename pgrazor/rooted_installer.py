@@ -28,17 +28,27 @@ EXPECTED_CLASSES = ('InstallerActivity', 'RestartActivity', 'RootShell', 'RootSt
 
 
 def installer_version_code(version):
-    """versionCode for the installer APK, derived from the PGRazor version (vMAJOR.MINOR.PATCH).
+    """versionCode for the installer APK, derived from the PGRazor version (vMAJOR.MINOR.PATCH[-...-b.BUILD]).
 
     Kept local rather than imported from rooted.py so the build helper has no import dependency on
     the packager that calls it; the formula matches rooted.version_code.
     """
-    match = re.fullmatch(r'v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?', str(version))
+    match = re.fullmatch(r'v?([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*))?', str(version))
     if not match:
         raise ValueError('Invalid PGRazor version ' + str(version))
-    major, minor, patch = map(int, match.groups())
-    code = major * 1000000 + minor * 1000 + patch
-    if minor >= 1000 or patch >= 1000 or not 0 < code <= 2100000000:
+    major, minor, patch = map(int, match.groups()[:3])
+    suffix = match.group(4) or ''
+    build_match = re.search(r'(?:^|[.-])b\.([0-9]+)(?:$|-)', suffix)
+    if build_match:
+        build = int(build_match.group(1))
+        if minor >= 100 or patch >= 100 or build >= 10000:
+            raise ValueError('PGRazor version is outside Android versionCode limits')
+        code = major * 100000000 + minor * 1000000 + patch * 10000 + build
+    else:
+        if minor >= 1000 or patch >= 1000:
+            raise ValueError('PGRazor version is outside Android versionCode limits')
+        code = major * 1000000 + minor * 1000 + patch
+    if not 0 < code <= 2100000000:
         raise ValueError('PGRazor version is outside Android versionCode limits')
     return code
 

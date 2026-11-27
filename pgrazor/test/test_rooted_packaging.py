@@ -22,14 +22,15 @@ class RootedPackagingTests(unittest.TestCase):
                 rooted.require_supported_target(dict(target, **{field: value}))
 
     def test_shared_version_and_manifest(self):
-        for version, code in [('v0.2.2-root', 2002), ('1.23.456-rc.1', 1023456)]:
+        for version, code in [('v0.2.2-root', 2002), ('1.23.456-rc.1', 1023456),
+                              ('v0.1.8-b.270', 1080270), ('v0.1.8-pokemon-dump-17c61ca-b.273', 1080273)]:
             self.assertEqual(rooted.version_code(version), code)
             manifest = ET.fromstring(rooted_installer._manifest(version))
             self.assertEqual(manifest.attrib['{http://schemas.android.com/apk/res/android}versionCode'], str(code))
             self.assertEqual(manifest.attrib['package'], 'dev.pgrazor.root')
 
     def test_reject_ambiguous_overflow_and_injection(self):
-        for version in ['0.0.0', '1.1000.0', '1.0.1000', '9999.0.0', '1.2.3-x\nupdateJson=evil', '1.2.3-"x', '1.2.3-', 'v1.2']:
+        for version in ['0.0.0', '0.0.0-b.0', '0.1.100-b.1', '0.1.8-b.10000', '1.1000.0', '1.0.1000', '9999.0.0', '1.2.3-x\nupdateJson=evil', '1.2.3-"x', '1.2.3-', 'v1.2']:
             with self.subTest(version=version), self.assertRaises(ValueError):
                 rooted_installer._manifest(version)
 

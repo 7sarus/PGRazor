@@ -2,12 +2,15 @@
 
 ## Unreleased
 
-- **Upstream sync:** Merged `jpitty03/PGRazor` through tag `v0.3.8` (`1106592`). Upstream `v0.3.8` notes are saved in [docs/releases/v0.3.8.md](docs/releases/v0.3.8.md).
-
 ### New features
 
 - **Joystick lock:** Long-press the joystick centre for 1.5s and drag in a direction to lock steering with haptic feedback. Long-press the padlock icon to unlock.
+- **Joystick size:** Added a dp radius slider for the on-screen joystick.
 - **Conceal username:** Added an Interface switch to replace your trainer name on game screens with `noneofyourbusiness` or a custom alphanumeric name.
+
+### Improvements & fixes
+
+- **Upstream v0.3.8:** Fixed Catch on map and Incense bird guard for game `0.439.0`, routed Auto throw catches through transfer rules, raised the incubator limit, and improved Auto Rocket VGP+ walking, leader prompts, and unspinnable stops ([notes](docs/releases/v0.3.8.md)).
 
 ## v0.3.7
 

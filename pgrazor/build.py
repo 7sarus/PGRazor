@@ -26,15 +26,21 @@ def release_version(root):
                     ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
                     cwd=root, stderr=subprocess.DEVNULL, text=True
                 ).strip()
+                commits = subprocess.check_output(
+                    ['git', 'rev-list', '--count', 'HEAD'],
+                    cwd=root, stderr=subprocess.DEVNULL, text=True
+                ).strip()
+                if not commits.isdigit():
+                    raise ValueError('Invalid commit count')
                 if branch.startswith(('feature/', 'pr/')):
                     feature = re.sub(r'[^A-Za-z0-9.-]', '-', branch.split('/', 1)[1])
                     sha = subprocess.check_output(
                         ['git', 'rev-parse', '--short', 'HEAD'],
                         cwd=root, stderr=subprocess.DEVNULL, text=True
                     ).strip()
-                    version = f"{base}-{feature}-{sha}"
+                    version = f"{base}-{feature}-{sha}-b.{commits}"
                 else:
-                    version = base
+                    version = f"{base}-b.{commits}"
             except Exception:
                 version = base
         else:

@@ -6,7 +6,8 @@
 
 ## Improvements & fixes
 
+- **Upstream vX.Y.Z:** Summary of merged upstream changes.
 - Brief description of a fix or improvement.
 - Various UI improvements and minor fixes.
 
-[Non-root APK](https://github.com/jpitty03/PGRazor/releases/download/vVERSION/PGRazor.apk) · [Root installer APK](https://github.com/jpitty03/PGRazor/releases/download/vVERSION/PGRazor-Root.apk) · [Root module ZIP](https://github.com/jpitty03/PGRazor/releases/download/vVERSION/PGRazor-Root-module.zip) · [GitHub release](https://github.com/jpitty03/PGRazor/releases/tag/vVERSION)
+[Root installer APK](https://github.com/7sarus/PGRazor/releases/download/vVERSION/PGRazor-Root.apk) · [Root module ZIP](https://github.com/7sarus/PGRazor/releases/download/vVERSION/PGRazor-Root-module.zip) · [GitHub release](https://github.com/7sarus/PGRazor/releases/tag/vVERSION)
