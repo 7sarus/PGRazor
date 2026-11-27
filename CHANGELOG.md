@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Upstream sync:** Merged `jpitty03/PGRazor` through tag `v0.3.8` (`1106592`). Upstream `v0.3.8` notes are saved in [docs/releases/v0.3.8.md](docs/releases/v0.3.8.md).
+
 ### New features
 
 - **Joystick lock:** Long-press the joystick centre for 1.5s and drag in a direction to lock steering with haptic feedback. Long-press the padlock icon to unlock.
